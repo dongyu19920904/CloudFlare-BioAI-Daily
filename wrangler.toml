@@ -1,0 +1,89 @@
+# wrangler.toml
+name = 'cloudflare-ai-lnsight-daily'
+main = "src/index.js" # <-- Important: path to your main worker script
+compatibility_date = "2025-05-20" # Or your project's compatibility date
+workers_dev = true
+
+kv_namespaces = [
+  { binding = "DATA_KV", id = "bd98e664917441a08118edc88790bf3f" }
+]
+
+[vars]
+IMG_PROXY = ""  #图片代理链接，用于处理图片不显示
+OPEN_TRANSLATE = "true"
+USE_MODEL_PLATFORM = "ANTHROPIC" #ANTHROPIC, OPEN, GEMINI
+# ANTHROPIC_API_KEY = 通过 wrangler secret 设置
+ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
+# OPENAI_API_KEY = 通过 wrangler secret 设置
+OPENAI_API_URL = "https://code.newcli.com/codex"
+DEFAULT_OPEN_MODEL = "gpt-5.1"
+# GEMINI_API_KEY = 通过 wrangler secret 设置
+GEMINI_API_URL = "https://code.newcli.com/gemini"
+DEFAULT_GEMINI_MODEL = "gemini-3-pro"
+# Gemini 流式模式：auto(默认，失败自动降级到非流式) | off(禁用流式) | force(强制流式)
+GEMINI_STREAM_MODE = "auto"
+# Gemini API version: auto | v1beta | v1 | noversion
+GEMINI_API_VERSION = "auto"
+# Gemini 调试日志：true/false（仅输出URL与响应摘要，不包含key或正文）
+GEMINI_DEBUG = "false"
+FOLO_COOKIE_KV_KEY = "folo_auth_cookie"
+FOLO_DATA_API = "https://api.follow.is/entries"
+# FOLO_FILTER_DAYS: 过滤时间范围（单位：天，会转换为小时）
+# 例如：FOLO_FILTER_DAYS = 1 表示抓取过去 24 小时的内容
+# 从当前时间往前推算 24 小时
+FOLO_FILTER_DAYS = 1
+NEWS_AGGREGATOR_LIST_ID = "220872364473472000" 
+NEWS_AGGREGATOR_FETCH_PAGES = "1" 
+HGPAPERS_LIST_ID = "158437917409783808"
+HGPAPERS_FETCH_PAGES = "1"
+TWITTER_LIST_ID = "153028784690326528" 
+TWITTER_FETCH_PAGES = "1" 
+REDDIT_LIST_ID = "167576006499975168" 
+REDDIT_FETCH_PAGES = "1" 
+PROJECTS_API_URL = "https://git-trending.justlikemaki.vip/topone/?since=daily"
+
+# 抓取量上限（防止 prompt 过长）。可按需调大/调小
+MAX_ITEMS_PER_TYPE = "50"
+
+# 无法创建 Folo 列表时，可直接配置多个信息源 ID（逗号/空格分隔）
+# 这些 ID 对应 timeline/articles/<ID> 的数字，一般是 feedId。
+# 例：FOLO_NEWS_IDS = "1569...,1067...,1877..."
+# FOLO_NEWS_ID_TYPE = "auto"  # auto(默认) | feed | list
+# FOLO_NEWS_FETCH_PAGES = "2"
+FOLO_NEWS_IDS = "56251875145503744,55441417631126528,111455897123858432,103683660144768000,41359648684677187,156937358802651136,155494251060695040,41795937307751551,52357479509098509,41374113210459144,41373653871256584,42034394558772224,63359584376654848,54889565031071744,58862919665460224,41374113210459148,76398619014644736,187702008979989514,55620059789031425,41725864077541376,41359648684677205"
+FOLO_NEWS_ID_TYPE = "feed"
+FOLO_NEWS_FETCH_PAGES = "1"
+
+# 可选的额外 AI 新闻源（Folo feedId），填上后会自动加入每日抓取
+# AIBASE_FEED_ID = "..."
+# AIBASE_FETCH_PAGES = "2"
+# JIQIZHIXIN_FEED_ID = "..."
+# JIQIZHIXIN_FETCH_PAGES = "2"
+# QBIT_FEED_ID = "..."
+# QBIT_FETCH_PAGES = "2"
+# XINZHIYUAN_FEED_ID = "..."
+# XINZHIYUAN_FETCH_PAGES = "2"
+# XIAOHU_FEED_ID = "..."
+# XIAOHU_FETCH_PAGES = "2"
+# HGPAPERS_FEED_ID = "..."  # 可选：HuggingFace Papers feed
+# GITHUB_TOKEN = 通过 wrangler secret 设置
+GITHUB_REPO_OWNER = "dongyu19920904"
+GITHUB_REPO_NAME = "Hextra-AI-Insight-Daily"  # 修改为前端仓库
+GITHUB_BRANCH = "main"
+LOGIN_USERNAME = "qqee1133"
+# LOGIN_PASSWORD = 通过 wrangler secret 设置
+DAILY_TITLE = "AI 日报"
+DAILY_TITLE_MIN = " `AI 日报` "
+PODCAST_TITLE = "爱窝啦播报"
+PODCAST_BEGIN = "欢迎收听爱窝啦 AI 日报，每天为你精选 AI 领域最值得关注的动态"
+PODCAST_END = "感谢收听，我们下期再见"
+BOOK_LINK = ""
+INSERT_FOOT = "false"
+INSERT_AD = "false"
+INSERT_APP_URL = "<h3>[查看完整版 AI 日报 ↗️](https://news.aivora.cn)</h3>"
+
+[triggers]
+crons = [
+  "0 23 * * *"    # 每天 23:00 UTC 生成日报（北京时间 07:00）
+]

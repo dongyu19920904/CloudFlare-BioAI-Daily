@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh api:*)",
+      "Bash(git fetch:*)",
+      "Bash(gh run view:*)",
+      "Bash(npx wrangler deploy)",
+      "Bash(TZ=\"UTC\" date:*)",
+      "Bash(gh workflow run:*)",
+      "Bash(dir:*)",
+      "Bash(cat:*)",
+      "Bash(wrangler --version:*)",
+      "Bash(npm install:*)",
+      "Bash(wrangler triggers deploy:*)",
+      "Bash(curl:*)",
+      "Bash(wrangler dev:*)",
+      "Bash(ls:*)",
+      "Bash(node test-time-filter.js:*)",
+      "Bash(node test-config.js:*)",
+      "Bash(npx wrangler secret:*)"
+    ]
+  }
+}
