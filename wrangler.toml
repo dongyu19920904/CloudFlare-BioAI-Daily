@@ -1,5 +1,5 @@
 # wrangler.toml
-name = 'cloudflare-ai-lnsight-daily'
+name = 'bioai-daily'
 main = "src/index.js" # <-- Important: path to your main worker script
 compatibility_date = "2025-05-20" # Or your project's compatibility date
 workers_dev = true
@@ -69,19 +69,19 @@ FOLO_NEWS_FETCH_PAGES = "1"
 # HGPAPERS_FEED_ID = "..."  # 可选：HuggingFace Papers feed
 # GITHUB_TOKEN = 通过 wrangler secret 设置
 GITHUB_REPO_OWNER = "dongyu19920904"
-GITHUB_REPO_NAME = "Hextra-AI-Insight-Daily"  # 修改为前端仓库
+GITHUB_REPO_NAME = "BioAI-Daily-Web"  # 修改为前端仓库
 GITHUB_BRANCH = "main"
 LOGIN_USERNAME = "qqee1133"
 # LOGIN_PASSWORD = 通过 wrangler secret 设置
-DAILY_TITLE = "AI 日报"
-DAILY_TITLE_MIN = " `AI 日报` "
-PODCAST_TITLE = "爱窝啦播报"
-PODCAST_BEGIN = "欢迎收听爱窝啦 AI 日报，每天为你精选 AI 领域最值得关注的动态"
+DAILY_TITLE = "AI 生命科学日报"
+DAILY_TITLE_MIN = " `AI 生命科学日报` "
+PODCAST_TITLE = "BioAI 播报"
+PODCAST_BEGIN = "欢迎收听 AI 生命科学日报，每天为你精选 AI 与生命科学领域最值得关注的动态"
 PODCAST_END = "感谢收听，我们下期再见"
 BOOK_LINK = ""
 INSERT_FOOT = "false"
 INSERT_AD = "false"
-INSERT_APP_URL = "<h3>[查看完整版 AI 日报 ↗️](https://news.aivora.cn)</h3>"
+INSERT_APP_URL = "<h3>[查看完整版 AI 生命科学日报 ↗️](https://news.aibioo.cn)</h3>"
 
 [triggers]
 crons = [
