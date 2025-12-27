@@ -28,7 +28,7 @@ jobs:
       - name: Checkout frontend repository
         uses: actions/checkout@v4
         with:
-          repository: dongyu19920904/Hextra-AI-Insight-Daily
+          repository: dongyu19920904/BioAI-Daily-Web
           token: ${{ secrets.FRONTEND_SYNC_TOKEN }}
           path: frontend
           fetch-depth: 0

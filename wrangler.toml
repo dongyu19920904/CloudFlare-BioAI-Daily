@@ -5,7 +5,7 @@ compatibility_date = "2025-05-20" # Or your project's compatibility date
 workers_dev = true
 
 kv_namespaces = [
-  { binding = "DATA_KV", id = "bd98e664917441a08118edc88790bf3f" }
+  { binding = "DATA_KV", id = "febec053bc4f4f4eb8122fed78b9b77d" }
 ]
 
 [vars]
