@@ -1,0 +1,78 @@
+name: Sync Blog to Frontend
+
+on:
+  # 当 content/blog 目录有变化时触发
+  push:
+    branches:
+      - main
+    paths:
+      - 'content/blog/**'
+
+  # 手动触发
+  workflow_dispatch:
+
+jobs:
+  sync-blog:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout backend repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: backend
+
+      - name: Checkout frontend repository
+        uses: actions/checkout@v4
+        with:
+          repository: dongyu19920904/Hextra-AI-Insight-Daily
+          token: ${{ secrets.FRONTEND_SYNC_TOKEN }}
+          path: frontend
+          fetch-depth: 0
+
+      - name: Sync blog files
+        run: |
+          echo "开始同步博客文件..."
+
+          # 创建目标目录（如果不存在）
+          mkdir -p frontend/content/blog/daily
+
+          # 同步每日博客文件
+          if [ -d "backend/content/blog/daily" ]; then
+            echo "同步每日博客文件..."
+            rsync -av --delete backend/content/blog/daily/ frontend/content/blog/daily/
+            echo "每日博客文件同步完成"
+          else
+            echo "后端没有 daily 博客目录，跳过"
+          fi
+
+          # 同步周报博客文件（排除 daily 目录和 _index.md）
+          echo "同步周报博客文件..."
+          if [ -d "backend/content/blog" ]; then
+            rsync -av --exclude='daily/' --exclude='_index.md' backend/content/blog/ frontend/content/blog/
+            echo "周报博客文件同步完成"
+          fi
+
+          echo "所有博客文件同步完成"
+
+      - name: Commit and push to frontend
+        run: |
+          cd frontend
+
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add content/blog/
+
+          if git diff --staged --quiet; then
+            echo "没有文件变更，无需提交"
+          else
+            echo "检测到博客文件变更，正在提交..."
+            COMMIT_MSG="chore: 同步博客文件 ($(date -u '+%Y-%m-%d %H:%M:%S UTC'))"
+            git commit -m "$COMMIT_MSG"
+            git push
+            echo "博客文件已成功同步到前端仓库"
+          fi

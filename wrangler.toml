@@ -1,0 +1,64 @@
+# wrangler.toml
+name = 'cloudflare-bioai-daily'
+main = "src/index.js"
+compatibility_date = "2025-05-20"
+workers_dev = true
+
+kv_namespaces = [
+  { binding = "DATA_KV", id = "YOUR_KV_ID_HERE" }
+]
+
+[vars]
+IMG_PROXY = ""
+OPEN_TRANSLATE = "true"
+USE_MODEL_PLATFORM = "ANTHROPIC"
+ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
+OPENAI_API_URL = "https://code.newcli.com/codex"
+DEFAULT_OPEN_MODEL = "gpt-5.1"
+GEMINI_API_URL = "https://code.newcli.com/gemini"
+DEFAULT_GEMINI_MODEL = "gemini-3-pro"
+GEMINI_STREAM_MODE = "auto"
+GEMINI_API_VERSION = "auto"
+GEMINI_DEBUG = "false"
+FOLO_COOKIE_KV_KEY = "folo_auth_cookie"
+FOLO_DATA_API = "https://api.follow.is/entries"
+FOLO_FILTER_DAYS = 1
+
+# 生命科学相关信息源 - 需要配置新的 Folo feed IDs
+NEWS_AGGREGATOR_LIST_ID = ""
+NEWS_AGGREGATOR_FETCH_PAGES = "1"
+HGPAPERS_LIST_ID = ""
+HGPAPERS_FETCH_PAGES = "1"
+TWITTER_LIST_ID = ""
+TWITTER_FETCH_PAGES = "0"
+REDDIT_LIST_ID = ""
+REDDIT_FETCH_PAGES = "0"
+PROJECTS_API_URL = ""
+
+MAX_ITEMS_PER_TYPE = "50"
+
+# 生命科学/生物AI相关信息源配置（需要您在 Folo 上订阅相关源后获取 feedId）
+FOLO_NEWS_IDS = ""
+FOLO_NEWS_ID_TYPE = "feed"
+FOLO_NEWS_FETCH_PAGES = "1"
+
+GITHUB_REPO_OWNER = "dongyu19920904"
+GITHUB_REPO_NAME = "BioAI-Daily-Web"
+GITHUB_BRANCH = "main"
+LOGIN_USERNAME = "qqee1133"
+
+DAILY_TITLE = "BioAI 生命科学日报"
+DAILY_TITLE_MIN = " BioAI 生命科学日报 "
+PODCAST_TITLE = "BioAI 生命科学播报"
+PODCAST_BEGIN = "欢迎收听 BioAI 生命科学日报，每天为你精选 AI 与生命科学领域最值得关注的动态"
+PODCAST_END = "感谢收听，我们下期再见"
+BOOK_LINK = "https://bioai.yourdomain.com"
+INSERT_FOOT = "false"
+INSERT_AD = "false"
+INSERT_APP_URL = "<h3>[查看完整版 BioAI 日报 ](https://bioai.yourdomain.com)</h3>"
+
+[triggers]
+crons = [
+  "0 23 * * *"
+]
