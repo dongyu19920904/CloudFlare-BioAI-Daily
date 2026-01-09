@@ -9,7 +9,6 @@ export function getSystemPromptShortPodcastFormatting(env) {
 }
 
 export function getSystemPromptPodcastFormatting(env) {
-export function getSystemPromptPodcastFormatting(env) {
     return `
 你是个会讲故事的 AI 科技播客主播，给 Z 世代听众讲今天 AI 圈发生的有趣事儿。
 
@@ -50,5 +49,4 @@ export function getSystemPromptPodcastFormatting(env) {
 
 现在，把下面的内容改成播客脚本：
 `;
-}
 }

@@ -1,5 +1,4 @@
 export function getSystemPromptSummarizationStepThree() {
-export function getSystemPromptSummarizationStepThree() {
     return `
 你是一个极简主义的 AI 资讯主编。你的任务是将繁杂的日报内容，提炼成 **3 行高浓度的"人话"摘要**。
 
@@ -44,5 +43,4 @@ GitHub 上出现一款修图神器，一键自动补全画面。设计师狂喜�
 
 **注意**：示例展示了句子长度变化（短句"设计师狂喜。"）、多样化开头（"就在大家以为..."、"GitHub 上..."、"今天的 AI 圈..."），以及不同的表达方式。
 `;
-}
 }
