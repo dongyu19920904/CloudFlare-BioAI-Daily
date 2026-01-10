@@ -48,15 +48,15 @@ GITHUB_REPO_NAME = "BioAI-Daily-Web"
 GITHUB_BRANCH = "main"
 LOGIN_USERNAME = "qqee1133"
 
-DAILY_TITLE = "BioAI ������ѧ�ձ�"
-DAILY_TITLE_MIN = " BioAI ������ѧ�ձ� "
-PODCAST_TITLE = "BioAI ������ѧ����"
-PODCAST_BEGIN = "��ӭ���� BioAI ������ѧ�ձ���ÿ��Ϊ�㾫ѡ AI ��������ѧ������ֵ�ù�ע�Ķ�̬"
-PODCAST_END = "��л���������������ټ�"
+DAILY_TITLE = "BioAI 生命科学日报"
+DAILY_TITLE_MIN = " BioAI 生命科学日报 "
+PODCAST_TITLE = "BioAI 生命科学播报"
+PODCAST_BEGIN = "欢迎收听 BioAI 生命科学日报，每天为你精选 AI 与生命科学领域最值得关注的动态"
+PODCAST_END = "感谢收听，我们下期再见"
 BOOK_LINK = "https://news.aibioo.cn"
 INSERT_FOOT = "false"
 INSERT_AD = "false"
-INSERT_APP_URL = "<h3>[�鿴������ BioAI �ձ� ](https://bioai.yourdomain.com)</h3>"
+INSERT_APP_URL = "<h3>[查看最新 BioAI 日报](https://bioai.yourdomain.com)</h3>"
 
 [triggers]
 crons = [
