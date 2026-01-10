@@ -5,23 +5,79 @@ import { callChatAPI } from '../chatapi.js';
 const ProjectsDataSource = {
     fetch: async (env) => {
         console.log(`Fetching projects from: ${env.PROJECTS_API_URL}`);
-        let projects;
-        try {
-            projects = await fetchData(env.PROJECTS_API_URL);
-        } catch (error) {
-            console.error("Error fetching projects data:", error.message);
-            return { error: "Failed to fetch projects data", details: error.message, items: [] };
+        const urlList = String(env.PROJECTS_API_URL || "")
+            .split(/\s*\|\s*|\r?\n/)
+            .map((url) => url.trim())
+            .filter(Boolean);
+        if (urlList.length === 0) {
+            return { error: "PROJECTS_API_URL is not set", items: [] };
         }
 
-        if (!Array.isArray(projects)) {
-            console.error("Projects data is not an array:", projects);
-            return { error: "Invalid projects data format", received: projects, items: [] };
-        }
-         if (projects.length === 0) {
-            console.log("No projects fetched from API.");
-            return { items: [] };
+        const normalizeProjects = (raw) => {
+            if (Array.isArray(raw)) return raw;
+            if (raw && Array.isArray(raw.items)) {
+                // Support GitHub Search API format: { items: [...] }
+                return raw.items.map((item) => ({
+                    name: item.full_name || item.name,
+                    url: item.html_url || item.url,
+                    description: item.description || "",
+                    owner: item.owner?.login || item.owner?.name || "",
+                    language: item.language || "",
+                    languageColor: null,
+                    totalStars: item.stargazers_count ?? item.watchers_count ?? null,
+                    forks: item.forks_count ?? null,
+                    starsToday: null,
+                    builtBy: []
+                }));
+            }
+            return null;
+        };
+
+        const projectsByKey = new Map();
+        const errors = [];
+
+        for (const url of urlList) {
+            let fetchOptions = {};
+            try {
+                const parsedUrl = new URL(url);
+                const headers = {
+                    "User-Agent": "BioAI-Daily-Worker",
+                    "Accept": "application/vnd.github+json"
+                };
+                if (parsedUrl.hostname === "api.github.com" && env.GITHUB_TOKEN) {
+                    headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
+                }
+                fetchOptions = { headers };
+            } catch (e) {
+                // Keep default options if URL parsing fails
+            }
+            let projects;
+            try {
+                projects = await fetchData(url, fetchOptions);
+            } catch (error) {
+                errors.push({ url, message: error.message });
+                continue;
+            }
+
+            const normalizedProjects = normalizeProjects(projects);
+            if (!normalizedProjects) {
+                errors.push({ url, message: "Invalid projects data format", received: projects });
+                continue;
+            }
+
+            normalizedProjects.forEach((project) => {
+                const key = project.url || project.name || `${project.owner || ''}/${project.name || ''}`;
+                if (key && !projectsByKey.has(key)) {
+                    projectsByKey.set(key, project);
+                }
+            });
         }
 
+        const projects = Array.from(projectsByKey.values());
+        if (projects.length === 0) {
+            console.error("No projects fetched from API.", errors);
+            return { error: "No projects fetched", details: errors, items: [] };
+        }
         if (!env.OPEN_TRANSLATE === "true") {
             console.warn("Skipping paper translations.");
             return projects.map(p => ({ ...p, description_zh: p.description || "" }));

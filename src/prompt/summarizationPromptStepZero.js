@@ -127,9 +127,9 @@ export function getSystemPromptSummarizationStepOne() {
    
    **⚠️ 严格判断标准（必须遵守）**：
    - ✅ **正确的交叉**：新闻**本身**就是关于 AI 在生命科学中的应用（如"AI预测蛋白质结构"、"AI辅助药物筛选"）
-   - ❌ **错误的强行关联**：新闻是通用AI技术，但你在写稿时加一句"这个技术未来可以用在医疗/制药领域"——这不算交叉！
+   - ❌ **错误的强行关联**：新闻是通用AI技术，但你在写稿时加一句"这个技术未来可以用在医疗/制药领域"--这不算交叉！
    - ❌ **举例**：RelayLLM（大模型推理优化）、MENTOR（AI安全框架）、CompassMem（Agent记忆）这些是纯AI技术，即使最后加一句"可用于AI制药"也不算交叉领域
-   - ✅ **举例**：BioPIE（生物医学实验QA数据集）、AlphaFold（蛋白质结构预测）、心脏MRI重建模型——这些新闻本身就是AI+生命科学的
+   - ✅ **举例**：BioPIE（生物医学实验QA数据集）、AlphaFold（蛋白质结构预测）、心脏MRI重建模型--这些新闻本身就是AI+生命科学的
 
 2. **权威性（25分）**
    - 官方发布（Recursion/Insilico/DeepMind/NVIDIA BioNeMo等）：25分

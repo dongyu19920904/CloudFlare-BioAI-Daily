@@ -62,6 +62,42 @@ npx wrangler secret put LOGIN_PASSWORD
 
 ---
 
+## 项目源优化与验证流程（项目类 PROJECTS_API_URL）
+
+### 优化目标
+- 保持 **AI 生命科学**内容覆盖面，同时兼顾 **健康 AI 实用项目**（如 Claude-Ally-Health）。
+- 结果更“新”（`sort=updated`）且有基础热度过滤（`stars:>50`），避免低质量噪音。
+
+### 关键改动（最小改动版）
+1) **支持多个 GitHub Search 查询合并**  
+`PROJECTS_API_URL` 现在支持用 `|` 或换行分隔多个 URL。系统会依次抓取、合并去重。
+
+2) **兼容 GitHub Search API 格式**  
+支持 `{ items: [...] }` 结构并自动映射到统一字段，避免“格式不匹配”导致项目为空。
+
+3) **GitHub 请求加 Header**  
+自动加 `User-Agent`，如果配置了 `GITHUB_TOKEN` 会加 `Authorization`，减少限流问题。
+
+### 推荐配置（双查询合并）
+在 `wrangler.toml` 或 Cloudflare 环境变量中设置：
+
+```
+PROJECTS_API_URL = "https://api.github.com/search/repositories?q=bioinformatics+%22deep%20learning%22+stars:>50+archived:false&sort=updated&order=desc&per_page=50|https://api.github.com/search/repositories?q=health+ai+stars:>50+archived:false&sort=updated&order=desc&per_page=50"
+```
+
+### 运行验证流程（推荐 UI 操作）
+1) 登录后台：`/login`
+2) 抓取项目数据：点击“抓取并写入今日数据”（或双击“项目”分类按钮）
+3) 选择项目条目并生成日报：`/genAIContent`
+4) 点击“保存日报到 GitHub”：`/commitToGitHub`
+
+### 常见问题
+- **projectItemCount = 0**：检查 `PROJECTS_API_URL` 是否正确、是否有 `GITHUB_TOKEN` 以避免限流。
+- **commitToGitHub 401**：更新 `GITHUB_TOKEN`（确保对目标仓库有写权限）。
+- **/writeData 超时**：项目抓取 + 翻译耗时较长，等待更久或在浏览器 UI 操作。
+
+---
+
 ##  License
 
 MIT License

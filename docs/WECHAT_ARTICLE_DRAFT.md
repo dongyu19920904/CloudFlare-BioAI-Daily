@@ -26,7 +26,7 @@ OpenAI 这次真的听劝了。以前的 ChatGPT 总是客客气气、像个冷�
 ### 2. Claude Code 发布：程序员的“副驾驶”变“代驾”
 
 如果说 ChatGPT 在讨好大众，那 Anthropic 就在死磕生产力。
-他们悄悄发布了 **`Claude Code`** —— 这不是一个简单的聊天机器人，而是一个**直接住进你终端（Terminal）里的 Agent**。
+他们悄悄发布了 **`Claude Code`** -- 这不是一个简单的聊天机器人，而是一个**直接住进你终端（Terminal）里的 Agent**。
 
 它能做什么？
 *   **理解全库**：它能读懂你整个项目的代码结构。
@@ -65,7 +65,7 @@ Google 真的在打通所有生态。现在你在 **NotebookLM** 里整理好的
 ## 🤖 我开发了个“AI 情报官”，替我看新闻
 
 既然 AI 这么强，为什么不让它帮我读新闻？
-我利用周末时间，写了一个开源项目 —— **Cloudflare AI Insight Daily**。
+我利用周末时间，写了一个开源项目 -- **Cloudflare AI Insight Daily**。
 
 **它每天凌晨 0 点准时开工：**
 1.  🕷️ **全网抓取**：自动扫荡 GitHub、HuggingFace、科技媒体 RSS。
@@ -92,7 +92,7 @@ Google 真的在打通所有生态。现在你在 **NotebookLM** 里整理好的
 想体验刚才说的 **Claude Code**？想去捏一个 **ChatGPT 性格**？
 你需要一个稳定、靠谱的官方账号。
 
-推荐我自己在用的渠道 —— **爱窝啦 Aivora**。
+推荐我自己在用的渠道 -- **爱窝啦 Aivora**。
 
 👉 **访问地址：[aivora.cn](https://aivora.cn)**
 
