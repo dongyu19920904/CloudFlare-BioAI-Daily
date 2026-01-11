@@ -208,7 +208,7 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null)
                 tags: ['ai-daily', 'ai'],
                 filePrefix: 'ai-daily',
                 repoDesc: '爱窝啦 AI 日报',
-                sourceUrl: `https://news.aivora.cn/cn/${dateStr.substring(0, 7)}/${dateStr}`
+                sourceUrl: `https://news.aivora.cn/${dateStr.substring(0, 7)}/${dateStr}/`
             });
             results.push({ type: 'ai-daily', ...result, status: 'success' });
         } else {
@@ -228,7 +228,7 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null)
                 tags: ['bioai-daily', 'ai', 'biotech'],
                 filePrefix: 'bioai-daily',
                 repoDesc: 'BioAI 生命科学日报',
-                sourceUrl: `https://news.aibioo.cn/cn/${dateStr.substring(0, 7)}/${dateStr}`
+                sourceUrl: `https://news.aibioo.cn/${dateStr.substring(0, 7)}/${dateStr}/`
             });
             results.push({ type: 'bioai-daily', ...result, status: 'success' });
         } else {
