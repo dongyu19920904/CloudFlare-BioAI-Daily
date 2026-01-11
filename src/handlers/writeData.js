@@ -14,6 +14,7 @@ export async function handleWriteData(request, env) {
     console.log(`Starting /writeData process for date: ${dateStr}`);
     let category = null;
     let foloCookie = null;
+    let saveCookieOnly = false;
     
     try {
         // 尝试解析请求体，获取 category 参数
@@ -21,6 +22,31 @@ export async function handleWriteData(request, env) {
             const requestBody = await request.json();
             category = requestBody.category;
             foloCookie = requestBody.foloCookie; // 获取 foloCookie
+            saveCookieOnly = requestBody.saveCookieOnly === true;
+        }
+
+        if (saveCookieOnly) {
+            if (!foloCookie) {
+                return new Response(JSON.stringify({ success: false, message: "Missing foloCookie." }), {
+                    status: 400, headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            if (!env.FOLO_COOKIE_KV_KEY) {
+                return new Response(JSON.stringify({ success: false, message: "FOLO_COOKIE_KV_KEY is not configured." }), {
+                    status: 500, headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            try {
+                await storeInKV(env.DATA_KV, env.FOLO_COOKIE_KV_KEY, foloCookie, 86400 * 30); // 30 天
+                console.log(`Saved Folo cookie to KV with key: ${env.FOLO_COOKIE_KV_KEY}`);
+                return new Response(JSON.stringify({ success: true, message: "Folo cookie saved for scheduled tasks." }), {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (err) {
+                return new Response(JSON.stringify({ success: false, message: `Failed to save Folo cookie: ${err.message}` }), {
+                    status: 500, headers: { 'Content-Type': 'application/json' }
+                });
+            }
         }
 
         // 如果前端提供了 Folo Cookie，则持久化到 KV，供定时任务自动抓取使用

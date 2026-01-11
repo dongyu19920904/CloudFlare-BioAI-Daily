@@ -42,6 +42,7 @@ const FoloMultiFeedsDataSource = {
         const uniqueIds = [...new Set(ids)];
 
         const fetchPages = parseInt(env.FOLO_NEWS_FETCH_PAGES || env.FOLO_FETCH_PAGES || '2', 10);
+        const maxPages = Number.isFinite(fetchPages) && fetchPages > 0 ? fetchPages : 2;
         const filterDays = parseInt(env.FOLO_FILTER_DAYS || '3', 10);
         const idType = String(env.FOLO_NEWS_ID_TYPE || 'auto').toLowerCase(); // feed | list | auto
 
@@ -50,7 +51,7 @@ const FoloMultiFeedsDataSource = {
         const fetchOneKind = async (id, kind) => {
             let publishedAfter = null;
             let localItems = [];
-            for (let i = 0; i < fetchPages; i++) {
+            for (let i = 0; i < maxPages; i++) {
                 const headers = {
                     'User-Agent': getRandomUserAgent(),
                     'Content-Type': 'application/json',
@@ -106,7 +107,14 @@ const FoloMultiFeedsDataSource = {
                     })),
                 );
 
-                publishedAfter = data.data[data.data.length - 1].entries.publishedAt;
+                const lastPublishedAt = data.data[data.data.length - 1]?.entries?.publishedAt;
+                if (lastPublishedAt) {
+                    publishedAfter = lastPublishedAt;
+                }
+
+                if (lastPublishedAt && !isDateWithinLastDays(lastPublishedAt, filterDays)) {
+                    break;
+                }
                 await sleep(Math.random() * 1500);
             }
             return localItems;

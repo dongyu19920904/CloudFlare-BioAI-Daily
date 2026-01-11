@@ -1,4 +1,4 @@
-// src/htmlGenerators.js
+﻿// src/htmlGenerators.js
 import { escapeHtml, formatDateToChinese, convertEnglishQuotesToChinese, replaceImageProxy} from './helpers.js';
 import { dataSources } from './dataFetchers.js'; // Import dataSources
 import { marked } from './marked.esm.js';
@@ -173,7 +173,18 @@ export function generateContentSelectionPageHtml(env, dateStr, allData, dataCate
 
                     try {
                         localStorage.setItem('${env.FOLO_COOKIE_KV_KEY}', cookieValue); // 直接保存到 localStorage
-                        alert('Folo Cookie 已成功保存在本地存储！');
+                        const response = await fetch('/writeData', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ foloCookie: cookieValue, saveCookieOnly: true })
+                        });
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(errorText || 'Failed to save cookie on server.');
+                        }
+                        alert('Folo Cookie 已保存到本地并同步到服务器。');
                     } catch (error) {
                         console.error('Error saving Folo Cookie to localStorage:', error);
                         alert(\`保存 Folo Cookie 到本地存储时发生错误: \${error.message}\`);
