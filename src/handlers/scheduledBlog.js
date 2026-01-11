@@ -49,11 +49,15 @@ function buildAstroPaperFrontMatter(title, description, dateStr, tags) {
     // 生成北京时间 09:00 的 ISO 时间戳
     const pubDatetime = `${dateStr}T01:00:00.000Z`; // UTC 01:00 = 北京 09:00
     
+    // 转义 title 和 description 中的双引号，避免 YAML 解析错误
+    const safeTitle = title.replace(/"/g, '\\"');
+    const safeDescription = description.replace(/"/g, "'").replace(/\n/g, ' ');
+
     return `---
-title: "${title}"
+title: "${safeTitle}"
 pubDatetime: ${pubDatetime}
 modDatetime: ${pubDatetime}
-description: "${description}"
+description: "${safeDescription}"
 tags:
 ${tags.map(tag => `  - ${tag}`).join('\n')}
 draft: false
