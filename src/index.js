@@ -15,13 +15,14 @@ import { handleScheduledBlog } from './handlers/scheduledBlog.js';
 
 export default {
     async scheduled(event, env, ctx) {
-        // 根据不同的 cron 执行不同的任务
-        if (event.cron === '0 16 * * *') {
-            // 博客生成任务 - UTC 16:00 (北京时间 00:00)
+        // 每日定时任务 - UTC 14:00 (北京时间 22:00)
+        // 1. 先生成 BioAI 日报
+        await handleScheduled(event, env, ctx);
+        // 2. 然后生成博客文章（基于昨天的日报内容）
+        try {
             await handleScheduledBlog(event, env, ctx);
-        } else {
-            // 每日日报任务 - UTC 14:00 (北京时间 22:00)
-            await handleScheduled(event, env, ctx);
+        } catch (error) {
+            console.error('Blog generation failed:', error);
         }
     },
     async fetch(request, env) {
