@@ -11,11 +11,18 @@ import { handleUpdateAllMonthIndexes } from './handlers/updateAllMonthIndexes.js
 import { dataSources } from './dataFetchers.js';
 import { handleLogin, isAuthenticated, handleLogout } from './auth.js';
 import { handleScheduled } from './handlers/scheduled.js';
+import { handleScheduledBlog } from './handlers/scheduledBlog.js';
 
 export default {
     async scheduled(event, env, ctx) {
-        // 每日任务 - 生成日报
-        await handleScheduled(event, env, ctx);
+        // 根据不同的 cron 执行不同的任务
+        if (event.cron === '0 16 * * *') {
+            // 博客生成任务 - UTC 16:00 (北京时间 00:00)
+            await handleScheduledBlog(event, env, ctx);
+        } else {
+            // 每日日报任务 - UTC 14:00 (北京时间 22:00)
+            await handleScheduled(event, env, ctx);
+        }
     },
     async fetch(request, env) {
         // Check essential environment variables
@@ -122,6 +129,23 @@ export default {
                     status: 500, 
                     headers: { 'Content-Type': 'application/json; charset=utf-8' } 
                 });
+            }
+        } else if (path === '/testTriggerBlog' && request.method === 'GET') {
+            // Test endpoint for triggering blog generation task
+            const secretKey = url.searchParams.get('key');
+            const expectedKey = env.TEST_TRIGGER_SECRET || 'test-secret-key-change-me';
+            if (secretKey !== expectedKey) {
+                return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+            }
+            const dateParam = url.searchParams.get('date');
+            const specifiedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
+            const fakeEvent = { scheduledTime: Date.now(), cron: '0 16 * * *' };
+            const fakeCtx = { waitUntil: (p) => p };
+            try {
+                await handleScheduledBlog(fakeEvent, env, fakeCtx, specifiedDate);
+                return new Response(JSON.stringify({ success: true, message: 'Blog task done', date: specifiedDate || 'today' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            } catch (error) {
+                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
             }
         }
 

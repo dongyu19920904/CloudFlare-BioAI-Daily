@@ -1,4 +1,4 @@
-# wrangler.toml
+﻿# wrangler.toml
 name = 'cloudflare-bioai-daily'
 main = "src/index.js"
 compatibility_date = "2025-05-20"
@@ -45,6 +45,8 @@ FOLO_NEWS_FETCH_PAGES = "15"
 
 GITHUB_REPO_OWNER = "dongyu19920904"
 GITHUB_REPO_NAME = "BioAI-Daily-Web"
+BLOG_REPO_NAME = "astro-paper"
+BLOG_REPO_BRANCH = "main"
 GITHUB_BRANCH = "main"
 LOGIN_USERNAME = "qqee1133"
 
@@ -60,5 +62,6 @@ INSERT_APP_URL = "<h3>[查看最新 BioAI 日报](https://bioai.yourdomain.com)<
 
 [triggers]
 crons = [
-  "0 14 * * *"
+  "0 14 * * *",
+  "0 16 * * *"
 ]
