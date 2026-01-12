@@ -33,7 +33,12 @@ export async function handleCommitToGitHub(request, env) {
                 console.warn('[commitToGitHub] Home page not found, will create a new one.');
             }
             const homeTitle = dailyPageTitle;
-            const homeContent = updateHomeIndexContent(existingHomeContent, normalizedDailyMd, dateStr, { title: homeTitle });
+            // Use configured min title or full title for the linkTitle in _index.md
+            const linkTitle = env.DAILY_TITLE_MIN || env.DAILY_TITLE || 'BioAI 生命科学日报';
+            const homeContent = updateHomeIndexContent(existingHomeContent, normalizedDailyMd, dateStr, {
+                title: homeTitle,
+                linkTitle: linkTitle
+            });
 
             filesToCommit.push({ path: `daily/${dateStr}.md`, content: normalizedDailyMd, description: "Daily Summary File" });
             filesToCommit.push({ path: dailyPagePath, content: dailyPageContent, description: "Daily Page File" });
@@ -61,7 +66,7 @@ export async function handleCommitToGitHub(request, env) {
                 results.push({ file: file.path, status: 'Failed', message: err.message });
             }
         }
-        
+
         return new Response(JSON.stringify({ status: 'success', date: dateStr, results: results }), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
 
     } catch (error) {

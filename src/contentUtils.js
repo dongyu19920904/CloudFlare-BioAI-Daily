@@ -36,13 +36,13 @@ export function computeMonthDirectoryWeight(yearMonth) {
     const year = Number.parseInt(parts[0], 10);
     const month = Number.parseInt(parts[1], 10);
     if (!Number.isFinite(year) || !Number.isFinite(month)) return 0;
-    
+
     // 递减公式：新月份权重更小，在升序排序时会排在前面
     // 使用足够大的基础值，确保所有月份的权重都是正数
     const baseWeight = 1000000; // 基础值，足够大以容纳未来很多年
     const yearWeight = (year - 2000) * 12; // 年份权重：2025=300, 2026=312, 2027=324...
     const monthWeight = month; // 月份权重：1-12
-    
+
     // 新月份权重 = 基础值 - 年份权重 - 月份权重
     // 2026-01: 1000000 - 312 - 1 = 999687 (最小，排在最前)
     // 2025-12: 1000000 - 300 - 12 = 999688
@@ -90,11 +90,15 @@ export function buildDailyContentWithFrontMatter(dateStr, content, options = {})
 }
 
 function buildDefaultHomeFrontMatter(dateStr, options = {}) {
-    const { description = DEFAULT_DAILY_DESCRIPTION, title } = options;
+    const {
+        description = DEFAULT_DAILY_DESCRIPTION,
+        title,
+        linkTitle = 'BioAI 生命科学日报'
+    } = options;
     const nextPath = `/${getYearMonth(dateStr)}/${dateStr}`;
-    const resolvedTitle = title === undefined ? 'AI Daily-AI资讯日报' : title;
+    const resolvedTitle = title === undefined ? linkTitle : title;
     return `---
-linkTitle: AI Daily
+linkTitle: ${linkTitle}
 title: ${resolvedTitle}
 breadcrumbs: false
 next: ${nextPath}
@@ -106,7 +110,11 @@ cascade:
 }
 
 export function updateHomeIndexContent(existingContent, dailyContent, dateStr, options = {}) {
-    const { description = DEFAULT_DAILY_DESCRIPTION, title } = options;
+    const {
+        description = DEFAULT_DAILY_DESCRIPTION,
+        title,
+        linkTitle
+    } = options;
     const nextPath = `/${getYearMonth(dateStr)}/${dateStr}`;
     const frontMatterRegex = /^---\s*\r?\n[\s\S]*?\r?\n---\s*\r?\n/;
     let frontMatter = '';
@@ -118,17 +126,32 @@ export function updateHomeIndexContent(existingContent, dailyContent, dateStr, o
         } else {
             frontMatter = frontMatter.replace(/\r?\n---\s*\r?\n$/, `\nnext: ${nextPath}\n---\n`);
         }
+
+        // Update title and linkTitle if provided
         if (title !== undefined) {
             if (/^title:\s*.*$/m.test(frontMatter)) {
                 frontMatter = frontMatter.replace(/^title:\s*.*$/m, `title: ${title}`);
-            } else if (/^linkTitle:\s*.*$/m.test(frontMatter)) {
-                frontMatter = frontMatter.replace(/^linkTitle:\s*.*$/m, (match) => `${match}\ntitle: ${title}`);
             } else {
+                // If title doesn't exist, append it (unlikely in valid Hugo front matter but good for safety)
                 frontMatter = frontMatter.replace(/^---\s*\r?\n/, (match) => `${match}title: ${title}\n`);
             }
         }
+
+        if (linkTitle !== undefined) {
+            if (/^linkTitle:\s*.*$/m.test(frontMatter)) {
+                frontMatter = frontMatter.replace(/^linkTitle:\s*.*$/m, `linkTitle: ${linkTitle}`);
+            } else {
+                // If linkTitle doesn't exist, insert it after title or at the beginning
+                if (/^title:\s*.*$/m.test(frontMatter)) {
+                    frontMatter = frontMatter.replace(/^(title:\s*.*$)/m, `$1\nlinkTitle: ${linkTitle}`);
+                } else {
+                    frontMatter = frontMatter.replace(/^---\s*\r?\n/, (match) => `${match}linkTitle: ${linkTitle}\n`);
+                }
+            }
+        }
+
     } else {
-        frontMatter = buildDefaultHomeFrontMatter(dateStr, { description, title });
+        frontMatter = buildDefaultHomeFrontMatter(dateStr, { description, title, linkTitle });
     }
 
     const body = stripFrontMatter(dailyContent).trimStart();
