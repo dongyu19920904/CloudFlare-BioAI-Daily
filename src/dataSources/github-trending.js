@@ -1,6 +1,26 @@
 // src/dataSources/projects.js
-import { fetchData, getISODate, removeMarkdownCodeBlock, formatDateToChineseWithTime, escapeHtml} from '../helpers.js';
+import { fetchData, getISODate, removeMarkdownCodeBlock, formatDateToChineseWithTime, escapeHtml, isDateWithinLastDays } from '../helpers.js';
 import { callChatAPI } from '../chatapi.js';
+
+const MIN_STARS = 100;
+const ACTIVE_DAYS = 30;
+
+const toNumber = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+};
+
+const getLastActivityAt = (project) => {
+    const updatedAtTime = project.updatedAt ? new Date(project.updatedAt).getTime() : null;
+    const pushedAtTime = project.pushedAt ? new Date(project.pushedAt).getTime() : null;
+
+    if (Number.isFinite(updatedAtTime) && Number.isFinite(pushedAtTime)) {
+        return updatedAtTime >= pushedAtTime ? project.updatedAt : project.pushedAt;
+    }
+    if (Number.isFinite(updatedAtTime)) return project.updatedAt;
+    if (Number.isFinite(pushedAtTime)) return project.pushedAt;
+    return null;
+};
 
 const ProjectsDataSource = {
     fetch: async (env) => {
@@ -27,6 +47,8 @@ const ProjectsDataSource = {
                     totalStars: item.stargazers_count ?? item.watchers_count ?? null,
                     forks: item.forks_count ?? null,
                     starsToday: null,
+                    updatedAt: item.updated_at ?? item.updatedAt ?? null,
+                    pushedAt: item.pushed_at ?? item.pushedAt ?? null,
                     builtBy: []
                 }));
             }
@@ -73,11 +95,28 @@ const ProjectsDataSource = {
             });
         }
 
-        const projects = Array.from(projectsByKey.values());
+        let projects = Array.from(projectsByKey.values());
         if (projects.length === 0) {
             console.error("No projects fetched from API.", errors);
             return { error: "No projects fetched", details: errors, items: [] };
         }
+
+        projects = projects
+            .map((project) => ({
+                ...project,
+                lastActivityAt: getLastActivityAt(project)
+            }))
+            .filter((project) => {
+                if (toNumber(project.totalStars) < MIN_STARS) return false;
+                if (!project.lastActivityAt) return false;
+                return isDateWithinLastDays(project.lastActivityAt, ACTIVE_DAYS);
+            });
+
+        if (projects.length === 0) {
+            console.warn(`No projects matched filters (stars>=${MIN_STARS}, active within ${ACTIVE_DAYS} days).`);
+            return [];
+        }
+
         if (!env.OPEN_TRANSLATE === "true") {
             console.warn("Skipping paper translations.");
             return projects.map(p => ({ ...p, description_zh: p.description || "" }));
@@ -137,7 +176,7 @@ JSON Array of Chinese Translations:`;
                     url: project.url,
                     title: project.name,
                     description: project.description_zh || project.description || "",
-                    published_date: now, // Projects don't have a published date, use current date
+                    published_date: project.lastActivityAt || project.pushedAt || project.updatedAt || now,
                     authors: project.owner ? [project.owner] : [],
                     source: "GitHub Trending",
                     details: {
