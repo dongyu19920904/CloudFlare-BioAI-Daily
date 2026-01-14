@@ -20,7 +20,7 @@ export default {
             // 博客生成任务 - UTC 16:00 (北京时间 00:00)
             await handleScheduledBlog(event, env, ctx);
         } else {
-            // 每日日报任务 - UTC 14:00 (北京时间 22:00)
+            // 每日日报任务 - UTC 18:00 (北京时间 02:00)
             await handleScheduled(event, env, ctx);
         }
     },

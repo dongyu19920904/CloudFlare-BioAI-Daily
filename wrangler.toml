@@ -23,7 +23,7 @@ GEMINI_API_VERSION = "auto"
 GEMINI_DEBUG = "false"
 FOLO_COOKIE_KV_KEY = "folo_auth_cookie"
 FOLO_DATA_API = "https://api.follow.is/entries"
-FOLO_FILTER_DAYS = 1
+FOLO_FILTER_DAYS = 2
 
 # News aggregator list/feed IDs (optional)
 NEWS_AGGREGATOR_LIST_ID = ""
@@ -62,6 +62,5 @@ INSERT_APP_URL = "<h3>[查看最新 BioAI 日报](https://bioai.yourdomain.com)<
 
 [triggers]
 crons = [
-  "0 14 * * *",
-  "0 16 * * *"
+  "0 18 * * *"
 ]
