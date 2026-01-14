@@ -62,5 +62,6 @@ INSERT_APP_URL = "<h3>[查看最新 BioAI 日报](https://bioai.yourdomain.com)<
 
 [triggers]
 crons = [
-  "0 18 * * *"
+  "0 18 * * *",
+  "0 23 * * *"
 ]
