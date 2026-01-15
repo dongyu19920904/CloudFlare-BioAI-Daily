@@ -117,8 +117,8 @@ const ProjectsDataSource = {
             return [];
         }
 
-        if (!env.OPEN_TRANSLATE === "true") {
-            console.warn("Skipping paper translations.");
+        if (String(env.OPEN_TRANSLATE).toLowerCase() !== "true") {
+            console.warn("Skipping project translations.");
             return projects.map(p => ({ ...p, description_zh: p.description || "" }));
         }
 
