@@ -19,6 +19,15 @@ function normalizeSummaryLines(summaryText) {
     return lines.slice(-3).join('\n');
 }
 
+function normalizeDailyBody(markdown) {
+    if (!markdown) return '';
+    const text = String(markdown);
+    const marker = '## **今日';
+    const index = text.indexOf(marker);
+    if (index <= 0) return text.trim();
+    return text.slice(index).trim();
+}
+
 export async function handleScheduled(event, env, ctx, specifiedDate = null) {
     // 如果指定了日期，使用指定日期；否则使用当前日期
     const dateStr = specifiedDate || getISODate();
@@ -118,6 +127,7 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
         outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
         // 替换错误的域名链接
         outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
+        outputOfCall2 = normalizeDailyBody(outputOfCall2);
 
         // 4. Generate Summary (Call 3)
         console.log(`[Scheduled] Generating summary...`);
