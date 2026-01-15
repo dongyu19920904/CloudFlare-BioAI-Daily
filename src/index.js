@@ -104,11 +104,12 @@ export default {
                 });
             }
             const dateParam = url.searchParams.get('date');
+            const forceSync = url.searchParams.get('sync') === '1';
             const specifiedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
             const fakeEvent = { scheduledTime: Date.now(), cron: '0 23 * * *' };
             try {
                 const waitUntil = ctx && typeof ctx.waitUntil === 'function' ? ctx.waitUntil.bind(ctx) : null;
-                if (waitUntil) {
+                if (waitUntil && !forceSync) {
                     waitUntil(handleScheduled(fakeEvent, env, ctx, specifiedDate));
                     return new Response(JSON.stringify({ 
                         success: true, 
