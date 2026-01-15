@@ -11,7 +11,7 @@ kv_namespaces = [
 [vars]
 IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
-USE_MODEL_PLATFORM = "GEMINI"
+USE_MODEL_PLATFORM = "ANTHROPIC"
 ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
 OPENAI_API_URL = "https://code.newcli.com/codex"
