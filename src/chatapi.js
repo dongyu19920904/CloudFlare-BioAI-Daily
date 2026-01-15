@@ -66,6 +66,20 @@ function isInvalidArgumentError(status, message) {
     return text.includes("invalid argument") || text.includes("invalid_argument");
 }
 
+function isRateLimitError(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+        message.includes("429") ||
+        message.includes("too many requests") ||
+        message.includes("resource_exhausted") ||
+        message.includes("并发请求数量过多")
+    );
+}
+
+function canUseAnthropicFallback(env) {
+    return Boolean(env.ANTHROPIC_API_URL && env.ANTHROPIC_API_KEY);
+}
+
 function formatGeminiVariant(variant) {
     return `system=${variant.useSystemInstruction ? "on" : "off"}, merge=${variant.mergeSystem ? "on" : "off"}, role=${variant.useRole ? "on" : "off"}, gen=${variant.includeGenerationConfig ? "on" : "off"}`;
 }
@@ -143,6 +157,60 @@ function buildGeminiHeaders(apiKey, useHeaderAuth) {
         headers['Authorization'] = `Bearer ${apiKey}`;
     }
     return headers;
+}
+
+function getGeminiRetryConfig(env) {
+    const maxRetries = Number.parseInt(env.GEMINI_RETRY_MAX ?? "2", 10);
+    const baseDelayMs = Number.parseInt(env.GEMINI_RETRY_BASE_MS ?? "1000", 10);
+    return {
+        maxRetries: Number.isFinite(maxRetries) && maxRetries >= 0 ? maxRetries : 2,
+        baseDelayMs: Number.isFinite(baseDelayMs) && baseDelayMs >= 0 ? baseDelayMs : 1000,
+        retryStatuses: new Set([429])
+    };
+}
+
+function parseRetryAfterMillis(retryAfter) {
+    if (!retryAfter) return null;
+    const trimmed = String(retryAfter).trim();
+    if (!trimmed) return null;
+    const seconds = Number.parseInt(trimmed, 10);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+        return seconds * 1000;
+    }
+    const parsedDate = Date.parse(trimmed);
+    if (Number.isFinite(parsedDate)) {
+        const diff = parsedDate - Date.now();
+        return diff > 0 ? diff : 0;
+    }
+    return null;
+}
+
+async function sleep(ms) {
+    if (!ms || ms <= 0) return;
+    await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url, options, timeout, retryConfig, debugLog) {
+    const { maxRetries, baseDelayMs, retryStatuses } = retryConfig;
+    let attempt = 0;
+    while (true) {
+        const response = await fetchWithTimeout(url, options, timeout);
+        if (!retryStatuses.has(response.status) || attempt >= maxRetries) {
+            return response;
+        }
+        const retryAfter = parseRetryAfterMillis(response.headers?.get?.("retry-after"));
+        const delayMs = retryAfter ?? (baseDelayMs * Math.pow(2, attempt));
+        if (debugLog) {
+            debugLog(`Gemini retrying after ${response.status}`, { delayMs, attempt });
+        }
+        try {
+            response.body?.cancel?.();
+        } catch (e) {
+            // Best-effort cleanup before retry.
+        }
+        await sleep(delayMs);
+        attempt += 1;
+    }
 }
 
 function buildGeminiUrl(baseUrl, apiVersion, modelName, method, apiKey, useQueryKey, extraQuery = "") {
@@ -232,11 +300,17 @@ async function callGeminiChatAPI(env, promptText, systemPromptText = null) {
                     const url = buildGeminiUrl(baseUrl, apiVersion, modelName, "generateContent", apiKey, auth.useQueryKey);
                     logGeminiDebug(env, "Gemini non-stream request", { url: redactGeminiUrl(url), variant: formatGeminiVariant(variant) });
 
-                    const response = await fetchWithTimeout(url, {
-                        method: 'POST',
-                        headers: buildGeminiHeaders(apiKey, auth.useHeaderAuth),
-                        body: JSON.stringify(payload)
-                    }, 180000);
+                    const response = await fetchWithRetry(
+                        url,
+                        {
+                            method: 'POST',
+                            headers: buildGeminiHeaders(apiKey, auth.useHeaderAuth),
+                            body: JSON.stringify(payload)
+                        },
+                        180000,
+                        getGeminiRetryConfig(env),
+                        (message, meta) => logGeminiDebug(env, message, meta)
+                    );
 
                     const contentType = response.headers.get('content-type') || '';
                     if (!response.ok) {
@@ -361,11 +435,17 @@ async function* callGeminiChatAPIStream(env, promptText, systemPromptText = null
                         const url = buildGeminiUrl(baseUrl, apiVersion, modelName, "streamGenerateContent", apiKey, auth.useQueryKey, streamQuery);
                         logGeminiDebug(env, "Gemini stream request", { url: redactGeminiUrl(url), variant: formatGeminiVariant(variant) });
 
-                        response = await fetchWithTimeout(url, {
-                            method: 'POST',
-                            headers: buildGeminiHeaders(apiKey, auth.useHeaderAuth),
-                            body: JSON.stringify(payload)
-                        }, 180000);
+                        response = await fetchWithRetry(
+                            url,
+                            {
+                                method: 'POST',
+                                headers: buildGeminiHeaders(apiKey, auth.useHeaderAuth),
+                                body: JSON.stringify(payload)
+                            },
+                            180000,
+                            getGeminiRetryConfig(env),
+                            (message, meta) => logGeminiDebug(env, message, meta)
+                        );
 
                         const contentType = response.headers.get('content-type') || '';
                         if (!response.ok) {
@@ -999,7 +1079,15 @@ export async function callChatAPI(env, promptText, systemPromptText = null) {
     } else if (platform.startsWith("ANTHROPIC")) {
         return callAnthropicChatAPI(env, promptText, systemPromptText);
     } else { // Default to Gemini
-        return callGeminiChatAPI(env, promptText, systemPromptText);
+        try {
+            return await callGeminiChatAPI(env, promptText, systemPromptText);
+        } catch (error) {
+            if (isRateLimitError(error) && canUseAnthropicFallback(env)) {
+                console.warn("Gemini rate limit encountered; falling back to Anthropic.");
+                return await callAnthropicChatAPI(env, promptText, systemPromptText);
+            }
+            throw error;
+        }
     }
 }
 
@@ -1022,11 +1110,31 @@ export async function* callChatAPIStream(env, promptText, systemPromptText = nul
     } else { // Default to Gemini
         const streamMode = getGeminiStreamMode(env);
         if (streamMode === "off") {
-            const text = await callGeminiChatAPI(env, promptText, systemPromptText);
-            yield text;
-            return;
+            try {
+                const text = await callGeminiChatAPI(env, promptText, systemPromptText);
+                yield text;
+                return;
+            } catch (error) {
+                if (isRateLimitError(error) && canUseAnthropicFallback(env)) {
+                    console.warn("Gemini rate limit encountered; falling back to Anthropic.");
+                    const text = await callAnthropicChatAPI(env, promptText, systemPromptText);
+                    yield text;
+                    return;
+                }
+                throw error;
+            }
         }
-        yield* callGeminiChatAPIStream(env, promptText, systemPromptText);
+        try {
+            yield* callGeminiChatAPIStream(env, promptText, systemPromptText);
+        } catch (error) {
+            if (isRateLimitError(error) && canUseAnthropicFallback(env)) {
+                console.warn("Gemini rate limit encountered; falling back to Anthropic.");
+                const text = await callAnthropicChatAPI(env, promptText, systemPromptText);
+                yield text;
+                return;
+            }
+            throw error;
+        }
     }
 }
 
