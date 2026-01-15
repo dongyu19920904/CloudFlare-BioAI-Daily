@@ -80,6 +80,10 @@ function canUseAnthropicFallback(env) {
     return Boolean(env.ANTHROPIC_API_URL && env.ANTHROPIC_API_KEY);
 }
 
+function canUseOpenAIFallback(env) {
+    return Boolean(env.OPENAI_API_URL && env.OPENAI_API_KEY);
+}
+
 function formatGeminiVariant(variant) {
     return `system=${variant.useSystemInstruction ? "on" : "off"}, merge=${variant.mergeSystem ? "on" : "off"}, role=${variant.useRole ? "on" : "off"}, gen=${variant.includeGenerationConfig ? "on" : "off"}`;
 }
@@ -1077,14 +1081,36 @@ export async function callChatAPI(env, promptText, systemPromptText = null) {
     if (platform.startsWith("OPEN")) {
         return callOpenAIChatAPI(env, promptText, systemPromptText);
     } else if (platform.startsWith("ANTHROPIC")) {
-        return callAnthropicChatAPI(env, promptText, systemPromptText);
+        try {
+            return await callAnthropicChatAPI(env, promptText, systemPromptText);
+        } catch (error) {
+            if (isRateLimitError(error) && canUseOpenAIFallback(env)) {
+                console.warn("Anthropic rate limit encountered; falling back to OpenAI.");
+                return await callOpenAIChatAPI(env, promptText, systemPromptText);
+            }
+            throw error;
+        }
     } else { // Default to Gemini
         try {
             return await callGeminiChatAPI(env, promptText, systemPromptText);
         } catch (error) {
-            if (isRateLimitError(error) && canUseAnthropicFallback(env)) {
-                console.warn("Gemini rate limit encountered; falling back to Anthropic.");
-                return await callAnthropicChatAPI(env, promptText, systemPromptText);
+            if (isRateLimitError(error)) {
+                if (canUseAnthropicFallback(env)) {
+                    console.warn("Gemini rate limit encountered; falling back to Anthropic.");
+                    try {
+                        return await callAnthropicChatAPI(env, promptText, systemPromptText);
+                    } catch (anthroError) {
+                        if (isRateLimitError(anthroError) && canUseOpenAIFallback(env)) {
+                            console.warn("Anthropic rate limit encountered; falling back to OpenAI.");
+                            return await callOpenAIChatAPI(env, promptText, systemPromptText);
+                        }
+                        throw anthroError;
+                    }
+                }
+                if (canUseOpenAIFallback(env)) {
+                    console.warn("Gemini rate limit encountered; falling back to OpenAI.");
+                    return await callOpenAIChatAPI(env, promptText, systemPromptText);
+                }
             }
             throw error;
         }
@@ -1106,7 +1132,17 @@ export async function* callChatAPIStream(env, promptText, systemPromptText = nul
     if (platform.startsWith("OPEN")) {
         yield* callOpenAIChatAPIStream(env, promptText, systemPromptText);
     } else if (platform.startsWith("ANTHROPIC")) {
-        yield* callAnthropicChatAPIStream(env, promptText, systemPromptText);
+        try {
+            yield* callAnthropicChatAPIStream(env, promptText, systemPromptText);
+        } catch (error) {
+            if (isRateLimitError(error) && canUseOpenAIFallback(env)) {
+                console.warn("Anthropic rate limit encountered; falling back to OpenAI.");
+                const text = await callOpenAIChatAPI(env, promptText, systemPromptText);
+                yield text;
+                return;
+            }
+            throw error;
+        }
     } else { // Default to Gemini
         const streamMode = getGeminiStreamMode(env);
         if (streamMode === "off") {
@@ -1115,11 +1151,29 @@ export async function* callChatAPIStream(env, promptText, systemPromptText = nul
                 yield text;
                 return;
             } catch (error) {
-                if (isRateLimitError(error) && canUseAnthropicFallback(env)) {
-                    console.warn("Gemini rate limit encountered; falling back to Anthropic.");
-                    const text = await callAnthropicChatAPI(env, promptText, systemPromptText);
-                    yield text;
-                    return;
+                if (isRateLimitError(error)) {
+                    if (canUseAnthropicFallback(env)) {
+                        console.warn("Gemini rate limit encountered; falling back to Anthropic.");
+                        try {
+                            const text = await callAnthropicChatAPI(env, promptText, systemPromptText);
+                            yield text;
+                            return;
+                        } catch (anthroError) {
+                            if (isRateLimitError(anthroError) && canUseOpenAIFallback(env)) {
+                                console.warn("Anthropic rate limit encountered; falling back to OpenAI.");
+                                const text = await callOpenAIChatAPI(env, promptText, systemPromptText);
+                                yield text;
+                                return;
+                            }
+                            throw anthroError;
+                        }
+                    }
+                    if (canUseOpenAIFallback(env)) {
+                        console.warn("Gemini rate limit encountered; falling back to OpenAI.");
+                        const text = await callOpenAIChatAPI(env, promptText, systemPromptText);
+                        yield text;
+                        return;
+                    }
                 }
                 throw error;
             }
@@ -1127,11 +1181,29 @@ export async function* callChatAPIStream(env, promptText, systemPromptText = nul
         try {
             yield* callGeminiChatAPIStream(env, promptText, systemPromptText);
         } catch (error) {
-            if (isRateLimitError(error) && canUseAnthropicFallback(env)) {
-                console.warn("Gemini rate limit encountered; falling back to Anthropic.");
-                const text = await callAnthropicChatAPI(env, promptText, systemPromptText);
-                yield text;
-                return;
+            if (isRateLimitError(error)) {
+                if (canUseAnthropicFallback(env)) {
+                    console.warn("Gemini rate limit encountered; falling back to Anthropic.");
+                    try {
+                        const text = await callAnthropicChatAPI(env, promptText, systemPromptText);
+                        yield text;
+                        return;
+                    } catch (anthroError) {
+                        if (isRateLimitError(anthroError) && canUseOpenAIFallback(env)) {
+                            console.warn("Anthropic rate limit encountered; falling back to OpenAI.");
+                            const text = await callOpenAIChatAPI(env, promptText, systemPromptText);
+                            yield text;
+                            return;
+                        }
+                        throw anthroError;
+                    }
+                }
+                if (canUseOpenAIFallback(env)) {
+                    console.warn("Gemini rate limit encountered; falling back to OpenAI.");
+                    const text = await callOpenAIChatAPI(env, promptText, systemPromptText);
+                    yield text;
+                    return;
+                }
             }
             throw error;
         }
