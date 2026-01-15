@@ -109,8 +109,17 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          
-          git add today/ daily/
+
+          if [ -d "today" ]; then
+            git add today/
+          else
+            echo "today/ not found, skipping"
+          fi
+          if [ -d "daily" ]; then
+            git add daily/
+          else
+            echo "daily/ not found, skipping"
+          fi
           if [ -f "rss.xml" ]; then
             git add rss.xml
           else
