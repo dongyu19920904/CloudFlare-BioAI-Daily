@@ -16,7 +16,8 @@ import { handleScheduledBlog } from './handlers/scheduledBlog.js';
 export default {
     async scheduled(event, env, ctx) {
         // 根据不同的 cron 执行不同的任务
-        if (event.cron === '0 23 * * *') {
+        const blogCrons = new Set(['0 23 * * *', '0 10 * * *']);
+        if (blogCrons.has(event.cron)) {
             // 博客生成任务 - UTC 23:00 (北京时间 07:00)
             await handleScheduledBlog(event, env, ctx);
         } else {

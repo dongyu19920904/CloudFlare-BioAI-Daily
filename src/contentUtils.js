@@ -121,6 +121,11 @@ export function updateHomeIndexContent(existingContent, dailyContent, dateStr, o
 
     if (existingContent && frontMatterRegex.test(existingContent)) {
         frontMatter = existingContent.match(frontMatterRegex)[0];
+        const existingNextDateMatch = frontMatter.match(/^next:\s*\/\d{4}-\d{2}\/(\d{4}-\d{2}-\d{2})\s*$/m);
+        if (existingNextDateMatch && existingNextDateMatch[1] > dateStr) {
+            // Prevent older runs from overwriting a newer homepage.
+            return existingContent;
+        }
         if (/^next:\s*.*$/m.test(frontMatter)) {
             frontMatter = frontMatter.replace(/^next:\s*.*$/m, `next: ${nextPath}`);
         } else {

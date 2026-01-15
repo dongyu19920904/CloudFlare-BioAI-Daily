@@ -84,6 +84,30 @@ export function removeMarkdownCodeBlock(text) {
 }
 
 /**
+ * Normalizes the daily body by trimming any draft content before the main section.
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function normalizeDailyBody(markdown) {
+    if (!markdown) return '';
+    const text = String(markdown);
+    const markers = [
+        '## **今日 AI 生命科学资讯**',
+        '## **今日 AI 资讯**'
+    ];
+    for (const marker of markers) {
+        const index = text.indexOf(marker);
+        if (index >= 0) {
+            return text.slice(index).trim();
+        }
+    }
+    const fallbackMarker = '## **今日';
+    const fallbackIndex = text.indexOf(fallbackMarker);
+    if (fallbackIndex <= 0) return text.trim();
+    return text.slice(fallbackIndex).trim();
+}
+
+/**
  * Checks if HTML content contains images or videos.
  * @param {string} html - The HTML string.
  * @returns {boolean} True if the content contains images or videos.

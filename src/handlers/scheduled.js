@@ -1,4 +1,4 @@
-import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, convertPlaceholdersToMarkdownImages, setFetchDate, hasMedia, replaceIncorrectDomainLinks } from '../helpers.js';
+import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, convertPlaceholdersToMarkdownImages, setFetchDate, hasMedia, replaceIncorrectDomainLinks, normalizeDailyBody } from '../helpers.js';
 import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPIStream } from '../chatapi.js';
@@ -17,15 +17,6 @@ function normalizeSummaryLines(summaryText) {
         .filter(Boolean);
     if (lines.length <= 3) return summaryText.trim();
     return lines.slice(-3).join('\n');
-}
-
-function normalizeDailyBody(markdown) {
-    if (!markdown) return '';
-    const text = String(markdown);
-    const marker = '## **今日';
-    const index = text.indexOf(marker);
-    if (index <= 0) return text.trim();
-    return text.slice(index).trim();
 }
 
 export async function handleScheduled(event, env, ctx, specifiedDate = null) {
