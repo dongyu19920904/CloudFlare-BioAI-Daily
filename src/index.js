@@ -123,12 +123,13 @@ export default {
                     });
                 }
                 const fakeCtx = { waitUntil: (promise) => promise };
-                await handleScheduled(fakeEvent, env, fakeCtx, specifiedDate);
+                const result = await handleScheduled(fakeEvent, env, fakeCtx, specifiedDate);
                 return new Response(JSON.stringify({ 
-                    success: true, 
+                    success: result?.success ?? true, 
                     message: `Scheduled task completed${specifiedDate ? ` for date: ${specifiedDate}` : ' for current date'}`,
                     date: specifiedDate || 'current date',
                     async: false,
+                    result,
                     timestamp: new Date().toISOString()
                 }), { 
                     status: 200, 

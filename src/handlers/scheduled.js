@@ -92,7 +92,7 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
 
         if (selectedContentItems.length === 0) {
             console.log(`[Scheduled] No items found. Skipping generation.`);
-            return;
+            return { success: false, date: dateStr, reason: 'no_items' };
         }
 
         // 3. Generate Content (Call 2)
@@ -168,8 +168,10 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
         await createOrUpdateGitHubFile(env, homePath, homeContent, homeCommitMessage, existingHomeSha);
 
         console.log(`[Scheduled] Success!`);
+        return { success: true, date: dateStr, selectedCount: selectedContentItems.length };
 
     } catch (error) {
         console.error(`[Scheduled] Error:`, error);
+        return { success: false, date: dateStr, error: error.message };
     }
 }
