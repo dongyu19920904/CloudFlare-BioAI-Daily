@@ -9,6 +9,16 @@ import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { createOrUpdateGitHubFile, getGitHubFileContent, getGitHubFileSha } from '../github.js';
 
+function normalizeSummaryLines(summaryText) {
+    if (!summaryText) return '';
+    const lines = String(summaryText)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+    if (lines.length <= 3) return summaryText.trim();
+    return lines.slice(-3).join('\n');
+}
+
 export async function handleScheduled(event, env, ctx, specifiedDate = null) {
     // 如果指定了日期，使用指定日期；否则使用当前日期
     const dateStr = specifiedDate || getISODate();
@@ -119,6 +129,7 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
             outputOfCall3 += chunk;
         }
         outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
+        outputOfCall3 = normalizeSummaryLines(outputOfCall3);
 
         // 5. Assemble Markdown
         const contentWithMidAd = insertMidAd(outputOfCall2);
