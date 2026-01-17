@@ -1,4 +1,4 @@
-// src/chatapi.js
+﻿// src/chatapi.js
 
 const GEMINI_API_VERSIONS = ["v1beta", "v1", ""];
 
@@ -72,7 +72,7 @@ function isRateLimitError(error) {
         message.includes("429") ||
         message.includes("too many requests") ||
         message.includes("resource_exhausted") ||
-        message.includes("并发请求数量过多")
+        message.includes("骞跺彂璇锋眰鏁伴噺杩囧")
     );
 }
 
@@ -916,7 +916,7 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
     if (!env.ANTHROPIC_API_URL || !env.ANTHROPIC_API_KEY) {
         throw new Error("ANTHROPIC_API_URL or ANTHROPIC_API_KEY not set.");
     }
-    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-sonnet-4-5";
     const url = `${env.ANTHROPIC_API_URL}/v1/messages`;
 
     const messages = [{ role: "user", content: promptText }];
@@ -928,7 +928,7 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
     };
 
     if (systemPromptText && systemPromptText.trim() !== '') {
-        // Anthropic 中转不支持 system 参数，将其融入 user 消息
+        // Anthropic 涓浆涓嶆敮鎸?system 鍙傛暟锛屽皢鍏惰瀺鍏?user 娑堟伅
         payload.messages[0].content = `${systemPromptText}\n\n${promptText}`;
     }
 
@@ -982,7 +982,7 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
     if (!env.ANTHROPIC_API_URL || !env.ANTHROPIC_API_KEY) {
         throw new Error("ANTHROPIC_API_URL or ANTHROPIC_API_KEY not set.");
     }
-    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-sonnet-4-5";
     const url = `${env.ANTHROPIC_API_URL}/v1/messages`;
 
     const messages = [{ role: "user", content: promptText }];
@@ -1212,11 +1212,9 @@ export async function* callChatAPIStream(env, promptText, systemPromptText = nul
 
 
 /**
- * 带有超时功能的 fetch 封装
- * @param {string} resource fetch 的请求 URL
- * @param {object} options fetch 的配置对象
- * @param {number} timeout 超时时间，单位毫秒
- * @returns {Promise<Response>}
+ * 甯︽湁瓒呮椂鍔熻兘鐨?fetch 灏佽
+ * @param {string} resource fetch 鐨勮姹?URL
+ * @param {object} options fetch 鐨勯厤缃璞? * @param {number} timeout 瓒呮椂鏃堕棿锛屽崟浣嶆绉? * @returns {Promise<Response>}
  */
 async function fetchWithTimeout(resource, options = {}, timeout = 180000) {
   const controller = new AbortController();
@@ -1225,18 +1223,18 @@ async function fetchWithTimeout(resource, options = {}, timeout = 180000) {
   try {
     const response = await fetch(resource, {
       ...options,
-      signal: controller.signal  // 关联 AbortController
+      signal: controller.signal  // 鍏宠仈 AbortController
     });
     return response;
   } catch (error) {
-    // 当 abort() 被调用时，fetch 会抛出一个 AbortError
+    // 褰?abort() 琚皟鐢ㄦ椂锛宖etch 浼氭姏鍑轰竴涓?AbortError
     if (error.name === 'AbortError') {
       throw new Error('Request timed out');
     }
-    // 其他网络错误等
-    throw error;
+    // 鍏朵粬缃戠粶閿欒绛?    throw error;
   } finally {
-    // 清除计时器，防止内存泄漏
+    // 娓呴櫎璁℃椂鍣紝闃叉鍐呭瓨娉勬紡
     clearTimeout(id);
   }
 }
+

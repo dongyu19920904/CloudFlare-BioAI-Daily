@@ -13,7 +13,7 @@ IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
 ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"
-DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
+DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5"
 OPENAI_API_URL = "https://code.newcli.com/codex"
 DEFAULT_OPEN_MODEL = "gpt-5.2"
 GEMINI_API_URL = "https://code.newcli.com/gemini"
@@ -68,3 +68,4 @@ crons = [
   "0 23 * * *",
   "0 10 * * *"
 ]
+
