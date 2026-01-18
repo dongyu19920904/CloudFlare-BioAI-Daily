@@ -1,6 +1,6 @@
 // src/dataSources/huggingface-papers.js
 import { getRandomUserAgent, sleep, isDateWithinLastDays, stripHtml, removeMarkdownCodeBlock, formatDateToChineseWithTime, escapeHtml} from '../helpers.js';
-import { callChatAPI } from '../chatapi.js';
+import { callTranslateAPI } from '../chatapi.js';
 
 const PapersDataSource = {
     fetch: async (env, foloCookie) => {
@@ -142,7 +142,7 @@ Respond ONLY with the JSON array.`;
         let translatedItemsMap = new Map();
         try {
             console.log(`Requesting translation for ${itemsToTranslate.length} hgpapers titles for today.`);
-            const chatResponse = await callChatAPI(env, promptText);
+            const chatResponse = await callTranslateAPI(env, promptText);
             const parsedTranslations = JSON.parse(removeMarkdownCodeBlock(chatResponse)); // Assuming direct JSON array response
 
             if (parsedTranslations) {
