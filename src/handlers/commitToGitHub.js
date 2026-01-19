@@ -19,7 +19,7 @@ export async function handleCommitToGitHub(request, env) {
         const filesToCommit = [];
 
         if (dailyMd) {
-            const normalizedDailyMd = formatMarkdownText(dailyMd);
+            const normalizedDailyMd = formatMarkdownText(dailyMd, env.IMG_PROXY);
             const yearMonth = getYearMonth(dateStr);
             const dailyPagePath = `content/cn/${yearMonth}/${dateStr}.md`;
             const monthDirectoryIndexPath = `content/cn/${yearMonth}/_index.md`;

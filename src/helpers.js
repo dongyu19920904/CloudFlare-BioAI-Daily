@@ -347,9 +347,10 @@ export function convertEnglishQuotesToChinese(text) {
     return str.replace(/"/g, '“');
 }
 
-export function formatMarkdownText(text) {
-    const str = String(text);
-    return str.replace(/“/g, '"');
+export function formatMarkdownText(text, imgProxy = '') {
+    const str = String(text).replace(/“/g, '\"');
+    if (!imgProxy) return str;
+    return replaceImageProxy(imgProxy, str);
 }
 
 /**
@@ -380,9 +381,60 @@ export function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function replaceImageProxy(proxy, content) {
+function normalizeProxy(proxy) {
+    return String(proxy || '').trim();
+}
+
+function normalizeImageUrl(url) {
+    return String(url || '').replace(/upload\.chinaz\.com/g, 'pic.chinaz.com');
+}
+
+function shouldProxyUrl(url, proxy) {
+    if (!proxy) return false;
+    if (!url) return false;
+    const trimmed = url.trim();
+    if (!/^https?:\/\//i.test(trimmed)) return false;
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('data:') || lower.startsWith('blob:')) return false;
+    if (trimmed.startsWith(proxy)) return false;
+    if (trimmed.startsWith('/') || trimmed.startsWith('./') || trimmed.startsWith('../') || trimmed.startsWith('#')) {
+        return false;
+    }
+    return true;
+}
+
+function buildProxiedUrl(url, proxy) {
+    const normalized = normalizeImageUrl(url);
+    if (!shouldProxyUrl(normalized, proxy)) return normalized;
+    return `${proxy}${encodeURIComponent(normalized)}`;
+}
+
+function applyImageProxyToMarkdown(content, proxy) {
+    const normalizedProxy = normalizeProxy(proxy);
     const str = String(content);
-    return str.replace(/upload.chinaz.com/g, 'pic.chinaz.com').replace(/https:\/\/pic.chinaz.com/g, proxy+'https:\/\/pic.chinaz.com');
+    const markdownImageRegex = /!\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(\s+"[^"]*")?\)/g;
+    let updated = str.replace(markdownImageRegex, (match, alt, urlPart, titlePart) => {
+        const rawUrl = urlPart.startsWith('<') && urlPart.endsWith('>')
+            ? urlPart.slice(1, -1)
+            : urlPart;
+        const proxied = buildProxiedUrl(rawUrl, normalizedProxy);
+        const title = titlePart || '';
+        if (proxied === rawUrl) return match;
+        return `![${alt}](${proxied}${title})`;
+    });
+
+    const imgTagRegex = /<img\b[^>]*?\bsrc=(['"])(.*?)\1[^>]*>/gi;
+    updated = updated.replace(imgTagRegex, (match, quote, url) => {
+        const proxied = buildProxiedUrl(url, normalizedProxy);
+        if (proxied === url) return match;
+        return match.replace(url, proxied);
+    });
+
+    return updated;
+}
+
+export function replaceImageProxy(proxy, content) {
+    return applyImageProxyToMarkdown(content, proxy);
 }
 
 /**

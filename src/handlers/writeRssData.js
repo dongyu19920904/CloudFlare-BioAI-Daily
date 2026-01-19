@@ -1,4 +1,4 @@
-import { replaceImageProxy, formatMarkdownText, formatDateToGMT8WithTime, removeMarkdownCodeBlock } from '../helpers.js';
+import { formatMarkdownText, formatDateToGMT8WithTime, removeMarkdownCodeBlock } from '../helpers.js';
 import { getDailyReportContent } from '../github.js';
 import { storeInKV } from '../kv.js';
 import { marked } from '../marked.esm.js';
@@ -37,7 +37,7 @@ export async function handleWriteRssData(request, env) {
             // 可以添加其他相關欄位，例如作者、來源等
             published_date: formatDateToGMT8WithTime(new Date()) // 記錄保存時間
         }
-        report.content_html = marked.parse(formatMarkdownText(replaceImageProxy(env, content)));
+        report.content_html = marked.parse(formatMarkdownText(content, env.IMG_PROXY));
         //report.content_html = marked.parse(formatMarkdownText(await generateAIContent(env, content)));
 
         
