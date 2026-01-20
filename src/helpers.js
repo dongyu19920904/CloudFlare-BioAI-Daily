@@ -437,6 +437,124 @@ export function replaceImageProxy(proxy, content) {
     return applyImageProxyToMarkdown(content, proxy);
 }
 
+function isExternalHttpUrl(url) {
+    if (!url) return false;
+    const trimmed = url.trim();
+    if (!/^https?:\/\//i.test(trimmed)) return false;
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('data:') || lower.startsWith('blob:')) return false;
+    if (trimmed.startsWith('/') || trimmed.startsWith('./') || trimmed.startsWith('../') || trimmed.startsWith('#')) {
+        return false;
+    }
+    return true;
+}
+
+async function fetchWithTimeout(fetchFn, url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetchFn(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function checkImageAvailable(url, options) {
+    const fetchFn = options.fetchFn;
+    const timeoutMs = options.timeoutMs;
+    const headers = { 'User-Agent': getRandomUserAgent() };
+    try {
+        const headResp = await fetchWithTimeout(fetchFn, url, { method: 'HEAD', headers }, timeoutMs);
+        if (headResp.ok) return true;
+        if (headResp.status !== 405 && headResp.status !== 403) {
+            return headResp.status >= 200 && headResp.status < 400;
+        }
+    } catch (error) {
+        // fall through to GET check
+    }
+
+    try {
+        const getResp = await fetchWithTimeout(
+            fetchFn,
+            url,
+            { method: 'GET', headers: { ...headers, Range: 'bytes=0-0' } },
+            timeoutMs
+        );
+        return getResp.ok || (getResp.status >= 200 && getResp.status < 400);
+    } catch (error) {
+        return false;
+    }
+}
+
+async function runWithConcurrency(items, limit, handler) {
+    const queue = items.slice();
+    const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+        while (queue.length > 0) {
+            const item = queue.shift();
+            if (!item) return;
+            await handler(item);
+        }
+    });
+    await Promise.all(workers);
+}
+
+function extractUrlPart(urlPart) {
+    const rawUrl = urlPart.startsWith('<') && urlPart.endsWith('>')
+        ? urlPart.slice(1, -1)
+        : urlPart;
+    return rawUrl;
+}
+
+export async function sanitizeMarkdownImages(markdown, options = {}) {
+    const str = String(markdown || '');
+    const fetchFn = options.fetchFn || fetch;
+    const maxImages = Number.isFinite(options.maxImages) ? options.maxImages : 12;
+    const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 2500;
+    const concurrency = Number.isFinite(options.concurrency) ? options.concurrency : 4;
+
+    const markdownImageRegex = /!\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(\s+"[^"]*")?\)/g;
+    const imgTagRegex = /<img\b[^>]*?\bsrc=(['"])(.*?)\1[^>]*>/gi;
+    const urlsToCheck = [];
+    const seen = new Set();
+
+    let match;
+    while ((match = markdownImageRegex.exec(str)) !== null) {
+        const rawUrl = extractUrlPart(match[2]);
+        if (!isExternalHttpUrl(rawUrl) || seen.has(rawUrl)) continue;
+        seen.add(rawUrl);
+        urlsToCheck.push(rawUrl);
+    }
+    while ((match = imgTagRegex.exec(str)) !== null) {
+        const rawUrl = match[2];
+        if (!isExternalHttpUrl(rawUrl) || seen.has(rawUrl)) continue;
+        seen.add(rawUrl);
+        urlsToCheck.push(rawUrl);
+    }
+
+    const targets = urlsToCheck.slice(0, maxImages);
+    const availability = new Map();
+    await runWithConcurrency(targets, concurrency, async (url) => {
+        const ok = await checkImageAvailable(url, { fetchFn, timeoutMs });
+        availability.set(url, ok);
+    });
+
+    const replaceMarkdownImage = (match, alt, urlPart, titlePart) => {
+        const rawUrl = extractUrlPart(urlPart);
+        if (!availability.has(rawUrl)) return match;
+        if (availability.get(rawUrl)) return match;
+        return `（图片暂不可用，原图链接：${rawUrl}）`;
+    };
+
+    let updated = str.replace(markdownImageRegex, replaceMarkdownImage);
+    updated = updated.replace(imgTagRegex, (match, quote, url) => {
+        if (!availability.has(url)) return match;
+        if (availability.get(url)) return match;
+        return `（图片暂不可用，原图链接：${url}）`;
+    });
+
+    return updated;
+}
+
 /**
  * 替换内容中错误的域名链接
  * 将 ai.hubtoday.app 替换为 news.aivora.cn

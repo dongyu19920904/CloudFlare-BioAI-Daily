@@ -9,7 +9,7 @@ kv_namespaces = [
 ]
 
 [vars]
-IMG_PROXY = "https://images.weserv.nl/?url="
+IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
 ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"

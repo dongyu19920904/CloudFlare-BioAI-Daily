@@ -1,5 +1,5 @@
 // src/handlers/commitToGitHub.js
-import { getISODate, formatDateToChinese, formatMarkdownText } from '../helpers.js';
+import { getISODate, formatDateToChinese, formatMarkdownText, sanitizeMarkdownImages } from '../helpers.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { getGitHubFileContent, getGitHubFileSha, createOrUpdateGitHubFile } from '../github.js';
 import { storeInKV } from '../kv.js';
@@ -19,7 +19,7 @@ export async function handleCommitToGitHub(request, env) {
         const filesToCommit = [];
 
         if (dailyMd) {
-            const normalizedDailyMd = formatMarkdownText(dailyMd, env.IMG_PROXY);
+            const normalizedDailyMd = await sanitizeMarkdownImages(formatMarkdownText(dailyMd, env.IMG_PROXY));
             const yearMonth = getYearMonth(dateStr);
             const dailyPagePath = `content/cn/${yearMonth}/${dateStr}.md`;
             const monthDirectoryIndexPath = `content/cn/${yearMonth}/_index.md`;
