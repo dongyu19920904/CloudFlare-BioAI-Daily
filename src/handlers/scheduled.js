@@ -135,8 +135,6 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
         // 5. Assemble Markdown
         const contentWithMidAd = insertMidAd(outputOfCall2);
         let dailySummaryMarkdownContent = `## **今日摘要**\n\n\`\`\`\n${outputOfCall3}\n\`\`\`\n\n`;
-        dailySummaryMarkdownContent += '\n\n## ⚡ 快速导航\n\n';
-        dailySummaryMarkdownContent += '- [📰 今日 AI 资讯](#今日ai资讯) - 最新动态速览\n\n';
         dailySummaryMarkdownContent += `\n\n${contentWithMidAd}`;
         
         if (env.INSERT_AD=='true') dailySummaryMarkdownContent += insertAd() +`\n`;

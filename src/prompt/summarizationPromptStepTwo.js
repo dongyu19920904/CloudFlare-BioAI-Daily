@@ -30,7 +30,6 @@ export function getSystemPromptSummarizationStepTwo() {
    - 保持态度（"值得关注" / "可以观望"）
 
 **格式：**
-- 标题：### **今日 AI 资讯**
 - 数字序号：1. 2. 3. ...
 - 简体中文 + Markdown
 - 不要元信息（不要写"经过精炼..."）
