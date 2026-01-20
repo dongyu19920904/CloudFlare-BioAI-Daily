@@ -1,0 +1,8 @@
+{
+  "name": "cloudflare-bioai-daily",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
