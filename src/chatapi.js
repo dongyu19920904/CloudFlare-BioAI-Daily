@@ -950,10 +950,9 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
 
         const data = await response.json();
 
-        // Filter out thinking blocks and only return text content
         if (data.content && Array.isArray(data.content)) {
             const textBlocks = data.content
-                .filter(block => block.type === 'text' && block.text)
+                .filter(block => block.text)
                 .map(block => block.text);
 
             if (textBlocks.length > 0) {
@@ -1018,7 +1017,6 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
         const decoder = new TextDecoder();
         let buffer = '';
         let hasYieldedContent = false;
-        let currentBlockType = null;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -1036,17 +1034,9 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
                 try {
                     const parsed = JSON.parse(data);
 
-                    // Track the type of the current content block
-                    if (parsed.type === 'content_block_start') {
-                        currentBlockType = parsed.content_block?.type;
-                    } else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                        // Only yield text if the current block is not a thinking block
-                        if (currentBlockType !== 'thinking') {
-                            hasYieldedContent = true;
-                            yield parsed.delta.text;
-                        }
-                    } else if (parsed.type === 'content_block_stop') {
-                        currentBlockType = null;
+                    if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                        hasYieldedContent = true;
+                        yield parsed.delta.text;
                     } else if (parsed.type === 'error') {
                         throw new Error(`Anthropic stream error: ${parsed.error?.message || 'Unknown'}`);
                     }
