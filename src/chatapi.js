@@ -6,6 +6,10 @@ function normalizeBaseUrl(url) {
     return String(url || "").replace(/\/+$/, "");
 }
 
+function getAnthropicBaseUrl(env) {
+    return normalizeBaseUrl(env.ANTHROPIC_BASE_URL || env.ANTHROPIC_API_URL);
+}
+
 function getGeminiApiKey(env) {
     return env.GEMINI_API_KEY || env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY;
 }
@@ -77,7 +81,7 @@ function isRateLimitError(error) {
 }
 
 function canUseAnthropicFallback(env) {
-    return Boolean(env.ANTHROPIC_API_URL && env.ANTHROPIC_API_KEY);
+    return Boolean(getAnthropicBaseUrl(env) && env.ANTHROPIC_API_KEY);
 }
 
 function canUseOpenAIFallback(env) {
@@ -906,18 +910,19 @@ async function* callOpenAIChatAPIStream(env, promptText, systemPromptText = null
 /**
  * Calls the Anthropic Chat API (non-streaming).
  *
- * @param {object} env - Environment object containing ANTHROPIC_API_URL and ANTHROPIC_API_KEY.
+ * @param {object} env - Environment object containing ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) and ANTHROPIC_API_KEY.
  * @param {string} promptText - The user's prompt.
  * @param {string | null} [systemPromptText=null] - Optional system prompt text.
  * @returns {Promise<string>} The generated text content.
  * @throws {Error} If API call fails.
  */
 async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
-    if (!env.ANTHROPIC_API_URL || !env.ANTHROPIC_API_KEY) {
-        throw new Error("ANTHROPIC_API_URL or ANTHROPIC_API_KEY not set.");
+    const baseUrl = getAnthropicBaseUrl(env);
+    if (!baseUrl || !env.ANTHROPIC_API_KEY) {
+        throw new Error("ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) or ANTHROPIC_API_KEY not set.");
     }
-    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-sonnet-4-5";
-    const url = `${env.ANTHROPIC_API_URL}/v1/messages`;
+    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-opus-4-5";
+    const url = `${baseUrl}/v1/messages`;
 
     const messages = [{ role: "user", content: promptText }];
     
@@ -979,11 +984,12 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
  * @throws {Error} If API call fails.
  */
 async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = null) {
-    if (!env.ANTHROPIC_API_URL || !env.ANTHROPIC_API_KEY) {
-        throw new Error("ANTHROPIC_API_URL or ANTHROPIC_API_KEY not set.");
+    const baseUrl = getAnthropicBaseUrl(env);
+    if (!baseUrl || !env.ANTHROPIC_API_KEY) {
+        throw new Error("ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) or ANTHROPIC_API_KEY not set.");
     }
-    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-sonnet-4-5";
-    const url = `${env.ANTHROPIC_API_URL}/v1/messages`;
+    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-opus-4-5";
+    const url = `${baseUrl}/v1/messages`;
 
     const messages = [{ role: "user", content: promptText }];
     

@@ -32,8 +32,8 @@ OPENAI_API_URL = "https://code.newcli.com/codex"
 DEFAULT_OPEN_MODEL = "gpt-5.1"
 
 # Claude 閰嶇疆
-ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"
-DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5"
+ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/aws"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
 ```
 
 #### **馃攧 GitHub Actions 鑷姩鍖栭儴缃?*
@@ -192,8 +192,8 @@ OPENAI_API_URL = "https://code.newcli.com/codex"
 DEFAULT_OPEN_MODEL = "gpt-5.1"
 
 # Claude 閰嶇疆锛堜娇鐢ㄤ腑杞級
-ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"
-DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5"
+ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/aws"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
 ```
 
 **浼樺娍**锛?- 鉁?闄嶄綆鎴愭湰锛氫腑杞?API 閫氬父姣斿畼鏂逛究瀹?- 鉁?鎻愰珮绋冲畾鎬э細澶氬钩鍙板浠斤紝涓€涓寕浜嗗彲浠ュ垏鎹?- 鉁?浣跨敤鏈€鏂版ā鍨嬶細鍙婃椂璺熻繘 AI 鎶€鏈彂灞?

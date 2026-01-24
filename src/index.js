@@ -39,12 +39,16 @@ export default {
         if (platform.startsWith('OPEN')) {
             requiredEnvVars.push('OPENAI_API_URL', 'DEFAULT_OPEN_MODEL', 'OPENAI_API_KEY');
         } else if (platform.startsWith('ANTHROPIC')) {
-            requiredEnvVars.push('ANTHROPIC_API_URL', 'DEFAULT_ANTHROPIC_MODEL', 'ANTHROPIC_API_KEY');
+            requiredEnvVars.push('DEFAULT_ANTHROPIC_MODEL', 'ANTHROPIC_API_KEY');
         } else {
             requiredEnvVars.push('GEMINI_API_URL', 'DEFAULT_GEMINI_MODEL');
         }
 
         const missingVars = requiredEnvVars.filter(varName => !env[varName]);
+        if (platform.startsWith('ANTHROPIC')) {
+            const hasAnthropicBaseUrl = Boolean(env.ANTHROPIC_BASE_URL || env.ANTHROPIC_API_URL);
+            if (!hasAnthropicBaseUrl) missingVars.push('ANTHROPIC_BASE_URL');
+        }
 
         // Gemini can reuse the same key as other platforms in some proxy setups.
         if (!platform.startsWith('OPEN') && !platform.startsWith('ANTHROPIC')) {
