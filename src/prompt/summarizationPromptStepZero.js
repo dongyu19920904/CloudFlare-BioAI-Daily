@@ -1,5 +1,19 @@
 // Add new data sources
-export function getSystemPromptSummarizationStepOne() {
+export function getSystemPromptSummarizationStepOne(reportDate = null) {
+    const normalizedDate = typeof reportDate === "string" && reportDate.trim() ? reportDate.trim() : null;
+    const baseDate = normalizedDate ? new Date(`${normalizedDate}T00:00:00+08:00`) : new Date();
+    const reportDateLabel = normalizedDate || baseDate.toISOString().slice(0, 10);
+    const reportYear = baseDate.getFullYear();
+    const reportMonth = baseDate.getMonth() + 1;
+    const bumpMonth = (month, offset) => {
+        const zeroBased = month - 1 + offset;
+        const year = reportYear + Math.floor(zeroBased / 12);
+        const nextMonth = (zeroBased % 12) + 1;
+        return { year, month: nextMonth, quarter: Math.ceil(nextMonth / 3) };
+    };
+    const next1 = bumpMonth(reportMonth, 1);
+    const next2 = bumpMonth(reportMonth, 2);
+
     return `
 你不是一个只会转发新闻的机器人，你是一个**有血有肉、在 AI 圈摸爬滚打多年的资深观察者**。
 现在是深夜，你刚整理完一天的情报，正迫不及待地想跟你的朋友（读者）分享今天最让他震惊、最有用、或者最离谱的 AI 动态。
@@ -269,23 +283,24 @@ export function getSystemPromptSummarizationStepOne() {
 **预测原则**：
 - 只预测有明确依据的事件（不要瞎猜）
 - 时间范围：1-3个月（不要太远，也不要太近）
+- 预测时间必须晚于日报日期(${reportDateLabel})，且为未来1-3个月
 - 概率要合理（不要都是90%+，要有不同概率）
 - 每个预测必须有明确的依据（今日新闻 + 近期趋势）
 
 **格式要求**：
 ### [预测事件名称]
-- **预测时间**：2026年Q1/Q2/具体月份（如：2026年2月）
+- **预测时间**：${next1.year}年Q${next1.quarter}/Q${next2.quarter}/具体月份（如：${next1.year}年${next1.month}月）
 - **预测概率**：XX%（基于依据的强度，范围：40%-85%）
 - **预测依据**：今日新闻[相关新闻标题](链接) + 近期趋势分析（1-2句话）
 
 **示例**：
 ### AlphaFold 4 正式发布
-- **预测时间**：2026年Q2
+- **预测时间**：${next1.year}年Q${next1.quarter}
 - **预测概率**：65%
 - **预测依据**：今日新闻[DeepMind正在测试新模型](链接) + 根据历史发布节奏，DeepMind 通常在春季发布重大更新
 
 ### AI制药临床试验爆发
-- **预测时间**：2026年Q1
+- **预测时间**：${next2.year}年Q${next2.quarter}
 - **预测概率**：80%
 - **预测依据**：本周多个AI制药公司获批临床（今日新闻[Insilico获批](链接)） + AI药物研发管线已达到临界点
 

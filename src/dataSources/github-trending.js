@@ -1,6 +1,7 @@
 // src/dataSources/projects.js
-import { fetchData, getISODate, removeMarkdownCodeBlock, formatDateToChineseWithTime, escapeHtml, isDateWithinLastDays } from '../helpers.js';
+import { fetchData, getISODate, removeMarkdownCodeBlock, formatDateToChineseWithTime, escapeHtml, isDateWithinLastDays, getFetchDate } from '../helpers.js';
 import { callChatAPI } from '../chatapi.js';
+import { getFromKV } from '../kv.js';
 
 const MIN_STARS = 100;
 const ACTIVE_DAYS = 30;
@@ -25,10 +26,20 @@ const getLastActivityAt = (project) => {
 const ProjectsDataSource = {
     fetch: async (env) => {
         console.log(`Fetching projects from: ${env.PROJECTS_API_URL}`);
+        const resolvedDate = getFetchDate() || getISODate();
+        const baseDate = new Date(`${resolvedDate}T00:00:00+08:00`);
+        const yesterdayDate = getISODate(new Date(baseDate.getTime() - 24 * 60 * 60 * 1000));
         const urlList = String(env.PROJECTS_API_URL || "")
             .split(/\s*\|\s*|\r?\n/)
             .map((url) => url.trim())
             .filter(Boolean);
+        const resolvedUrlList = urlList.map((url) => {
+            if (!resolvedDate) return url;
+            return url
+                .replaceAll("{date}", resolvedDate)
+                .replaceAll("{today}", resolvedDate)
+                .replaceAll("{yesterday}", yesterdayDate);
+        });
         if (urlList.length === 0) {
             return { error: "PROJECTS_API_URL is not set", items: [] };
         }
@@ -58,7 +69,7 @@ const ProjectsDataSource = {
         const projectsByKey = new Map();
         const errors = [];
 
-        for (const url of urlList) {
+        for (const url of resolvedUrlList) {
             let fetchOptions = {};
             try {
                 const parsedUrl = new URL(url);
@@ -115,6 +126,30 @@ const ProjectsDataSource = {
         if (projects.length === 0) {
             console.warn(`No projects matched filters (stars>=${MIN_STARS}, active within ${ACTIVE_DAYS} days).`);
             return [];
+        }
+
+        if (env.DATA_KV) {
+            try {
+                const previousProjects = await getFromKV(env.DATA_KV, `${yesterdayDate}-project`);
+                const previousUrls = new Set(
+                    (previousProjects || [])
+                        .map((item) => item?.url)
+                        .filter(Boolean)
+                );
+                if (previousUrls.size > 0) {
+                    const uniqueProjects = projects.filter((project) => !previousUrls.has(project.url));
+                    if (uniqueProjects.length > 0) {
+                        if (uniqueProjects.length < projects.length) {
+                            console.log(`Filtered ${projects.length - uniqueProjects.length} projects duplicated with ${yesterdayDate}.`);
+                        }
+                        projects = uniqueProjects;
+                    } else {
+                        console.warn(`All projects duplicated with ${yesterdayDate}; keeping original list.`);
+                    }
+                }
+            } catch (dedupeError) {
+                console.warn(`Project de-duplication skipped: ${dedupeError.message}`);
+            }
         }
 
         if (String(env.OPEN_TRANSLATE).toLowerCase() !== "true") {

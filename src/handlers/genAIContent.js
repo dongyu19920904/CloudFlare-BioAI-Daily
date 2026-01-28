@@ -246,7 +246,7 @@ export async function handleGenAIContent(request, env) {
 
         // Call 2: Process outputOfCall1
         let outputOfCall2 = null;
-        let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(); // Re-using summarization prompt for now
+        let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr); // Re-using summarization prompt for now
         let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n'; // Input for Call 2 is output of Call 1
 
         console.log("Call 2 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall2_User.length);

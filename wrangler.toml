@@ -36,7 +36,7 @@ TWITTER_LIST_ID = ""
 TWITTER_FETCH_PAGES = "0"
 REDDIT_LIST_ID = ""
 REDDIT_FETCH_PAGES = "0"
-PROJECTS_API_URL = "https://api.github.com/search/repositories?q=bioinformatics+%22deep%20learning%22+stars:>50+archived:false&sort=updated&order=desc&per_page=50|https://api.github.com/search/repositories?q=health+ai+stars:>50+archived:false&sort=updated&order=desc&per_page=50"
+PROJECTS_API_URL = "https://api.github.com/search/repositories?q=bioinformatics+%22deep%20learning%22+stars:>50+archived:false+pushed:>={date}&sort=updated&order=desc&per_page=50|https://api.github.com/search/repositories?q=health+ai+stars:>50+archived:false+pushed:>={date}&sort=updated&order=desc&per_page=50"
 
 MAX_ITEMS_PER_TYPE = "50"
 

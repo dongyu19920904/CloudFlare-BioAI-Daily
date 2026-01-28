@@ -107,7 +107,7 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
 
         // 3. Generate Content (Call 2)
         console.log(`[Scheduled] Generating content...`);
-        let fullPromptForCall2_System = getSystemPromptSummarizationStepOne();
+        let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr);
         let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n';
         
         let outputOfCall2 = "";
