@@ -11,6 +11,7 @@ import PapersDataSource from './dataSources/papers.js';
 import HuggingfacePapersDataSource from './dataSources/huggingface-papers.js';
 import TwitterDataSource from './dataSources/twitter.js';
 import RedditDataSource from './dataSources/reddit.js';
+import { applyLinuxDoPolicy, resolveLinuxDoPolicy } from './sourcePolicies.js';
 
 
 // Register data sources as arrays to support multiple sources per type
@@ -67,6 +68,15 @@ export async function fetchAndTransformDataForType(sourceType, env, foloCookie) 
         const dateB = new Date(b.published_date);
         return dateB.getTime() - dateA.getTime();
     });
+
+    if (sourceType === 'news') {
+        const linuxPolicy = resolveLinuxDoPolicy(env);
+        const beforeCount = allUnifiedDataForType.length;
+        allUnifiedDataForType = applyLinuxDoPolicy(allUnifiedDataForType, linuxPolicy);
+        if (allUnifiedDataForType.length !== beforeCount) {
+            console.log(`Applied linux.do policy: ${beforeCount} -> ${allUnifiedDataForType.length} items (max=${linuxPolicy.maxItems}, stripMedia=${linuxPolicy.stripMedia}).`);
+        }
+    }
 
     // Cap items per type to keep prompts within model limits, configurable via env
     const typeCapKey = `MAX_ITEMS_${sourceType.toUpperCase()}`;

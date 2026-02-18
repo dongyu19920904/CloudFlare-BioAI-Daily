@@ -1,0 +1,159 @@
+name: Daily Self-Heal Guard (BioAI)
+
+on:
+  schedule:
+    - cron: "35 18 * * *"
+    - cron: "20 19 * * *"
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "Optional date in YYYY-MM-DD (default: Asia/Shanghai today)"
+        required: false
+        type: string
+
+jobs:
+  guard-daily:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      FRONTEND_OWNER: dongyu19920904
+      FRONTEND_REPO: BioAI-Daily-Web
+      DEFAULT_WORKER_BASE_URL: https://cloudflare-bioai-daily.sabrinamisan090.workers.dev
+      DEFAULT_TRIGGER_SECRET: test-secret-key-change-me
+
+    steps:
+      - name: Check missing daily and auto-heal
+        id: guard
+        shell: bash
+        env:
+          INPUT_TARGET_DATE: ${{ github.event.inputs.target_date }}
+          WORKER_BASE_URL: ${{ vars.WORKER_BASE_URL }}
+          TRIGGER_SECRET: ${{ secrets.TEST_TRIGGER_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${INPUT_TARGET_DATE:-}" ]]; then
+            TARGET_DATE="${INPUT_TARGET_DATE}"
+          else
+            TARGET_DATE="$(TZ=Asia/Shanghai date +%F)"
+          fi
+
+          if [[ ! "$TARGET_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "Invalid target date: $TARGET_DATE"
+            exit 1
+          fi
+
+          WORKER_BASE_URL="${WORKER_BASE_URL:-$DEFAULT_WORKER_BASE_URL}"
+          TRIGGER_SECRET="${TRIGGER_SECRET:-$DEFAULT_TRIGGER_SECRET}"
+          RAW_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/daily/${TARGET_DATE}.md"
+          TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduled?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
+
+          echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
+          echo "raw_url=$RAW_URL" >> "$GITHUB_OUTPUT"
+          echo "worker_base_url=$WORKER_BASE_URL" >> "$GITHUB_OUTPUT"
+
+          if curl -fsSI "$RAW_URL" > /dev/null; then
+            echo "status=already_exists" >> "$GITHUB_OUTPUT"
+            {
+              echo "trigger_response<<EOF"
+              echo "not_needed"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            echo "Daily file already exists: $RAW_URL"
+            exit 0
+          fi
+
+          echo "Daily file missing, triggering worker for date: $TARGET_DATE"
+          trigger_response="$(curl -fsS --max-time 900 "$TRIGGER_URL" || true)"
+          echo "Trigger response: ${trigger_response:-<empty>}"
+
+          {
+            echo "trigger_response<<EOF"
+            echo "${trigger_response:-<empty>}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          healed="false"
+          for i in {1..30}; do
+            if curl -fsSI "$RAW_URL" > /dev/null; then
+              healed="true"
+              break
+            fi
+            sleep 20
+          done
+
+          if [[ "$healed" == "true" ]]; then
+            echo "status=self_healed" >> "$GITHUB_OUTPUT"
+            echo "Recovered successfully: $RAW_URL"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            echo "Still missing after auto-heal attempt: $RAW_URL"
+          fi
+
+      - name: Create alert issue when self-heal fails
+        if: steps.guard.outputs.status == 'failed'
+        uses: actions/github-script@v7
+        env:
+          TARGET_DATE: ${{ steps.guard.outputs.target_date }}
+          RAW_URL: ${{ steps.guard.outputs.raw_url }}
+          WORKER_BASE_URL: ${{ steps.guard.outputs.worker_base_url }}
+          TRIGGER_RESPONSE: ${{ steps.guard.outputs.trigger_response }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const title = `[Self-Heal][BioAI Daily] ${process.env.TARGET_DATE} auto-recovery failed`;
+            const body = [
+              "Daily guard detected a missing file and auto-recovery did not finish successfully.",
+              "",
+              `- Date: ${process.env.TARGET_DATE}`,
+              `- Daily URL: ${process.env.RAW_URL}`,
+              `- Worker: ${process.env.WORKER_BASE_URL}`,
+              "",
+              "Trigger response:",
+              "```json",
+              process.env.TRIGGER_RESPONSE || "<empty>",
+              "```",
+              "",
+              `Workflow run: https://github.com/${owner}/${repo}/actions/runs/${context.runId}`
+            ].join("\n");
+
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100
+            });
+
+            const existing = openIssues.find((issue) => issue.title === title);
+            if (existing) {
+              core.info(`Alert issue already exists: #${existing.number}`);
+              return;
+            }
+
+            const created = await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body
+            });
+            core.info(`Created alert issue: #${created.data.number}`);
+
+      - name: Fail job on unrecovered daily
+        if: steps.guard.outputs.status == 'failed'
+        run: |
+          echo "Self-heal failed and alert issue was created."
+          exit 1
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Daily Self-Heal Result"
+            echo ""
+            echo "- Status: ${{ steps.guard.outputs.status }}"
+            echo "- Date: ${{ steps.guard.outputs.target_date }}"
+            echo "- Daily URL: ${{ steps.guard.outputs.raw_url }}"
+            echo "- Worker: ${{ steps.guard.outputs.worker_base_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
