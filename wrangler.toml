@@ -12,13 +12,14 @@ kv_namespaces = [
 IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
-ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/aws"
-DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
+ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/ultra"
+ANTHROPIC_API_URL = "https://code.newcli.com/claude/ultra"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-6"
 OPENAI_API_URL = "https://code.newcli.com/codex"
 DEFAULT_OPEN_MODEL = "gpt-5.2"
 GEMINI_API_URL = "https://code.newcli.com/gemini"
-DEFAULT_GEMINI_MODEL = "gemini-3-pro"
-GEMINI_STREAM_MODE = "off"
+DEFAULT_GEMINI_MODEL = "gemini-3.1-pro"
+GEMINI_STREAM_MODE = "auto"
 GEMINI_API_VERSION = "v1beta"
 GEMINI_DEBUG = "false"
 GEMINI_RETRY_MAX = "3"
@@ -73,4 +74,7 @@ crons = [
   "0 23 * * *",
   "0 10 * * *"
 ]
+
+
+
 
