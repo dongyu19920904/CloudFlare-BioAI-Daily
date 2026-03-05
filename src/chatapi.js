@@ -15,8 +15,8 @@ function getAnthropicMaxTokens(env) {
     if (Number.isFinite(configured) && configured >= 256 && configured <= 32000) {
         return configured;
     }
-    // Use a higher default to reduce truncation risk for long multi-module daily reports.
-    return 12288;
+    // Use a higher default than legacy 2048 while keeping proxy compatibility.
+    return 8192;
 }
 
 function getGeminiApiKey(env) {
