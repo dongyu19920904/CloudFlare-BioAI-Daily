@@ -19,6 +19,58 @@ function normalizeSummaryLines(summaryText) {
     return lines.slice(-3).join('\n');
 }
 
+const REQUIRED_DAILY_SECTIONS = [
+    { name: '今日AI生命科学资讯', pattern: /^##\s*\*\*(?:👀\s*)?今日\s*AI(?:\s*生命科学)?\s*资讯\*\*/m },
+    { name: '重磅TOP10', pattern: /^##\s*\*\*(?:🔥\s*)?重磅\s*TOP\s*10(?:（[^）]*）)?\*\*/m },
+    { name: '值得关注', pattern: /^##\s*\*\*(?:📌\s*)?值得关注(?:（[^）]*）)?\*\*/m },
+    { name: 'AI趋势预测', pattern: /^##\s*\*\*(?:🔮\s*)?AI(?:\s*生命科学)?\s*趋势预测(?:（[^）]*）)?\*\*/m },
+    { name: '相关问题', pattern: /^##\s*\*\*(?:❓\s*)?相关问题(?:（[^）]*）)?\*\*/m }
+];
+
+function getTopItemsMinCount(env) {
+    const configured = Number.parseInt(String(env.DAILY_TOP_MIN_ITEMS ?? '').trim(), 10);
+    if (Number.isFinite(configured) && configured >= 5 && configured <= 10) {
+        return configured;
+    }
+    // Prompt allows "TOP 10（或更少）"; use 7 as default minimum quality floor.
+    return 7;
+}
+
+function getTopSectionText(markdown) {
+    const text = String(markdown || '');
+    const headingMatch = text.match(/^##\s*\*\*(?:🔥\s*)?重磅\s*TOP\s*10(?:（[^）]*）)?\*\*/m);
+    if (!headingMatch || headingMatch.index == null) return text;
+
+    const start = headingMatch.index + headingMatch[0].length;
+    const rest = text.slice(start);
+    const nextSectionIndex = rest.search(/\n##\s+/);
+    return nextSectionIndex >= 0 ? rest.slice(0, nextSectionIndex) : rest;
+}
+
+function countTopItems(markdown) {
+    const topSection = getTopSectionText(markdown);
+    const numberedItems = (topSection.match(/^\d+\.\s+/gm) || []).length;
+    const headingItems = (topSection.match(/^###\s+\**\d+\./gm) || []).length;
+    return Math.max(numberedItems, headingItems);
+}
+
+function validateDailyContentModules(markdown, env) {
+    const text = String(markdown || '');
+    const missing = REQUIRED_DAILY_SECTIONS
+        .filter((section) => !section.pattern.test(text))
+        .map((section) => section.name);
+
+    const topCount = countTopItems(text);
+    const topMin = getTopItemsMinCount(env);
+    if (topCount < topMin) {
+        missing.push(`TOP10(${topCount}/${topMin})`);
+    }
+
+    if (missing.length > 0) {
+        throw new Error(`[Scheduled] Daily content validation failed: ${missing.join(', ')}`);
+    }
+}
+
 export async function handleScheduled(event, env, ctx, specifiedDate = null) {
     // 如果指定了日期，使用指定日期；否则使用当前日期
     const dateStr = specifiedDate || getISODate();
@@ -119,6 +171,7 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
         // 替换错误的域名链接
         outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
+        validateDailyContentModules(outputOfCall2, env);
 
         // 4. Generate Summary (Call 3)
         console.log(`[Scheduled] Generating summary...`);
@@ -184,6 +237,6 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
 
     } catch (error) {
         console.error(`[Scheduled] Error:`, error);
-        return { success: false, date: dateStr, error: error.message };
+        throw error;
     }
 }

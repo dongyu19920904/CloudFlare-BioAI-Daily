@@ -129,6 +129,19 @@ export default {
                 }
                 const fakeCtx = { waitUntil: (promise) => promise };
                 const result = await handleScheduled(fakeEvent, env, fakeCtx, specifiedDate);
+                if (result && result.success === false) {
+                    return new Response(JSON.stringify({
+                        success: false,
+                        error: result.error || result.reason || 'Scheduled task failed',
+                        date: specifiedDate || 'current date',
+                        async: false,
+                        result,
+                        timestamp: new Date().toISOString()
+                    }), {
+                        status: 500,
+                        headers: { 'Content-Type': 'application/json; charset=utf-8' }
+                    });
+                }
                 return new Response(JSON.stringify({ 
                     success: result?.success ?? true, 
                     message: `Scheduled task completed${specifiedDate ? ` for date: ${specifiedDate}` : ' for current date'}`,

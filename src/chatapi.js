@@ -10,6 +10,15 @@ function getAnthropicBaseUrl(env) {
     return normalizeBaseUrl(env.ANTHROPIC_BASE_URL || env.ANTHROPIC_API_URL);
 }
 
+function getAnthropicMaxTokens(env) {
+    const configured = Number.parseInt(String(env.ANTHROPIC_MAX_TOKENS ?? "").trim(), 10);
+    if (Number.isFinite(configured) && configured >= 256 && configured <= 32000) {
+        return configured;
+    }
+    // Use a higher default to reduce truncation risk for long multi-module daily reports.
+    return 12288;
+}
+
 function getGeminiApiKey(env) {
     return env.GEMINI_API_KEY || env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY;
 }
@@ -922,6 +931,7 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
         throw new Error("ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) or ANTHROPIC_API_KEY not set.");
     }
     const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-opus-4-5";
+    const maxTokens = getAnthropicMaxTokens(env);
     const url = `${baseUrl}/v1/messages`;
 
     const messages = [{ role: "user", content: promptText }];
@@ -929,7 +939,7 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
     const payload = {
         model: modelName,
         messages: messages,
-        max_tokens: 2048
+        max_tokens: maxTokens
     };
 
     if (systemPromptText && systemPromptText.trim() !== '') {
@@ -954,6 +964,9 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
         }
 
         const data = await response.json();
+        if (data?.stop_reason === 'max_tokens') {
+            throw new Error(`Anthropic Chat API truncated output (stop_reason=max_tokens, max_tokens=${maxTokens}). Increase ANTHROPIC_MAX_TOKENS.`);
+        }
 
         // Filter out thinking blocks and only return text content
         if (data.content && Array.isArray(data.content)) {
@@ -989,6 +1002,7 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
         throw new Error("ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) or ANTHROPIC_API_KEY not set.");
     }
     const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-opus-4-5";
+    const maxTokens = getAnthropicMaxTokens(env);
     const url = `${baseUrl}/v1/messages`;
 
     const messages = [{ role: "user", content: promptText }];
@@ -996,7 +1010,7 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
     const payload = {
         model: modelName,
         messages: messages,
-        max_tokens: 2048,
+        max_tokens: maxTokens,
         stream: true
     };
 
@@ -1025,6 +1039,8 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
         let buffer = '';
         let hasYieldedContent = false;
         let currentBlockType = null;
+        let stopReason = null;
+        let stopSequence = null;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -1039,29 +1055,40 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
                 const data = line.substring(6).trim();
                 if (data === '[DONE]') continue;
 
+                let parsed;
                 try {
-                    const parsed = JSON.parse(data);
-
-                    // Track the type of the current content block
-                    if (parsed.type === 'content_block_start') {
-                        currentBlockType = parsed.content_block?.type;
-                    } else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                        // Only yield text if the current block is not a thinking block
-                        if (currentBlockType !== 'thinking') {
-                            hasYieldedContent = true;
-                            yield parsed.delta.text;
-                        }
-                    } else if (parsed.type === 'content_block_stop') {
-                        currentBlockType = null;
-                    } else if (parsed.type === 'error') {
-                        throw new Error(`Anthropic stream error: ${parsed.error?.message || 'Unknown'}`);
-                    }
+                    parsed = JSON.parse(data);
                 } catch (e) {
                     console.warn("Failed to parse Anthropic stream chunk:", data, e.message);
+                    continue;
+                }
+
+                // Track the type of the current content block
+                if (parsed.type === 'content_block_start') {
+                    currentBlockType = parsed.content_block?.type;
+                } else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                    // Only yield text if the current block is not a thinking block
+                    if (currentBlockType !== 'thinking') {
+                        hasYieldedContent = true;
+                        yield parsed.delta.text;
+                    }
+                } else if (parsed.type === 'content_block_stop') {
+                    currentBlockType = null;
+                } else if (parsed.type === 'message_delta') {
+                    if (parsed.delta?.stop_reason) stopReason = parsed.delta.stop_reason;
+                    if (parsed.delta?.stop_sequence) stopSequence = parsed.delta.stop_sequence;
+                } else if (parsed.type === 'message_stop') {
+                    if (!stopReason && parsed.message?.stop_reason) stopReason = parsed.message.stop_reason;
+                } else if (parsed.type === 'error') {
+                    throw new Error(`Anthropic stream error: ${parsed.error?.message || 'Unknown'}`);
                 }
             }
         }
 
+        if (stopReason === 'max_tokens') {
+            const seqText = stopSequence ? `, stop_sequence=${stopSequence}` : '';
+            throw new Error(`Anthropic stream truncated (stop_reason=max_tokens, max_tokens=${maxTokens}${seqText}). Increase ANTHROPIC_MAX_TOKENS.`);
+        }
         if (!hasYieldedContent) {
             throw new Error("Anthropic stream completed but yielded no content.");
         }

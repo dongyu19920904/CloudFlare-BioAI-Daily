@@ -66,10 +66,20 @@ jobs:
           fi
 
           echo "Daily file missing, triggering worker for date: $TARGET_DATE"
-          trigger_response="$(curl -fsS --max-time 900 "$TRIGGER_URL" || true)"
+          trigger_body_file="$(mktemp)"
+          trigger_status="$(curl -sS --max-time 900 -o "$trigger_body_file" -w "%{http_code}" "$TRIGGER_URL" || true)"
+          trigger_response="$(cat "$trigger_body_file" 2>/dev/null || true)"
+          rm -f "$trigger_body_file"
+
+          if [[ -z "${trigger_status:-}" ]]; then
+            trigger_status="000"
+          fi
+
+          echo "Trigger status: ${trigger_status}"
           echo "Trigger response: ${trigger_response:-<empty>}"
 
           {
+            echo "trigger_status=$trigger_status"
             echo "trigger_response<<EOF"
             echo "${trigger_response:-<empty>}"
             echo "EOF"
@@ -99,6 +109,7 @@ jobs:
           TARGET_DATE: ${{ steps.guard.outputs.target_date }}
           RAW_URL: ${{ steps.guard.outputs.raw_url }}
           WORKER_BASE_URL: ${{ steps.guard.outputs.worker_base_url }}
+          TRIGGER_STATUS: ${{ steps.guard.outputs.trigger_status }}
           TRIGGER_RESPONSE: ${{ steps.guard.outputs.trigger_response }}
         with:
           script: |
@@ -110,6 +121,7 @@ jobs:
               `- Date: ${process.env.TARGET_DATE}`,
               `- Daily URL: ${process.env.RAW_URL}`,
               `- Worker: ${process.env.WORKER_BASE_URL}`,
+              `- Trigger HTTP Status: ${process.env.TRIGGER_STATUS || "unknown"}`,
               "",
               "Trigger response:",
               "```json",
@@ -156,4 +168,5 @@ jobs:
             echo "- Date: ${{ steps.guard.outputs.target_date }}"
             echo "- Daily URL: ${{ steps.guard.outputs.raw_url }}"
             echo "- Worker: ${{ steps.guard.outputs.worker_base_url }}"
+            echo "- Trigger HTTP Status: ${{ steps.guard.outputs.trigger_status }}"
           } >> "$GITHUB_STEP_SUMMARY"
