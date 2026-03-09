@@ -8,6 +8,7 @@ import { insertFoot } from '../foot.js';
 import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { createOrUpdateGitHubFile, getGitHubFileContent, getGitHubFileSha } from '../github.js';
+import { normalizeDailyStructure, validateDailyContentModules as validateDailyStructure } from '../dailyValidation.js';
 
 function normalizeSummaryLines(summaryText) {
     if (!summaryText) return '';
@@ -19,60 +20,101 @@ function normalizeSummaryLines(summaryText) {
     return lines.slice(-3).join('\n');
 }
 
-const REQUIRED_DAILY_SECTIONS = [
-    { name: '今日AI生命科学资讯', pattern: /^##\s*\*\*(?:👀\s*)?今日\s*AI(?:\s*生命科学)?\s*资讯\*\*/m },
-    { name: '重磅TOP10', pattern: /^##\s*\*\*(?:🔥\s*)?重磅\s*TOP\s*10(?:（[^）]*）)?\*\*/m },
-    { name: '值得关注', pattern: /^##\s*\*\*(?:📌\s*)?值得关注(?:（[^）]*）)?\*\*/m },
-    { name: 'AI趋势预测', pattern: /^##\s*\*\*(?:🔮\s*)?AI(?:\s*生命科学)?\s*趋势预测(?:（[^）]*）)?\*\*/m },
-    { name: '相关问题', pattern: /^##\s*\*\*(?:❓\s*)?相关问题(?:（[^）]*）)?\*\*/m }
-];
+function normalizeGeneratedDailyBody(markdown, env) {
+    let output = removeMarkdownCodeBlock(markdown);
+    output = convertPlaceholdersToMarkdownImages(output);
+    output = replaceIncorrectDomainLinks(output, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
+    output = normalizeDailyBody(output);
+    return normalizeDailyStructure(output, { kind: 'bio' });
+}
+
+function buildRetrySystemPrompt(dateStr, previousError) {
+    return `${getSystemPromptSummarizationStepOne(dateStr)}
+
+## 杈撳嚭淇瑕佹眰锛堝繀椤婚伒瀹堬級
+1. 鐩存帴浠庘€?# **浠婃棩AI鐢熷懡绉戝璧勮**鈥濆紑濮嬭緭鍑猴紝涓嶈鍐欏墠瑷€銆佽В閲娿€佹€荤粨鎴栨彁绀鸿銆?2. 蹇呴』瀹屾暣鍖呭惈杩?5 涓簩绾ф爣棰橈細
+   - ## **浠婃棩AI鐢熷懡绉戝璧勮**
+   - ## **馃敟 閲嶇 TOP 10**
+   - ## **馃搶 鍊煎緱鍏虫敞**
+   - ## **馃敭 AI瓒嬪娍棰勬祴**
+   - ## **鉂?鐩稿叧闂**
+3. 鈥滈噸纾?TOP 10鈥濅笅鐨勬瘡鏉″唴瀹瑰繀椤讳娇鐢ㄢ€?## 1. [鏍囬](URL)鈥濊繖绉嶇紪鍙锋牸寮忥紱濡傛灉绱犳潗涓嶈冻锛屽彲浠ュ皯浜?10 鏉★紝浣嗕笉瑕佺暀绌恒€?4. 涓嶈缂栭€犱俊鎭紝涓嶈鍒犻櫎宸叉湁閾炬帴锛屽彧鍏佽閲嶇粍鍜屾鼎鑹插凡鏈夌礌鏉愩€?5. 鍙緭鍑?Markdown 姝ｆ枃銆?
+涓婁竴娆″け璐ュ師鍥狅細${previousError}`;
+}
+
+async function generateValidatedDailyBody(env, dateStr, selectedContentItems) {
+    const promptUser = '\n\n------\n\n' + selectedContentItems.join('\n\n------\n\n') + '\n\n------\n\n';
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const systemPrompt = attempt === 0
+            ? getSystemPromptSummarizationStepOne(dateStr)
+            : buildRetrySystemPrompt(dateStr, lastError?.message || '???????????');
+        try {
+            let output = '';
+            for await (const chunk of callChatAPIStream(env, promptUser, systemPrompt)) {
+                output += chunk;
+            }
+            output = normalizeGeneratedDailyBody(output, env);
+            validateDailyStructure(output, env, { kind: 'bio' });
+            return output;
+        } catch (error) {
+            lastError = error;
+            console.warn(`[Scheduled] Generated content failed on attempt ${attempt + 1}: ${error.message}`);
+            if (attempt < 2) {
+                await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+            }
+        }
+    }
+
+    throw lastError;
+}
+
+async function generateSummaryText(env, markdown) {
+    const systemPrompt = getSystemPromptSummarizationStepThree();
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            let output = '';
+            for await (const chunk of callChatAPIStream(env, markdown, systemPrompt)) {
+                output += chunk;
+            }
+            output = removeMarkdownCodeBlock(output);
+            return normalizeSummaryLines(output);
+        } catch (error) {
+            lastError = error;
+            console.warn(`[Scheduled] Summary generation failed on attempt ${attempt + 1}: ${error.message}`);
+            if (attempt < 2) {
+                await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+            }
+        }
+    }
+
+    throw lastError;
+}
+
+const REQUIRED_DAILY_SECTIONS = [];
 
 function getTopItemsMinCount(env) {
-    const configured = Number.parseInt(String(env.DAILY_TOP_MIN_ITEMS ?? '').trim(), 10);
-    if (Number.isFinite(configured) && configured >= 5 && configured <= 10) {
-        return configured;
-    }
-    // Prompt allows "TOP 10（或更少）"; use 7 as default minimum quality floor.
-    return 7;
+    return Number.parseInt(String(env.DAILY_TOP_MIN_ITEMS ?? '7').trim(), 10) || 7;
 }
 
 function getTopSectionText(markdown) {
-    const text = String(markdown || '');
-    const headingMatch = text.match(/^##\s*\*\*(?:🔥\s*)?重磅\s*TOP\s*10(?:（[^）]*）)?\*\*/m);
-    if (!headingMatch || headingMatch.index == null) return text;
-
-    const start = headingMatch.index + headingMatch[0].length;
-    const rest = text.slice(start);
-    const nextSectionIndex = rest.search(/\n##\s+/);
-    return nextSectionIndex >= 0 ? rest.slice(0, nextSectionIndex) : rest;
+    return String(markdown || '');
 }
 
 function countTopItems(markdown) {
-    const topSection = getTopSectionText(markdown);
-    const numberedItems = (topSection.match(/^\d+\.\s+/gm) || []).length;
-    const headingItems = (topSection.match(/^###\s+\**\d+\./gm) || []).length;
-    return Math.max(numberedItems, headingItems);
+    return 0;
 }
 
 function validateDailyContentModules(markdown, env) {
-    const text = String(markdown || '');
-    const missing = REQUIRED_DAILY_SECTIONS
-        .filter((section) => !section.pattern.test(text))
-        .map((section) => section.name);
-
-    const topCount = countTopItems(text);
-    const topMin = getTopItemsMinCount(env);
-    if (topCount < topMin) {
-        missing.push(`TOP10(${topCount}/${topMin})`);
-    }
-
-    if (missing.length > 0) {
-        throw new Error(`[Scheduled] Daily content validation failed: ${missing.join(', ')}`);
-    }
+    return validateDailyStructure(markdown, env, { kind: 'bio' });
 }
 
+
 export async function handleScheduled(event, env, ctx, specifiedDate = null) {
-    // 如果指定了日期，使用指定日期；否则使用当前日期
+    // 濡傛灉鎸囧畾浜嗘棩鏈燂紝浣跨敤鎸囧畾鏃ユ湡锛涘惁鍒欎娇鐢ㄥ綋鍓嶆棩鏈?
     const dateStr = specifiedDate || getISODate();
     setFetchDate(dateStr);
     console.log(`[Scheduled] Starting daily automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
@@ -80,8 +122,8 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
     try {
         // 1. Fetch Data
         console.log(`[Scheduled] Fetching data...`);
-        // 定时任务无法从浏览器 localStorage 获取 Cookie，这里优先使用环境变量 FOLO_COOKIE，
-        // 如果未设置则尝试从 KV(FOLO_COOKIE_KV_KEY) 读取。
+        // 瀹氭椂浠诲姟鏃犳硶浠庢祻瑙堝櫒 localStorage 鑾峰彇 Cookie锛岃繖閲屼紭鍏堜娇鐢ㄧ幆澧冨彉閲?FOLO_COOKIE锛?
+        // 濡傛灉鏈缃垯灏濊瘯浠?KV(FOLO_COOKIE_KV_KEY) 璇诲彇銆?
         let foloCookie = env.FOLO_COOKIE;
         if (!foloCookie && env.FOLO_COOKIE_KV_KEY) {
             try {
@@ -125,7 +167,7 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
                             itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
                             break;
                         case 'socialMedia':
-                            itemText = `socialMedia Post by ${item.authors}：Published: ${item.published_date}\nUrl: ${item.url}\nContent: ${stripHtml(item.details.content_html)}`;
+                            itemText = `socialMedia Post by ${item.authors}锛歅ublished: ${item.published_date}\nUrl: ${item.url}\nContent: ${stripHtml(item.details.content_html)}`;
                             break;
                         default:
                             itemText = `Type: ${item.type}\nTitle: ${item.title || 'N/A'}\nDescription: ${item.description || 'N/A'}\nURL: ${item.url || 'N/A'}`;
@@ -159,37 +201,18 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
 
         // 3. Generate Content (Call 2)
         console.log(`[Scheduled] Generating content...`);
-        let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr);
-        let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n';
-        
-        let outputOfCall2 = "";
-        for await (const chunk of callChatAPIStream(env, fullPromptForCall2_User, fullPromptForCall2_System)) {
-            outputOfCall2 += chunk;
-        }
-        outputOfCall2 = removeMarkdownCodeBlock(outputOfCall2);
-        outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
-        // 替换错误的域名链接
-        outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
-        outputOfCall2 = normalizeDailyBody(outputOfCall2);
+        let outputOfCall2 = await generateValidatedDailyBody(env, dateStr, selectedContentItems);
         validateDailyContentModules(outputOfCall2, env);
 
         // 4. Generate Summary (Call 3)
         console.log(`[Scheduled] Generating summary...`);
-        let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
-        let fullPromptForCall3_User = outputOfCall2;
-        
-        let outputOfCall3 = "";
-        for await (const chunk of callChatAPIStream(env, fullPromptForCall3_User, fullPromptForCall3_System)) {
-            outputOfCall3 += chunk;
-        }
-        outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
-        outputOfCall3 = normalizeSummaryLines(outputOfCall3);
+        let outputOfCall3 = await generateSummaryText(env, outputOfCall2);
 
         // 5. Assemble Markdown
         const contentWithMidAd = insertMidAd(outputOfCall2);
-        let dailySummaryMarkdownContent = `## **今日摘要**\n\n\`\`\`\n${outputOfCall3}\n\`\`\`\n\n`;
-        dailySummaryMarkdownContent += '\n\n## ⚡ 快速导航\n\n';
-        dailySummaryMarkdownContent += '- [📰 今日 AI 资讯](#今日ai资讯) - 最新动态速览\n\n';
+        let dailySummaryMarkdownContent = `## **浠婃棩鎽樿**\n\n\`\`\`\n${outputOfCall3}\n\`\`\`\n\n`;
+        dailySummaryMarkdownContent += '\n\n## 鈿?蹇€熷鑸猏n\n';
+        dailySummaryMarkdownContent += '- [馃摪 浠婃棩 AI 璧勮](#浠婃棩ai璧勮) - 鏈€鏂板姩鎬侀€熻\n\n';
         dailySummaryMarkdownContent += `\n\n${contentWithMidAd}`;
         
         if (env.INSERT_AD=='true') dailySummaryMarkdownContent += insertAd() +`\n`;

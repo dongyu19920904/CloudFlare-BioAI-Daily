@@ -42,7 +42,7 @@ PROJECTS_API_URL = "https://api.github.com/search/repositories?q=bioinformatics+
 
 MAX_ITEMS_PER_TYPE = "30"
 # TOP 最低条数（Prompt 允许“TOP 10（或更少）”）
-DAILY_TOP_MIN_ITEMS = "7"
+DAILY_TOP_MIN_ITEMS = "5"
 # linux.do source fallback policy:
 # - keep at most 2 items by default (set to 3 if media proves stable)
 # - strip linux.do media tags by default to avoid hotlink-broken images

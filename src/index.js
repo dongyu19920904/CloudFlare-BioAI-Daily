@@ -7,7 +7,7 @@ import { handleGenAIDailyPage } from './handlers/genAIDailyPage.js'; // Import h
 import { handleCommitToGitHub } from './handlers/commitToGitHub.js';
 import { handleRss } from './handlers/getRss.js';
 import { handleWriteRssData } from './handlers/writeRssData.js';
-import { handleUpdateAllMonthIndexes } from './handlers/updateAllMonthIndexes.js'; 
+import { handleUpdateAllMonthIndexes } from './handlers/updateAllMonthIndexes.js';
 import { dataSources } from './dataFetchers.js';
 import { handleLogin, isAuthenticated, handleLogout } from './auth.js';
 import { handleScheduled } from './handlers/scheduled.js';
@@ -65,7 +65,7 @@ export default {
                 <p>Please contact the administrator.</p></body></html>`;
             return new Response(errorPage, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         }
-        
+
         const url = new URL(request.url);
         const path = url.pathname;
         console.log(`Request received: ${request.method} ${path}`);
@@ -87,11 +87,11 @@ export default {
             const secretKey = url.searchParams.get('key');
             const expectedKey = env.TEST_TRIGGER_SECRET || 'test-secret-key-change-me';
             if (secretKey !== expectedKey) {
-                return new Response(JSON.stringify({ 
-                    error: 'Unauthorized. Please provide correct secret key.' 
-                }), { 
-                    status: 401, 
-                    headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                return new Response(JSON.stringify({
+                    error: 'Unauthorized. Please provide correct secret key.'
+                }), {
+                    status: 401,
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' }
                 });
             }
             return await handleUpdateAllMonthIndexes(request, env);
@@ -101,30 +101,31 @@ export default {
             const secretKey = url.searchParams.get('key');
             const expectedKey = env.TEST_TRIGGER_SECRET || 'test-secret-key-change-me';
             if (secretKey !== expectedKey) {
-                return new Response(JSON.stringify({ 
-                    error: 'Unauthorized. Please provide correct secret key.' 
-                }), { 
-                    status: 401, 
-                    headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                return new Response(JSON.stringify({
+                    error: 'Unauthorized. Please provide correct secret key.'
+                }), {
+                    status: 401,
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' }
                 });
             }
             const dateParam = url.searchParams.get('date');
             const forceSync = url.searchParams.get('sync') === '1';
+            const forceAsync = url.searchParams.get('async') === '1';
             const specifiedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
             const fakeEvent = { scheduledTime: Date.now(), cron: '0 23 * * *' };
             try {
                 const waitUntil = ctx && typeof ctx.waitUntil === 'function' ? ctx.waitUntil.bind(ctx) : null;
-                if (waitUntil && !forceSync) {
+                if (waitUntil && forceAsync && !forceSync) {
                     waitUntil(handleScheduled(fakeEvent, env, ctx, specifiedDate));
-                    return new Response(JSON.stringify({ 
-                        success: true, 
+                    return new Response(JSON.stringify({
+                        success: true,
                         message: `Scheduled task started${specifiedDate ? ` for date: ${specifiedDate}` : ''}`,
                         date: specifiedDate || 'current date',
                         async: true,
                         timestamp: new Date().toISOString()
-                    }), { 
-                        status: 202, 
-                        headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                    }), {
+                        status: 202,
+                        headers: { 'Content-Type': 'application/json; charset=utf-8' }
                     });
                 }
                 const fakeCtx = { waitUntil: (promise) => promise };
@@ -142,26 +143,26 @@ export default {
                         headers: { 'Content-Type': 'application/json; charset=utf-8' }
                     });
                 }
-                return new Response(JSON.stringify({ 
-                    success: result?.success ?? true, 
+                return new Response(JSON.stringify({
+                    success: result?.success ?? true,
                     message: `Scheduled task completed${specifiedDate ? ` for date: ${specifiedDate}` : ' for current date'}`,
                     date: specifiedDate || 'current date',
                     async: false,
                     result,
                     timestamp: new Date().toISOString()
-                }), { 
-                    status: 200, 
-                    headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' }
                 });
             } catch (error) {
-                return new Response(JSON.stringify({ 
-                    success: false, 
+                return new Response(JSON.stringify({
+                    success: false,
                     error: error.message,
                     date: specifiedDate || 'current date',
                     timestamp: new Date().toISOString()
-                }), { 
-                    status: 500, 
-                    headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                }), {
+                    status: 500,
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' }
                 });
             }
         } else if (path === '/testTriggerBlog' && request.method === 'GET') {
@@ -222,14 +223,14 @@ export default {
                 const fakeEvent = { scheduledTime: Date.now(), cron: '0 23 * * *' };
                 const fakeCtx = { waitUntil: (promise) => promise };
                 await handleScheduled(fakeEvent, env, fakeCtx, specifiedDate);
-                response = new Response(JSON.stringify({ 
-                    success: true, 
+                response = new Response(JSON.stringify({
+                    success: true,
                     message: `Scheduled task triggered successfully${specifiedDate ? ` for date: ${specifiedDate}` : ''}`,
                     date: specifiedDate || 'current date',
                     timestamp: new Date().toISOString()
-                }), { 
-                    status: 200, 
-                    headers: { 'Content-Type': 'application/json; charset=utf-8' } 
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' }
                 });
             } else {
                 return new Response(null, { status: 404, headers: {'Content-Type': 'text/plain; charset=utf-8'} });
