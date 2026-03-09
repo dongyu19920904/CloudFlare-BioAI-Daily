@@ -12,15 +12,13 @@ kv_namespaces = [
 IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
-ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/ultra"
-ANTHROPIC_API_URL = "https://code.newcli.com/claude/ultra"
-DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-6"
-ANTHROPIC_MAX_TOKENS = "8192"
+ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/aws"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
 OPENAI_API_URL = "https://code.newcli.com/codex"
 DEFAULT_OPEN_MODEL = "gpt-5.2"
 GEMINI_API_URL = "https://code.newcli.com/gemini"
-DEFAULT_GEMINI_MODEL = "gemini-3.1-pro"
-GEMINI_STREAM_MODE = "auto"
+DEFAULT_GEMINI_MODEL = "gemini-3-pro"
+GEMINI_STREAM_MODE = "off"
 GEMINI_API_VERSION = "v1beta"
 GEMINI_DEBUG = "false"
 GEMINI_RETRY_MAX = "3"
@@ -40,9 +38,7 @@ REDDIT_LIST_ID = ""
 REDDIT_FETCH_PAGES = "0"
 PROJECTS_API_URL = "https://api.github.com/search/repositories?q=bioinformatics+%22deep%20learning%22+stars:>50+archived:false+pushed:>={date}&sort=updated&order=desc&per_page=50|https://api.github.com/search/repositories?q=health+ai+stars:>50+archived:false+pushed:>={date}&sort=updated&order=desc&per_page=50"
 
-MAX_ITEMS_PER_TYPE = "30"
-# TOP 最低条数（Prompt 允许“TOP 10（或更少）”）
-DAILY_TOP_MIN_ITEMS = "5"
+MAX_ITEMS_PER_TYPE = "50"
 # linux.do source fallback policy:
 # - keep at most 2 items by default (set to 3 if media proves stable)
 # - strip linux.do media tags by default to avoid hotlink-broken images
@@ -77,7 +73,4 @@ crons = [
   "0 23 * * *",
   "0 10 * * *"
 ]
-
-
-
 
