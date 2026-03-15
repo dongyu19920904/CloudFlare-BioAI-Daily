@@ -12,10 +12,11 @@ kv_namespaces = [
 IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
+ANTHROPIC_API_URL = "https://cloudcode.bdjd.cc"
 ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/aws"
-DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-6"
 OPENAI_API_URL = "https://code.newcli.com/codex"
-DEFAULT_OPEN_MODEL = "gpt-5.2"
+DEFAULT_OPEN_MODEL = "gpt-5.4"
 GEMINI_API_URL = "https://code.newcli.com/gemini"
 DEFAULT_GEMINI_MODEL = "gemini-3-pro"
 GEMINI_STREAM_MODE = "off"
@@ -25,7 +26,7 @@ GEMINI_RETRY_MAX = "3"
 GEMINI_RETRY_BASE_MS = "2000"
 FOLO_COOKIE_KV_KEY = "folo_auth_cookie"
 FOLO_DATA_API = "https://api.follow.is/entries"
-FOLO_FILTER_DAYS = 2
+FOLO_FILTER_DAYS = 3
 
 # News aggregator list/feed IDs (optional)
 NEWS_AGGREGATOR_LIST_ID = ""
@@ -48,7 +49,7 @@ LINUXDO_KEEP_MEDIA = "false"
 # Primary news sources from Folo (comma-separated feed IDs)
 FOLO_NEWS_IDS = "42127302313824333,231757749070049280,57597621707940927,72066614144010253,60261293905107978,71426655075913728,68920183615069184,156627007537055773"
 FOLO_NEWS_ID_TYPE = "feed"
-FOLO_NEWS_FETCH_PAGES = "1"
+FOLO_NEWS_FETCH_PAGES = "2"
 
 GITHUB_REPO_OWNER = "dongyu19920904"
 GITHUB_REPO_NAME = "BioAI-Daily-Web"

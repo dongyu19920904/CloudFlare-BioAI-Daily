@@ -6,8 +6,16 @@ function normalizeBaseUrl(url) {
     return String(url || "").replace(/\/+$/, "");
 }
 
+function getAnthropicBaseUrls(env) {
+    const urls = [
+        normalizeBaseUrl(env.ANTHROPIC_API_URL),
+        normalizeBaseUrl(env.ANTHROPIC_BASE_URL)
+    ].filter(Boolean);
+    return [...new Set(urls)];
+}
+
 function getAnthropicBaseUrl(env) {
-    return normalizeBaseUrl(env.ANTHROPIC_BASE_URL || env.ANTHROPIC_API_URL);
+    return getAnthropicBaseUrls(env)[0] || "";
 }
 
 function getAnthropicMaxTokens(env) {
@@ -95,6 +103,63 @@ function canUseAnthropicFallback(env) {
 
 function canUseOpenAIFallback(env) {
     return Boolean(env.OPENAI_API_URL && env.OPENAI_API_KEY);
+}
+
+function shouldTryNextAnthropicBaseUrl(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+        error?.name === "AbortError" ||
+        message.includes("timeout") ||
+        message.includes("timed out") ||
+        /anthropic chat api error \((408|409|429|5\d\d|524)\)/.test(message) ||
+        message.includes("network") ||
+        message.includes("connection") ||
+        message.includes("fetch failed")
+    );
+}
+
+async function postAnthropicWithBaseUrlFallback(env, payload) {
+    const baseUrls = getAnthropicBaseUrls(env);
+    if (baseUrls.length === 0 || !env.ANTHROPIC_API_KEY) {
+        throw new Error("ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) or ANTHROPIC_API_KEY not set.");
+    }
+
+    let lastError = null;
+    for (let index = 0; index < baseUrls.length; index++) {
+        const baseUrl = baseUrls[index];
+        const url = `${baseUrl}/v1/messages`;
+        try {
+            const response = await fetchWithTimeout(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${env.ANTHROPIC_API_KEY}`,
+                    'User-Agent': 'Cloudflare-Worker/1.0'
+                },
+                body: JSON.stringify(payload)
+            }, 180000);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Anthropic Chat API error (${response.status}): ${errorText}`);
+            }
+
+            return response;
+        } catch (error) {
+            lastError = error;
+            const hasNext = index < baseUrls.length - 1;
+            if (!hasNext || !shouldTryNextAnthropicBaseUrl(error)) {
+                throw error;
+            }
+            console.warn(`[Anthropic fallback] Primary route failed, trying next base URL.`, {
+                failedBaseUrl: baseUrl,
+                nextBaseUrl: baseUrls[index + 1],
+                error: String(error?.message || error)
+            });
+        }
+    }
+
+    throw lastError || new Error("Anthropic request failed.");
 }
 
 function formatGeminiVariant(variant) {
@@ -932,7 +997,6 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
     }
     const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-opus-4-5";
     const maxTokens = getAnthropicMaxTokens(env);
-    const url = `${baseUrl}/v1/messages`;
 
     const messages = [{ role: "user", content: promptText }];
     
@@ -948,20 +1012,7 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
     }
 
     try {
-        const response = await fetchWithTimeout(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${env.ANTHROPIC_API_KEY}`,
-                'User-Agent': 'Cloudflare-Worker/1.0'
-            },
-            body: JSON.stringify(payload)
-        }, 180000);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Anthropic Chat API error (${response.status}): ${errorText}`);
-        }
+        const response = await postAnthropicWithBaseUrlFallback(env, payload);
 
         const data = await response.json();
         if (data?.stop_reason === 'max_tokens') {
@@ -1003,7 +1054,6 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
     }
     const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-opus-4-5";
     const maxTokens = getAnthropicMaxTokens(env);
-    const url = `${baseUrl}/v1/messages`;
 
     const messages = [{ role: "user", content: promptText }];
     
@@ -1019,20 +1069,7 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
     }
 
     try {
-        const response = await fetchWithTimeout(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${env.ANTHROPIC_API_KEY}`,
-                'User-Agent': 'Cloudflare-Worker/1.0'
-            },
-            body: JSON.stringify(payload)
-        }, 180000);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Anthropic Chat API error (${response.status}): ${errorText}`);
-        }
+        const response = await postAnthropicWithBaseUrlFallback(env, payload);
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
