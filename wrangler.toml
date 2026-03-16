@@ -12,9 +12,9 @@ kv_namespaces = [
 IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
-ANTHROPIC_API_URL = "https://cloudcode.bdjd.cc"
-ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/aws"
-DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-6"
+ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"
+ANTHROPIC_BASE_URL = "https://cloudcode.bdjd.cc"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
 OPENAI_API_URL = "https://code.newcli.com/codex"
 DEFAULT_OPEN_MODEL = "gpt-5.4"
 GEMINI_API_URL = "https://code.newcli.com/gemini"
@@ -26,7 +26,7 @@ GEMINI_RETRY_MAX = "3"
 GEMINI_RETRY_BASE_MS = "2000"
 FOLO_COOKIE_KV_KEY = "folo_auth_cookie"
 FOLO_DATA_API = "https://api.follow.is/entries"
-FOLO_FILTER_DAYS = 3
+FOLO_FILTER_DAYS = 5
 
 # News aggregator list/feed IDs (optional)
 NEWS_AGGREGATOR_LIST_ID = ""

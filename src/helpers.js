@@ -227,6 +227,22 @@ export function getShanghaiTime() {
     return new Date(shanghaiDateString);
 }
 
+function getFetchDateReferenceTimeMs() {
+    const nowMs = getShanghaiTime().getTime();
+    const currentFetchDate = getFetchDate();
+
+    if (!currentFetchDate || !/^\d{4}-\d{2}-\d{2}$/.test(currentFetchDate)) {
+        return nowMs;
+    }
+
+    const fetchDateEndMs = new Date(`${currentFetchDate}T23:59:59.999+08:00`).getTime();
+    if (Number.isNaN(fetchDateEndMs)) {
+        return nowMs;
+    }
+
+    return Math.min(nowMs, fetchDateEndMs);
+}
+
 /**
  * Checks if a given date string is within the last specified number of hours from current time.
  * @param {string} dateString - The date string to check (YYYY-MM-DD or ISO format).
@@ -239,9 +255,7 @@ export function isDateWithinLastDays(dateString, days) {
     const itemTime = new Date(dateString).getTime();
     if (Number.isNaN(itemTime)) return false;
 
-    // Get current time in Asia/Shanghai timezone
-    const now = getShanghaiTime();
-    const currentTimeMs = now.getTime();
+    const currentTimeMs = getFetchDateReferenceTimeMs();
 
     // Calculate time window: from (now - days*24 hours) to now
     const hoursToLookBack = Math.max(days, 1) * 24;

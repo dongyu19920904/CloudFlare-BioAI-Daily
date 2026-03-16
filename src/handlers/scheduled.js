@@ -19,6 +19,36 @@ function normalizeSummaryLines(summaryText) {
     return lines.slice(-3).join('\n');
 }
 
+function shiftDate(dateStr, days) {
+    const baseDate = new Date(`${dateStr}T00:00:00+08:00`);
+    return getISODate(new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000));
+}
+
+async function backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData) {
+    const lookbackDays = Math.max(parseInt(env.FOLO_FILTER_DAYS || '3', 10), 1);
+    const categories = ['news', 'paper', 'socialMedia'];
+    let usedFallback = false;
+
+    for (const category of categories) {
+        if ((allUnifiedData[category] || []).length > 0) {
+            continue;
+        }
+
+        for (let offset = 1; offset <= lookbackDays; offset += 1) {
+            const previousDate = shiftDate(dateStr, -offset);
+            const cachedItems = await getFromKV(env.DATA_KV, `${previousDate}-${category}`);
+            if (Array.isArray(cachedItems) && cachedItems.length > 0) {
+                allUnifiedData[category] = cachedItems;
+                usedFallback = true;
+                console.log(`[Scheduled] Backfilled ${category} from ${previousDate} (${cachedItems.length} items).`);
+                break;
+            }
+        }
+    }
+
+    return usedFallback;
+}
+
 export async function handleScheduled(event, env, ctx, specifiedDate = null) {
     // 如果指定了日期，使用指定日期；否则使用当前日期
     const dateStr = specifiedDate || getISODate();
@@ -42,13 +72,14 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null) {
 
         const allUnifiedData = await fetchAllData(env, foloCookie);
         const fetchPromises = [];
+        const usedFallback = await backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData);
         for (const sourceType in dataSources) {
             if (Object.hasOwnProperty.call(dataSources, sourceType)) {
                 fetchPromises.push(storeInKV(env.DATA_KV, `${dateStr}-${sourceType}`, allUnifiedData[sourceType] || []));
             }
         }
         await Promise.all(fetchPromises);
-        console.log(`[Scheduled] Data fetched and stored.`);
+        console.log(`[Scheduled] Data fetched and stored.${usedFallback ? ' Used recent KV fallback.' : ''}`);
 
         // 2. Prepare Content Items
         // Priority: items with images/videos first
