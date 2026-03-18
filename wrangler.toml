@@ -1,4 +1,4 @@
-﻿# wrangler.toml
+# wrangler.toml
 name = 'cloudflare-bioai-daily'
 main = "src/index.js"
 compatibility_date = "2025-05-20"
@@ -12,9 +12,9 @@ kv_namespaces = [
 IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
-ANTHROPIC_API_URL = "https://code.newcli.com/claude/aws"
-ANTHROPIC_BASE_URL = "https://cloudcode.bdjd.cc"
-DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-5"
+ANTHROPIC_API_URL = "https://cloudcode.bdjd.cc"
+ANTHROPIC_BASE_URL = "https://code.newcli.com/claude/aws"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-6"
 OPENAI_API_URL = "https://code.newcli.com/codex"
 DEFAULT_OPEN_MODEL = "gpt-5.4"
 GEMINI_API_URL = "https://code.newcli.com/gemini"
