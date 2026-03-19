@@ -37,7 +37,7 @@ export default {
 
         const platform = String(env.USE_MODEL_PLATFORM || '').toUpperCase();
         if (platform.startsWith('OPEN')) {
-            requiredEnvVars.push('OPENAI_API_URL', 'DEFAULT_OPEN_MODEL', 'OPENAI_API_KEY');
+            requiredEnvVars.push('DEFAULT_OPEN_MODEL', 'OPENAI_API_KEY');
         } else if (platform.startsWith('ANTHROPIC')) {
             requiredEnvVars.push('DEFAULT_ANTHROPIC_MODEL', 'ANTHROPIC_API_KEY');
         } else {
@@ -48,6 +48,9 @@ export default {
         if (platform.startsWith('ANTHROPIC')) {
             const hasAnthropicBaseUrl = Boolean(env.ANTHROPIC_BASE_URL || env.ANTHROPIC_API_URL);
             if (!hasAnthropicBaseUrl) missingVars.push('ANTHROPIC_BASE_URL');
+        } else if (platform.startsWith('OPEN')) {
+            const hasOpenAIBaseUrl = Boolean(env.OPENAI_BASE_URL || env.OPENAI_API_URL);
+            if (!hasOpenAIBaseUrl) missingVars.push('OPENAI_API_URL');
         }
 
         // Gemini can reuse the same key as other platforms in some proxy setups.

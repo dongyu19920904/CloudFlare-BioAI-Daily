@@ -1,4 +1,4 @@
-﻿// src/chatapi.js
+// src/chatapi.js
 
 const GEMINI_API_VERSIONS = ["v1beta", "v1", ""];
 
@@ -16,6 +16,65 @@ function getAnthropicBaseUrls(env) {
 
 function getAnthropicBaseUrl(env) {
     return getAnthropicBaseUrls(env)[0] || "";
+}
+
+export function getOpenAIBaseUrl(env) {
+    const raw = normalizeBaseUrl(env.OPENAI_BASE_URL || env.OPENAI_API_URL);
+    return raw
+        .replace(/\/chat\/completions$/i, "")
+        .replace(/\/v1$/i, "");
+}
+
+function getOpenAIModelName(env) {
+    return env.DEFAULT_OPEN_MODEL || env.OPENAI_MODEL || "gpt-5.4";
+}
+
+function isGpt5Model(modelName) {
+    return /^gpt-5(?:[.-]|$)/i.test(String(modelName || "").trim());
+}
+
+function getOpenAIMaxCompletionTokens(env, modelName) {
+    const configured = Number.parseInt(String(env.OPENAI_MAX_COMPLETION_TOKENS ?? env.OPENAI_MAX_TOKENS ?? "").trim(), 10);
+    if (Number.isFinite(configured) && configured >= 256 && configured <= 32000) {
+        return configured;
+    }
+    return isGpt5Model(modelName) ? 4096 : 2048;
+}
+
+function buildOpenAIMessages(modelName, promptText, systemPromptText = null) {
+    const messages = [];
+    if (systemPromptText && typeof systemPromptText === 'string' && systemPromptText.trim() !== '') {
+        messages.push({
+            role: isGpt5Model(modelName) ? "developer" : "system",
+            content: systemPromptText
+        });
+        console.log("System instruction included in OpenAI Chat API call.");
+    }
+    messages.push({ role: "user", content: promptText });
+    return messages;
+}
+
+export function buildOpenAIPayload(modelName, messages, { stream = false, maxCompletionTokens = null } = {}) {
+    const payload = {
+        model: modelName,
+        messages,
+    };
+
+    if (stream) {
+        payload.stream = true;
+    }
+
+    if (isGpt5Model(modelName)) {
+        payload.max_completion_tokens = maxCompletionTokens ?? 4096;
+        return payload;
+    }
+
+    payload.temperature = 1;
+    payload.max_tokens = maxCompletionTokens ?? 2048;
+    payload.top_p = 1;
+    payload.frequency_penalty = 0;
+    payload.presence_penalty = 0;
+    return payload;
 }
 
 function getAnthropicMaxTokens(env) {
@@ -102,7 +161,7 @@ function canUseAnthropicFallback(env) {
 }
 
 function canUseOpenAIFallback(env) {
-    return Boolean(env.OPENAI_API_URL && env.OPENAI_API_KEY);
+    return Boolean(getOpenAIBaseUrl(env) && env.OPENAI_API_KEY);
 }
 
 function shouldTryNextAnthropicBaseUrl(error) {
@@ -115,6 +174,18 @@ function shouldTryNextAnthropicBaseUrl(error) {
         message.includes("network") ||
         message.includes("connection") ||
         message.includes("fetch failed")
+    );
+}
+
+export function shouldFailoverFromAnthropic(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+        shouldTryNextAnthropicBaseUrl(error) ||
+        /anthropic chat api error \((401|403|408|409|429|5\d\d|524)\)/.test(message) ||
+        message.includes("unauthorized") ||
+        message.includes("forbidden") ||
+        message.includes("account suspended") ||
+        message.includes("account blocked")
     );
 }
 
@@ -760,31 +831,19 @@ async function* callGeminiChatAPIStream(env, promptText, systemPromptText = null
  * @throws {Error} If OPENAI_API_URL or OPENAI_API_KEY is not set, or if API call fails.
  */
 async function callOpenAIChatAPI(env, promptText, systemPromptText = null) {
-    if (!env.OPENAI_API_URL) {
-        throw new Error("OPENAI_API_URL environment variable is not set.");
+    const baseUrl = getOpenAIBaseUrl(env);
+    if (!baseUrl) {
+        throw new Error("OPENAI_API_URL or OPENAI_BASE_URL environment variable is not set.");
     }
     if (!env.OPENAI_API_KEY) {
         throw new Error("OPENAI_API_KEY environment variable is not set for OpenAI models.");
     }
-    const url = `${env.OPENAI_API_URL}/v1/chat/completions`;
-    
-    const messages = [];
-    if (systemPromptText && typeof systemPromptText === 'string' && systemPromptText.trim() !== '') {
-        messages.push({ role: "system", content: systemPromptText });
-        console.log("System instruction included in OpenAI Chat API call.");
-    }
-    messages.push({ role: "user", content: promptText });
-
-    const modelName = env.DEFAULT_OPEN_MODEL;
-    const payload = {
-        model: modelName,
-        messages: messages,
-        temperature: 1,
-        max_tokens: 2048,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
-    };
+    const url = `${baseUrl}/v1/chat/completions`;
+    const modelName = getOpenAIModelName(env);
+    const messages = buildOpenAIMessages(modelName, promptText, systemPromptText);
+    const payload = buildOpenAIPayload(modelName, messages, {
+        maxCompletionTokens: getOpenAIMaxCompletionTokens(env, modelName)
+    });
 
     try {
         const response = await fetch(url, {
@@ -811,7 +870,36 @@ async function callOpenAIChatAPI(env, promptText, systemPromptText = null) {
             throw new Error(`OpenAI Chat API error (${response.status}): ${message}`);
         }
 
-        const data = await response.json();
+        const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+        const rawBody = await response.text();
+
+        if (contentType.includes('text/event-stream') || rawBody.trim().startsWith('data:')) {
+            const text = rawBody
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter((line) => line.startsWith('data: '))
+                .map((line) => line.slice(6).trim())
+                .filter((line) => line && line !== '[DONE]')
+                .map((line) => {
+                    try {
+                        const parsed = JSON.parse(line);
+                        return parsed?.choices?.[0]?.delta?.content || parsed?.choices?.[0]?.message?.content || '';
+                    } catch {
+                        return '';
+                    }
+                })
+                .join('');
+            if (text) {
+                return text;
+            }
+        }
+
+        let data;
+        try {
+            data = JSON.parse(rawBody);
+        } catch {
+            throw new Error("OpenAI Chat API returned an empty or malformed response.");
+        }
 
         if (data.choices && data.choices.length > 0 && data.choices[0].message && data.choices[0].message.content) {
             return data.choices[0].message.content;
@@ -837,32 +925,20 @@ async function callOpenAIChatAPI(env, promptText, systemPromptText = null) {
  * @throws {Error} If OPENAI_API_URL or OPENAI_API_KEY is not set, or if API call fails.
  */
 async function* callOpenAIChatAPIStream(env, promptText, systemPromptText = null) {
-    if (!env.OPENAI_API_URL) {
-        throw new Error("OPENAI_API_URL environment variable is not set.");
+    const baseUrl = getOpenAIBaseUrl(env);
+    if (!baseUrl) {
+        throw new Error("OPENAI_API_URL or OPENAI_BASE_URL environment variable is not set.");
     }
     if (!env.OPENAI_API_KEY) {
         throw new Error("OPENAI_API_KEY environment variable is not set for OpenAI models.");
     }
-    const url = `${env.OPENAI_API_URL}/v1/chat/completions`;
-
-    const messages = [];
-    if (systemPromptText && typeof systemPromptText === 'string' && systemPromptText.trim() !== '') {
-        messages.push({ role: "system", content: systemPromptText });
-        console.log("System instruction included in OpenAI Chat API call.");
-    }
-    messages.push({ role: "user", content: promptText });
-
-    const modelName = env.DEFAULT_OPEN_MODEL;
-    const payload = {
-        model: modelName,
-        messages: messages,
-        temperature: 1,
-        max_tokens: 2048,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
+    const url = `${baseUrl}/v1/chat/completions`;
+    const modelName = getOpenAIModelName(env);
+    const messages = buildOpenAIMessages(modelName, promptText, systemPromptText);
+    const payload = buildOpenAIPayload(modelName, messages, {
         stream: true,
-    };
+        maxCompletionTokens: getOpenAIMaxCompletionTokens(env, modelName)
+    });
 
     let response;
     try {
@@ -1154,8 +1230,8 @@ export async function callChatAPI(env, promptText, systemPromptText = null) {
         try {
             return await callAnthropicChatAPI(env, promptText, systemPromptText);
         } catch (error) {
-            if (isRateLimitError(error) && canUseOpenAIFallback(env)) {
-                console.warn("Anthropic rate limit encountered; falling back to OpenAI.");
+            if (shouldFailoverFromAnthropic(error) && canUseOpenAIFallback(env)) {
+                console.warn("Anthropic route failed; falling back to OpenAI.");
                 return await callOpenAIChatAPI(env, promptText, systemPromptText);
             }
             throw error;
@@ -1205,10 +1281,9 @@ export async function* callChatAPIStream(env, promptText, systemPromptText = nul
         try {
             yield* callAnthropicChatAPIStream(env, promptText, systemPromptText);
         } catch (error) {
-            if (isRateLimitError(error) && canUseOpenAIFallback(env)) {
-                console.warn("Anthropic rate limit encountered; falling back to OpenAI.");
-                const text = await callOpenAIChatAPI(env, promptText, systemPromptText);
-                yield text;
+            if (shouldFailoverFromAnthropic(error) && canUseOpenAIFallback(env)) {
+                console.warn("Anthropic route failed; falling back to OpenAI stream.");
+                yield* callOpenAIChatAPIStream(env, promptText, systemPromptText);
                 return;
             }
             throw error;
