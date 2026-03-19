@@ -90,7 +90,7 @@ export function removeMarkdownCodeBlock(text) {
  */
 export function normalizeDailyBody(markdown) {
     if (!markdown) return '';
-    const text = String(markdown);
+    const text = addTopItemNumbering(String(markdown));
     const markers = [
         '## **今日 AI 生命科学资讯**',
         '## **今日 AI 资讯**'
@@ -105,6 +105,47 @@ export function normalizeDailyBody(markdown) {
     const fallbackIndex = text.indexOf(fallbackMarker);
     if (fallbackIndex <= 0) return text.trim();
     return text.slice(fallbackIndex).trim();
+}
+
+function addTopItemNumbering(markdown) {
+    if (!markdown) return '';
+
+    const lines = String(markdown).split(/\r?\n/);
+    let inTopSection = false;
+    let topIndex = 1;
+
+    return lines.map((line) => {
+        if (/^##\s*\*\*.*TOP\s+\d+/i.test(line)) {
+            inTopSection = true;
+            topIndex = 1;
+            return line;
+        }
+
+        if (inTopSection && /^##\s+/.test(line) && !/^##\s*\*\*.*TOP\s+\d+/i.test(line)) {
+            inTopSection = false;
+            return line;
+        }
+
+        if (!inTopSection) {
+            return line;
+        }
+
+        const numberedMatch = line.match(/^(###\s+)(\d+)\.\s+/);
+        if (numberedMatch) {
+            topIndex += 1;
+            return line;
+        }
+
+        const headingMatch = line.match(/^(###\s+)(.+)$/);
+        if (!headingMatch) {
+            return line;
+        }
+
+        const [, prefix, content] = headingMatch;
+        const nextLine = `${prefix}${topIndex}. ${content}`;
+        topIndex += 1;
+        return nextLine;
+    }).join('\n');
 }
 
 /**
