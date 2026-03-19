@@ -1,0 +1,94 @@
+name: Temp GPT54 BioAI Sample
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch cached content and generate sample
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_FALLBACK_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p tmp_sample
+          curl -fsS "https://cloudflare-bioai-daily.sabrinamisan090.workers.dev/getContent?date=2026-03-19" -o tmp_sample/content.json
+          node --input-type=module <<'EOF'
+          import fs from 'node:fs';
+          import { stripHtml, removeMarkdownCodeBlock, convertPlaceholdersToMarkdownImages, replaceIncorrectDomainLinks, normalizeDailyBody } from './src/helpers.js';
+          import { callChatAPIStream } from './src/chatapi.js';
+          import { getSystemPromptSummarizationStepOne } from './src/prompt/summarizationPromptStepZero.js';
+          import { getSystemPromptSummarizationStepThree } from './src/prompt/summarizationPromptStepThree.js';
+
+          const dateStr = '2026-03-19';
+          const env = {
+            USE_MODEL_PLATFORM: 'OPENAI',
+            OPENAI_BASE_URL: 'https://code.newcli.com/codex/v1',
+            OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+            DEFAULT_OPEN_MODEL: 'gpt-5.4',
+            BOOK_LINK: 'https://news.aibioo.cn',
+          };
+
+          const data = JSON.parse(fs.readFileSync('tmp_sample/content.json', 'utf8'));
+          const selectedContentItems = [];
+          const itemsWithMedia = [];
+          const itemsWithoutMedia = [];
+          for (const sourceType of ['news','project','paper','socialMedia']) {
+            const items = data[sourceType] || [];
+            for (const item of items) {
+              const itemHasMedia = item.details?.content_html && /<img[^>]+>|<video[^>]+>/i.test(item.details.content_html);
+              let itemText = '';
+              switch (item.type) {
+                case 'news':
+                  itemText = `News Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nContent Summary: ${stripHtml(item.details.content_html)}`;
+                  break;
+                case 'project':
+                  itemText = `Project Name: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
+                  break;
+                case 'paper':
+                  itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
+                  break;
+                case 'socialMedia':
+                  itemText = `socialMedia Post by ${item.authors}：Published: ${item.published_date}\nUrl: ${item.url}\nContent: ${stripHtml(item.details.content_html)}`;
+                  break;
+              }
+              if (!itemText) continue;
+              (itemHasMedia ? itemsWithMedia : itemsWithoutMedia).push(itemText);
+            }
+          }
+          selectedContentItems.push(...itemsWithMedia, ...itemsWithoutMedia);
+          const sys2 = getSystemPromptSummarizationStepOne(dateStr);
+          const user2 = '\n\n------\n\n' + selectedContentItems.join('\n\n------\n\n') + '\n\n------\n\n';
+          let output2='';
+          for await (const chunk of callChatAPIStream(env, user2, sys2)) output2 += chunk;
+          output2 = normalizeDailyBody(replaceIncorrectDomainLinks(convertPlaceholdersToMarkdownImages(removeMarkdownCodeBlock(output2)), 'news.aibioo.cn'));
+          const sys3 = getSystemPromptSummarizationStepThree();
+          let output3='';
+          for await (const chunk of callChatAPIStream(env, output2, sys3)) output3 += chunk;
+          output3 = removeMarkdownCodeBlock(output3).trim();
+          const finalMd = `## **今日摘要**\n\n\0\0\0\n${output3}\n\0\0\0\n\n## ⚡ 快速导航\n\n- [📰 今日 AI 资讯](#今日ai生命科学资讯) - 最新动态速览\n\n${output2}`.replace(/\u00060/g,'`');
+          fs.writeFileSync('tmp_sample/bioai-gpt54-2026-03-19.md', finalMd, 'utf8');
+          const metrics = {
+            selectedCount: selectedContentItems.length,
+            imgCount: (finalMd.match(/!\[/g) || []).length,
+            h2Count: (finalMd.match(/^## /gm) || []).length,
+            h3Count: (finalMd.match(/^### /gm) || []).length,
+            hasBadPattern: /I can't|I cannot|Would you like help|Set up an API integration|无法完成|请提供|素材不足/i.test(finalMd),
+          };
+          fs.writeFileSync('tmp_sample/metrics.json', JSON.stringify(metrics, null, 2), 'utf8');
+          EOF
+
+      - name: Upload sample artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bioai-gpt54-sample
+          path: tmp_sample/
