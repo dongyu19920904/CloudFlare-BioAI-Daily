@@ -35,7 +35,7 @@ jobs:
             OPENAI_BASE_URL: 'https://code.newcli.com/codex/v1',
             OPENAI_API_KEY: process.env.OPENAI_API_KEY,
             DEFAULT_OPEN_MODEL: 'gpt-5.4',
-            BOOK_LINK: 'https://news.aibioo.cn',
+            BOOK_LINK: 'https://news.aibioo.cn'
           };
 
           const data = JSON.parse(fs.readFileSync('tmp_sample/content.json', 'utf8'));
@@ -75,14 +75,27 @@ jobs:
           let output3='';
           for await (const chunk of callChatAPIStream(env, output2, sys3)) output3 += chunk;
           output3 = removeMarkdownCodeBlock(output3).trim();
-          const finalMd = `## **今日摘要**\n\n\0\0\0\n${output3}\n\0\0\0\n\n## ⚡ 快速导航\n\n- [📰 今日 AI 资讯](#今日ai生命科学资讯) - 最新动态速览\n\n${output2}`.replace(/\u00060/g,'`');
+          const finalMd = [
+            '## **今日摘要**',
+            '',
+            '```',
+            output3,
+            '```',
+            '',
+            '## ⚡ 快速导航',
+            '',
+            '- [📰 今日 AI 资讯](#今日ai生命科学资讯) - 最新动态速览',
+            '',
+            output2,
+            ''
+          ].join('\n');
           fs.writeFileSync('tmp_sample/bioai-gpt54-2026-03-19.md', finalMd, 'utf8');
           const metrics = {
             selectedCount: selectedContentItems.length,
             imgCount: (finalMd.match(/!\[/g) || []).length,
             h2Count: (finalMd.match(/^## /gm) || []).length,
             h3Count: (finalMd.match(/^### /gm) || []).length,
-            hasBadPattern: /I can't|I cannot|Would you like help|Set up an API integration|无法完成|请提供|素材不足/i.test(finalMd),
+            hasBadPattern: /I can't|I cannot|Would you like help|Set up an API integration|无法完成|请提供|素材不足/i.test(finalMd)
           };
           fs.writeFileSync('tmp_sample/metrics.json', JSON.stringify(metrics, null, 2), 'utf8');
           EOF
