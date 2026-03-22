@@ -1,6 +1,8 @@
 // src/prompt/blogPrompt.js
 // 博客生成提示词 v4 - 触发式个人随笔风格
 
+import { getBlogPersonaSupplement } from './blogPersonaSupplement.js';
+
 /**
  * 获取博客改写提示词
  * @param {string} blogType - 'ai-daily' 或 'bioai-daily'
@@ -41,6 +43,8 @@ export function getBlogPrompt(blogType) {
 - 有时候悲观，有时候又莫名乐观
 - 对很多技术细节其实是小白，但不妨碍我有观点
 - 会吐槽，会承认自己不懂，会说"我也不知道"
+
+${getBlogPersonaSupplement(blogType)}
 
 ---
 
@@ -169,6 +173,9 @@ export function getBlogPrompt(blogType) {
 3. **只用日报素材里的图片 URL**，不要编造
 4. **字数 800-1200 字**
 5. **保留有价值的原始链接**，用 \`[文字](URL)\` 格式
+6. **标题控制在 12-28 个字，只写一个短句**
+7. **不要出现“今天”、“日报”、“我刚看完今天的日报”这类标题开头**
+8. **不要把正文第一段当标题**
 ---
 
 # 格式附录（只约束结构与排版，不改内容与人设）
