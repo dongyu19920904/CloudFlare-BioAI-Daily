@@ -49,6 +49,7 @@ jobs:
           TRIGGER_SECRET="${TRIGGER_SECRET:-$DEFAULT_TRIGGER_SECRET}"
           RAW_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/daily/${TARGET_DATE}.md"
           TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduled?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
+          FORCE_LOCAL_TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduled?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1&forceLocal=1"
 
           echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
           echo "raw_url=$RAW_URL" >> "$GITHUB_OUTPUT"
@@ -93,6 +94,38 @@ jobs:
             fi
             sleep 20
           done
+
+          fallback_trigger_status=""
+          fallback_trigger_response=""
+          if [[ "$healed" != "true" ]]; then
+            echo "Primary self-heal did not recover the daily, retrying with forceLocal fallback."
+            fallback_body_file="$(mktemp)"
+            fallback_trigger_status="$(curl -sS --max-time 900 -o "$fallback_body_file" -w "%{http_code}" "$FORCE_LOCAL_TRIGGER_URL" || true)"
+            fallback_trigger_response="$(cat "$fallback_body_file" 2>/dev/null || true)"
+            rm -f "$fallback_body_file"
+
+            if [[ -z "${fallback_trigger_status:-}" ]]; then
+              fallback_trigger_status="000"
+            fi
+
+            echo "ForceLocal trigger status: ${fallback_trigger_status}"
+            echo "ForceLocal trigger response: ${fallback_trigger_response:-<empty>}"
+
+            {
+              echo "fallback_trigger_status=$fallback_trigger_status"
+              echo "fallback_trigger_response<<EOF"
+              echo "${fallback_trigger_response:-<empty>}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+
+            for i in {1..30}; do
+              if curl -fsSI "$RAW_URL" > /dev/null; then
+                healed="true"
+                break
+              fi
+              sleep 20
+            done
+          fi
 
           if [[ "$healed" == "true" ]]; then
             echo "status=self_healed" >> "$GITHUB_OUTPUT"
