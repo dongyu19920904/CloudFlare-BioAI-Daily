@@ -2,22 +2,27 @@
 name = 'cloudflare-bioai-daily'
 main = "src/index.js"
 compatibility_date = "2025-05-20"
+compatibility_flags = ["global_fetch_strictly_public"]
 workers_dev = true
 
 kv_namespaces = [
-  { binding = "DATA_KV", id = "0fdda7edec29459292c20992434360b5" }
+  { binding = "DATA_KV", id = "0fdda7edec29459292c20992434360b5", preview_id = "0fdda7edec29459292c20992434360b5" }
 ]
 
 [vars]
 IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
-ANTHROPIC_API_URL = "https://cloudcode.bdjd.cc"
+ANTHROPIC_API_URL = "https://business.newcli.com"
 ANTHROPIC_BASE_URL = ""
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-6"
+ANTHROPIC_MAX_TOKENS = "4096"
+ANTHROPIC_RETRY_MAX = "2"
+ANTHROPIC_RETRY_BASE_MS = "3000"
 OPENAI_BASE_URL = "https://code.newcli.com/codex/v1"
 OPENAI_API_URL = "https://code.newcli.com/codex"
 DEFAULT_OPEN_MODEL = "gpt-5.4"
+OPENAI_FALLBACK_ENABLED = "false"
 GEMINI_API_URL = "https://code.newcli.com/gemini"
 DEFAULT_GEMINI_MODEL = "gemini-3-pro"
 GEMINI_STREAM_MODE = "off"
@@ -27,20 +32,54 @@ GEMINI_RETRY_MAX = "3"
 GEMINI_RETRY_BASE_MS = "2000"
 FOLO_COOKIE_KV_KEY = "folo_auth_cookie"
 FOLO_DATA_API = "https://api.follow.is/entries"
-FOLO_FILTER_DAYS = 5
+FOLO_FILTER_DAYS = 7
+DATA_SOURCE_FETCH_TIMEOUT_MS = "20000"
 
 # News aggregator list/feed IDs (optional)
 NEWS_AGGREGATOR_LIST_ID = ""
-NEWS_AGGREGATOR_FETCH_PAGES = "1"
+NEWS_AGGREGATOR_FETCH_PAGES = "0"
 HGPAPERS_LIST_ID = ""
-HGPAPERS_FETCH_PAGES = "1"
+HGPAPERS_FETCH_PAGES = "0"
 TWITTER_LIST_ID = ""
 TWITTER_FETCH_PAGES = "0"
 REDDIT_LIST_ID = ""
 REDDIT_FETCH_PAGES = "0"
-PROJECTS_API_URL = "https://api.github.com/search/repositories?q=bioinformatics+%22deep%20learning%22+stars:>50+archived:false+pushed:>={date}&sort=updated&order=desc&per_page=50|https://api.github.com/search/repositories?q=health+ai+stars:>50+archived:false+pushed:>={date}&sort=updated&order=desc&per_page=50"
+PROJECTS_API_URL = "https://api.github.com/search/repositories?q=%22biological%20age%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22epigenetic%20clock%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22aging%20clock%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22brain%20aging%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22proteomics%20clock%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22digital%20biomarker%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=alzheimer+biomarker+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22frailty%20prediction%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22retinal%20age%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22facial%20age%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22single-cell%20aging%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=%22multi-omics%20aging%22+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=senolytic+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12|https://api.github.com/search/repositories?q=geroscience+in:name,description+stars:>=1+archived:false+pushed:>={date_minus_240}&sort=updated&order=desc&per_page=12"
+LONGEVITY_GITHUB_CURATED_REPOS = "ComputationalAgingLab/ComputAge|MorganLevineLab/PC-Clocks|mdozmorov/Aging_clock|ADAMMA-CDHI-ETH-Zurich/CosinorAge|shayanmostafaei/Omics_ADRD_Integrated_Modeling|wusm-neurology-batmanlab/CSF-Proteomics-Aging-Clocks|jazoller96/mammalian-methyl-clocks|vgl-hub/teloscope|lucascamillomd/pyaging|sunericd/spatial_aging_clocks|dayoonkwon/BioAge|AIM-Harvard/FaceAge|AkshajD/Epigenetic-Clock|EpigenomeClock/MouseEpigeneticClock|wangsoap/XAIFramework|anbai106/SleepChart|bjayadikary/brain-age-gnn-oasis3|vatass/AccordTrial|grgil/hamadi-adrd|ZHJ-explorer/aging_clock"
+LONGEVITY_GITHUB_CURATED_README_LIMIT = "0"
+PROJECT_MIN_STARS = "1"
+PROJECT_ACTIVE_DAYS = "240"
+LONGEVITY_TARGET_STRONG_ITEMS = "7"
+LONGEVITY_TARGET_ADJACENT_ITEMS = "5"
+LONGEVITY_MIN_SELECTED_ITEMS = "10"
+LONGEVITY_MIN_PROJECT_ITEMS = "2"
+LONGEVITY_MAX_BACKFILL_ITEMS = "4"
+LONGEVITY_BACKFILL_DAYS = "5"
+MANUAL_DAILY_CHAT_TIMEOUT_MS = "120000"
+MANUAL_DAILY_PROMPT_ITEM_CAP = "6"
+DAILY_PROMPT_ITEM_CAP = "8"
+SCHEDULED_CHAT_STREAM_TIMEOUT_MS = "120000"
+DAILY_SECTION_TIMEOUT_MS = "15000"
+ALLOW_SYNC_TRIGGER = "true"
+LONGEVITY_NEWS_FILTER_DAYS = "21"
+LONGEVITY_NEWS_MAX_ITEMS_PER_FEED = "8"
+LONGEVITY_NEWS_MAX_FEEDS_PER_RUN = "12"
+LONGEVITY_NEWS_RSS_URLS = 'Fight Aging!::https://www.fightaging.org/feed/|Lifespan.io::https://www.lifespan.io/feed/|Buck Institute::https://www.buckinstitute.org/feed/|Longevity.Technology::https://longevity.technology/feed/|Nature - Ageing::https://www.nature.com/subjects/ageing.rss|GEN::https://www.genengnews.com/feed/|ScienceDaily - Healthy Aging::https://www.sciencedaily.com/rss/health_medicine/healthy_aging.xml|ScienceDaily - Dementia::https://www.sciencedaily.com/rss/mind_brain/dementia.xml|MedicalXpress - Healthy Aging::https://medicalxpress.com/rss-feed/healthy-aging-news/|News-Medical - Aging::https://www.news-medical.net/tag/feed/Aging.aspx|News-Medical - Alzheimers::https://www.news-medical.net/tag/feed/Alzheimers-Disease.aspx|Aging Cell - Latest::https://onlinelibrary.wiley.com/feed/14749726/most-recent|Google News - AI Longevity::https://news.google.com/rss/search?q=(AI%20OR%20%22artificial%20intelligence%22%20OR%20%22machine%20learning%22)%20(longevity%20OR%20aging%20OR%20%22biological%20age%22%20OR%20dementia%20OR%20alzheimer)&hl=en-US&gl=US&ceid=US:en|Google News - AI Drug Discovery & Aging::https://news.google.com/rss/search?q=(%22drug%20discovery%22%20OR%20%22protein%20design%22%20OR%20biomarker)%20(aging%20OR%20longevity%20OR%20dementia%20OR%20alzheimer)%20(AI%20OR%20%22machine%20learning%22)&hl=en-US&gl=US&ceid=US:en|Google News - Biological Age & Aging Clock::https://news.google.com/rss/search?q=(%22biological%20age%22%20OR%20%22epigenetic%20clock%22%20OR%20%22aging%20clock%22%20OR%20%22age%20clock%22)%20(AI%20OR%20%22machine%20learning%22%20OR%20model)&hl=en-US&gl=US&ceid=US:en|Google News - Senescence & Reprogramming::https://news.google.com/rss/search?q=(senescence%20OR%20senolytic%20OR%20%22partial%20reprogramming%22%20OR%20rejuvenation)%20(AI%20OR%20%22machine%20learning%22%20OR%20biotech)&hl=en-US&gl=US&ceid=US:en|Google News - Brain Age & Dementia Biomarkers::https://news.google.com/rss/search?q=(%22brain%20age%22%20OR%20dementia%20OR%20alzheimer%20OR%20%22digital%20biomarker%22)%20(AI%20OR%20%22machine%20learning%22%20OR%20wearable)&hl=en-US&gl=US&ceid=US:en|Google News - Proteomics & Methylation Clocks::https://news.google.com/rss/search?q=(%22proteomics%20clock%22%20OR%20%22methylation%20clock%22%20OR%20%22epigenetic%20clock%22%20OR%20%22multi-omics%20aging%22)%20(AI%20OR%20%22machine%20learning%22%20OR%20model)&hl=en-US&gl=US&ceid=US:en|Google News - Frailty, Sarcopenia & Healthy Aging AI::https://news.google.com/rss/search?q=(frailty%20OR%20sarcopenia%20OR%20healthspan%20OR%20%22healthy%20aging%22)%20(AI%20OR%20%22machine%20learning%22%20OR%20wearable%20OR%20biomarker)&hl=en-US&gl=US&ceid=US:en|Google News - Retinal, Facial & Imaging Age Biomarkers::https://news.google.com/rss/search?q=(%22retinal%20age%22%20OR%20%22facial%20age%22%20OR%20%22face%20age%22%20OR%20%22imaging%20biomarker%22)%20(AI%20OR%20%22machine%20learning%22%20OR%20deep%20learning)%20(aging%20OR%20dementia%20OR%20%22brain%20age%22)&hl=en-US&gl=US&ceid=US:en|Google News - Single-cell & Multi-omics Aging AI::https://news.google.com/rss/search?q=(%22single-cell%22%20OR%20%22multi-omics%22%20OR%20metabolomics%20OR%20proteomics)%20(aging%20OR%20senescence%20OR%20rejuvenation)%20(AI%20OR%20%22machine%20learning%22%20OR%20model)&hl=en-US&gl=US&ceid=US:en|Google News - Inflammaging & Immune Aging AI::https://news.google.com/rss/search?q=(inflammaging%20OR%20immunosenescence%20OR%20%22immune%20aging%22)%20(AI%20OR%20%22machine%20learning%22%20OR%20model)%20(aging%20OR%20longevity%20OR%20dementia)&hl=en-US&gl=US&ceid=US:en|Google News - Geroscience & Healthspan AI::https://news.google.com/rss/search?q=(geroscience%20OR%20healthspan%20OR%20%22longevity%20biotech%22)%20(AI%20OR%20%22machine%20learning%22%20OR%20biotech)%20(aging%20OR%20rejuvenation%20OR%20biomarker)&hl=en-US&gl=US&ceid=US:en|Google News - Senolytics & Geroprotectors AI::https://news.google.com/rss/search?q=(senolytic%20OR%20geroprotector%20OR%20rapamycin%20OR%20%22partial%20reprogramming%22)%20(AI%20OR%20%22machine%20learning%22%20OR%20biotech)%20(aging%20OR%20longevity%20OR%20rejuvenation)&hl=en-US&gl=US&ceid=US:en'
+LONGEVITY_SOCIAL_FILTER_DAYS = "30"
+LONGEVITY_SOCIAL_MAX_ITEMS_PER_FEED = "8"
+LONGEVITY_SOCIAL_MAX_FEEDS_PER_RUN = "6"
+LONGEVITY_SOCIAL_RSS_URLS = 'Mastodon - #longevity::https://mastodon.social/tags/longevity.rss|Mastodon - #aging::https://mastodon.social/tags/aging.rss|Mastodon - #ageing::https://mastodon.social/tags/ageing.rss|Mastodon - #antiaging::https://mastodon.social/tags/antiaging.rss|Mastodon - #geroscience::https://mastodon.social/tags/geroscience.rss|Mastodon - #brainhealth::https://mastodon.social/tags/brainhealth.rss|Mastodon - #neurodegeneration::https://mastodon.social/tags/neurodegeneration.rss|Mastodon - #dementia::https://mastodon.social/tags/dementia.rss|Mastodon - #alzheimers::https://mastodon.social/tags/alzheimers.rss|Mastodon - #biomarker::https://mastodon.social/tags/biomarker.rss|Mastodon - #biomarkers::https://mastodon.social/tags/biomarkers.rss|Hacker News - longevity::https://hnrss.org/newest?q=longevity|Hacker News - aging::https://hnrss.org/newest?q=aging|Hacker News - dementia::https://hnrss.org/newest?q=dementia|Hacker News - alzheimer::https://hnrss.org/newest?q=alzheimer|Hacker News - brain age::https://hnrss.org/newest?q=%22brain%20age%22|Hacker News - brain aging::https://hnrss.org/newest?q=%22brain%20aging%22'
+EUROPEPMC_FETCH_DAYS = "30"
+EUROPEPMC_FETCH_RESULTS = "12"
+EUROPEPMC_MAX_QUERIES_PER_RUN = "3"
+EUROPEPMC_LONGEVITY_QUERIES = '("aging" OR "longevity" OR "biological age" OR geroscience) AND ("artificial intelligence" OR "machine learning" OR "deep learning" OR "foundation model")|(dementia OR alzheimer OR "brain age" OR "digital biomarker") AND ("artificial intelligence" OR "machine learning" OR "deep learning")|("drug discovery" OR "protein design" OR "therapeutic design") AND (aging OR longevity OR dementia OR alzheimer) AND ("artificial intelligence" OR "machine learning")|("epigenetic clock" OR "aging clock" OR "methylation age" OR "proteomics clock") AND ("artificial intelligence" OR "machine learning" OR model)|(senescence OR senolytic OR "partial reprogramming" OR rejuvenation OR geroprotector) AND ("artificial intelligence" OR "machine learning" OR "deep learning")|("single-cell" OR "multi-omics" OR metabolomics OR proteomics OR inflammaging OR immunosenescence) AND (aging OR senescence OR longevity) AND ("artificial intelligence" OR "machine learning" OR model)'
+PUBMED_FETCH_DAYS = "21"
+PUBMED_FETCH_RESULTS = "18"
+PUBMED_MAX_QUERIES_PER_RUN = "3"
+PROJECT_MAX_QUERIES_PER_RUN = "8"
+PUBMED_LONGEVITY_QUERIES = '("aging"[Title/Abstract] OR "longevity"[Title/Abstract] OR "biological age"[Title/Abstract] OR "geroscience"[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR "deep learning"[Title/Abstract] OR "foundation model"[Title/Abstract])|("dementia"[Title/Abstract] OR "alzheimer"[Title/Abstract] OR "senescence"[Title/Abstract] OR "biomarker"[Title/Abstract] OR "age-related"[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR "deep learning"[Title/Abstract])|("drug discovery"[Title/Abstract] OR "protein design"[Title/Abstract] OR "therapeutic design"[Title/Abstract]) AND ("aging"[Title/Abstract] OR "longevity"[Title/Abstract] OR "alzheimer"[Title/Abstract] OR "dementia"[Title/Abstract]) AND ("machine learning"[Title/Abstract] OR "artificial intelligence"[Title/Abstract])|("epigenetic clock"[Title/Abstract] OR "aging clock"[Title/Abstract] OR "methylation age"[Title/Abstract] OR "proteomics clock"[Title/Abstract] OR "brain age"[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR model[Title/Abstract])|("frailty"[Title/Abstract] OR "sarcopenia"[Title/Abstract] OR "healthspan"[Title/Abstract] OR "digital biomarker"[Title/Abstract] OR wearable[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR "deep learning"[Title/Abstract])|("senolytic"[Title/Abstract] OR "partial reprogramming"[Title/Abstract] OR "geroprotector"[Title/Abstract] OR rapamycin[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR "deep learning"[Title/Abstract] OR model[Title/Abstract])|("retinal age"[Title/Abstract] OR "facial age"[Title/Abstract] OR "face age"[Title/Abstract] OR "imaging biomarker"[Title/Abstract]) AND ("aging"[Title/Abstract] OR "brain age"[Title/Abstract] OR dementia[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR "deep learning"[Title/Abstract])|("single-cell"[Title/Abstract] OR "multi-omics"[Title/Abstract] OR metabolomics[Title/Abstract] OR proteomics[Title/Abstract]) AND ("aging"[Title/Abstract] OR senescence[Title/Abstract] OR rejuvenation[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR "deep learning"[Title/Abstract])|("immunosenescence"[Title/Abstract] OR inflammaging[Title/Abstract] OR "immune aging"[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR "deep learning"[Title/Abstract] OR model[Title/Abstract])|("retinal age"[Title/Abstract] OR "facial age"[Title/Abstract] OR "gait age"[Title/Abstract] OR "voice age"[Title/Abstract]) AND ("artificial intelligence"[Title/Abstract] OR "machine learning"[Title/Abstract] OR "deep learning"[Title/Abstract]) AND ("aging"[Title/Abstract] OR "brain age"[Title/Abstract] OR dementia[Title/Abstract])'
 
-MAX_ITEMS_PER_TYPE = "50"
+MAX_ITEMS_PER_TYPE = "100"
 # linux.do source fallback policy:
 # - keep at most 2 items by default (set to 3 if media proves stable)
 # - strip linux.do media tags by default to avoid hotlink-broken images
@@ -48,9 +87,9 @@ LINUXDO_MAX_ITEMS = "2"
 LINUXDO_KEEP_MEDIA = "false"
 
 # Primary news sources from Folo (comma-separated feed IDs)
-FOLO_NEWS_IDS = "42127302313824333,231757749070049280,57597621707940927,72066614144010253,60261293905107978,71426655075913728,68920183615069184,156627007537055773"
+FOLO_NEWS_IDS = ""
 FOLO_NEWS_ID_TYPE = "feed"
-FOLO_NEWS_FETCH_PAGES = "2"
+FOLO_NEWS_FETCH_PAGES = "0"
 
 GITHUB_REPO_OWNER = "dongyu19920904"
 GITHUB_REPO_NAME = "BioAI-Daily-Web"
@@ -59,20 +98,31 @@ BLOG_REPO_BRANCH = "main"
 GITHUB_BRANCH = "main"
 LOGIN_USERNAME = "qqee1133"
 
-DAILY_TITLE = "BioAI 生命科学日报"
-DAILY_TITLE_MIN = " BioAI 生命科学日报 "
-PODCAST_TITLE = "BioAI 生命科学播报"
-PODCAST_BEGIN = "欢迎收听 BioAI 生命科学日报，每天为你精选 AI 与生命科学领域最值得关注的动态"
+DAILY_CRON_SCHEDULE = "0 11 * * *"
+OPPORTUNITY_CRON_SCHEDULE = "30 11 * * *"
+PROJECT_OPPORTUNITY_CRON_SCHEDULE = "45 11 * * *"
+DAILY_TITLE = "AI生命延续学日报"
+DAILY_TITLE_MIN = " AI生命延续学日报 "
+OPPORTUNITY_TITLE = "AI生命延续学商机日报"
+PROJECT_OPPORTUNITY_TITLE = "AI生命延续学资讯商机项目"
+PROJECT_OPPORTUNITY_SHARED_WITH_OPPORTUNITY_CRON = "true"
+PROJECT_OPPORTUNITY_CHAT_TIMEOUT_MS = "120000"
+PROJECT_OPPORTUNITY_MAX_PROJECTS = "4"
+PROJECT_OPPORTUNITY_MAX_NEWS = "3"
+PROJECT_OPPORTUNITY_MAX_PAPERS = "3"
+PROJECT_OPPORTUNITY_MAX_SOCIAL = "2"
+PODCAST_TITLE = "AI生命延续学播报"
+PODCAST_BEGIN = "欢迎收听 AI生命延续学日报，每天为你精选 AI 与长寿、延寿、衰老研究领域最值得关注的动态"
 PODCAST_END = "感谢收听，我们下期再见"
 BOOK_LINK = "https://news.aibioo.cn"
+WORKER_SELF_URL = "https://cloudflare-bioai-daily.sabrinamisan090.workers.dev"
 INSERT_FOOT = "false"
 INSERT_AD = "false"
-INSERT_APP_URL = "<h3>[查看最新 BioAI 日报](https://bioai.yourdomain.com)</h3>"
+INSERT_APP_URL = "<h3>[查看最新 AI生命延续学日报](https://news.aibioo.cn)</h3>"
 
 [triggers]
 crons = [
-  "0 18 * * *",
-  "0 23 * * *",
+  "0 11 * * *",
+  "30 11 * * *",
   "0 10 * * *"
 ]
-

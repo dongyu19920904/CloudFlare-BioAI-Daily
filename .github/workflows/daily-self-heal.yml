@@ -2,8 +2,8 @@ name: Daily Self-Heal Guard (BioAI)
 
 on:
   schedule:
-    - cron: "35 18 * * *"
-    - cron: "20 19 * * *"
+    - cron: "35 11 * * *"
+    - cron: "20 12 * * *"
   workflow_dispatch:
     inputs:
       target_date:
