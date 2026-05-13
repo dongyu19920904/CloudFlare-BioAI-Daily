@@ -10,20 +10,54 @@ import { handleWriteRssData } from './handlers/writeRssData.js';
 import { handleUpdateAllMonthIndexes } from './handlers/updateAllMonthIndexes.js';
 import { dataSources } from './dataFetchers.js';
 import { handleLogin, isAuthenticated, handleLogout } from './auth.js';
-import { handleScheduled } from './handlers/scheduled.js';
+import {
+    handleScheduled,
+    handleScheduledDaily,
+    handleScheduledOpportunity,
+    handleScheduledOpportunityBatch,
+    handleScheduledProjectOpportunity,
+} from './handlers/scheduled.js';
 import { handleScheduledBlog } from './handlers/scheduledBlog.js';
+import { resolveScheduledModeFromCron } from './scheduleRouting.js';
+
+function resolveManualScheduledMode(path, requestedMode) {
+    if (path.endsWith('ProjectOpportunity')) return 'project-opportunity';
+    if (path.endsWith('Opportunity')) return 'opportunity-batch';
+
+    const mode = String(requestedMode || '').trim();
+    if (['daily', 'opportunity', 'project-opportunity', 'opportunity-batch', 'all'].includes(mode)) {
+        return mode;
+    }
+
+    return 'daily';
+}
+
+async function runScheduledMode(mode, event, env, ctx, specifiedDate = null) {
+    if (mode === 'opportunity-batch') {
+        return handleScheduledOpportunityBatch(event, env, ctx, specifiedDate);
+    }
+    if (mode === 'opportunity') {
+        return handleScheduledOpportunity(event, env, ctx, specifiedDate);
+    }
+    if (mode === 'project-opportunity') {
+        return handleScheduledProjectOpportunity(event, env, ctx, specifiedDate);
+    }
+    if (mode === 'all') {
+        return handleScheduled(event, env, ctx, specifiedDate, 'all');
+    }
+    return handleScheduledDaily(event, env, ctx, specifiedDate);
+}
 
 export default {
     async scheduled(event, env, ctx) {
         // 根据不同的 cron 执行不同的任务
-        const blogCrons = new Set(['0 23 * * *', '0 10 * * *']);
-        if (blogCrons.has(event.cron)) {
+        const mode = resolveScheduledModeFromCron(event.cron, env);
+        if (mode === 'blog') {
             // 博客生成任务 - UTC 23:00 (北京时间 07:00)
             await handleScheduledBlog(event, env, ctx);
-        } else {
-            // 每日日报任务 - UTC 18:00 (北京时间 02:00)
-            await handleScheduled(event, env, ctx);
+            return;
         }
+        await runScheduledMode(mode, event, env, ctx);
     },
     async fetch(request, env, ctx) {
         // Check essential environment variables
@@ -98,7 +132,12 @@ export default {
                 });
             }
             return await handleUpdateAllMonthIndexes(request, env);
-        } else if (path === '/testTriggerScheduled' && request.method === 'GET') {
+        } else if (
+            (path === '/testTriggerScheduled' ||
+                path === '/testTriggerScheduledOpportunity' ||
+                path === '/testTriggerScheduledProjectOpportunity') &&
+            request.method === 'GET'
+        ) {
             // Test endpoint for triggering scheduled task with date parameter
             // Protected by simple secret key check
             const secretKey = url.searchParams.get('key');
@@ -115,14 +154,16 @@ export default {
             const forceSync = url.searchParams.get('sync') === '1';
             const forceAsync = url.searchParams.get('async') === '1';
             const specifiedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
-            const fakeEvent = { scheduledTime: Date.now(), cron: '0 23 * * *' };
+            const mode = resolveManualScheduledMode(path, url.searchParams.get('mode'));
+            const fakeEvent = { scheduledTime: Date.now(), cron: '' };
             try {
                 const waitUntil = ctx && typeof ctx.waitUntil === 'function' ? ctx.waitUntil.bind(ctx) : null;
                 if (waitUntil && forceAsync && !forceSync) {
-                    waitUntil(handleScheduled(fakeEvent, env, ctx, specifiedDate));
+                    waitUntil(runScheduledMode(mode, fakeEvent, env, ctx, specifiedDate));
                     return new Response(JSON.stringify({
                         success: true,
-                        message: `Scheduled task started${specifiedDate ? ` for date: ${specifiedDate}` : ''}`,
+                        message: `Scheduled ${mode} task started${specifiedDate ? ` for date: ${specifiedDate}` : ''}`,
+                        mode,
                         date: specifiedDate || 'current date',
                         async: true,
                         timestamp: new Date().toISOString()
@@ -132,11 +173,12 @@ export default {
                     });
                 }
                 const fakeCtx = { waitUntil: (promise) => promise };
-                const result = await handleScheduled(fakeEvent, env, fakeCtx, specifiedDate);
+                const result = await runScheduledMode(mode, fakeEvent, env, fakeCtx, specifiedDate);
                 if (result && result.success === false) {
                     return new Response(JSON.stringify({
                         success: false,
                         error: result.error || result.reason || 'Scheduled task failed',
+                        mode,
                         date: specifiedDate || 'current date',
                         async: false,
                         result,
@@ -148,7 +190,8 @@ export default {
                 }
                 return new Response(JSON.stringify({
                     success: result?.success ?? true,
-                    message: `Scheduled task completed${specifiedDate ? ` for date: ${specifiedDate}` : ' for current date'}`,
+                    message: `Scheduled ${mode} task completed${specifiedDate ? ` for date: ${specifiedDate}` : ' for current date'}`,
+                    mode,
                     date: specifiedDate || 'current date',
                     async: false,
                     result,
@@ -161,6 +204,7 @@ export default {
                 return new Response(JSON.stringify({
                     success: false,
                     error: error.message,
+                    mode,
                     date: specifiedDate || 'current date',
                     timestamp: new Date().toISOString()
                 }), {
@@ -218,18 +262,26 @@ export default {
                 response = await handleGenAIDailyPage(request, env);
             } else if (path === '/commitToGitHub' && request.method === 'POST') {
                 response = await handleCommitToGitHub(request, env);
-            } else if (path === '/triggerScheduled' && request.method === 'GET') {
+            } else if (
+                (path === '/triggerScheduled' ||
+                    path === '/triggerScheduledOpportunity' ||
+                    path === '/triggerScheduledProjectOpportunity') &&
+                request.method === 'GET'
+            ) {
                 // Manual trigger for scheduled task (for testing)
                 // Support date parameter: ?date=2026-01-02
                 const dateParam = url.searchParams.get('date');
                 const specifiedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
-                const fakeEvent = { scheduledTime: Date.now(), cron: '0 23 * * *' };
+                const mode = resolveManualScheduledMode(path, url.searchParams.get('mode'));
+                const fakeEvent = { scheduledTime: Date.now(), cron: '' };
                 const fakeCtx = { waitUntil: (promise) => promise };
-                await handleScheduled(fakeEvent, env, fakeCtx, specifiedDate);
+                const result = await runScheduledMode(mode, fakeEvent, env, fakeCtx, specifiedDate);
                 response = new Response(JSON.stringify({
-                    success: true,
-                    message: `Scheduled task triggered successfully${specifiedDate ? ` for date: ${specifiedDate}` : ''}`,
+                    success: result?.success ?? true,
+                    message: `Scheduled ${mode} task triggered successfully${specifiedDate ? ` for date: ${specifiedDate}` : ''}`,
+                    mode,
                     date: specifiedDate || 'current date',
+                    result,
                     timestamp: new Date().toISOString()
                 }), {
                     status: 200,

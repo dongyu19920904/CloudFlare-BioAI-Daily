@@ -3,12 +3,26 @@ import { fetchData, getISODate, removeMarkdownCodeBlock, formatDateToChineseWith
 import { callChatAPI } from '../chatapi.js';
 import { getFromKV } from '../kv.js';
 
-const MIN_STARS = 100;
-const ACTIVE_DAYS = 30;
+const DEFAULT_MIN_STARS = 1;
+const DEFAULT_ACTIVE_DAYS = 240;
+const DEFAULT_MAX_QUERIES_PER_RUN = 8;
 
 const toNumber = (value) => {
     const num = Number(value);
     return Number.isFinite(num) ? num : 0;
+};
+
+const readPositiveInteger = (value, defaultValue, { allowZero = false } = {}) => {
+    const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+    if (!Number.isFinite(parsed)) return defaultValue;
+    if (allowZero && parsed === 0) return 0;
+    return parsed > 0 ? parsed : defaultValue;
+};
+
+const getDateMinusDays = (dateStr, days) => {
+    const safeDays = readPositiveInteger(days, DEFAULT_ACTIVE_DAYS);
+    const baseDate = new Date(`${dateStr}T00:00:00+08:00`);
+    return getISODate(new Date(baseDate.getTime() - safeDays * 24 * 60 * 60 * 1000));
 };
 
 const getLastActivityAt = (project) => {
@@ -25,6 +39,13 @@ const getLastActivityAt = (project) => {
 
 const ProjectsDataSource = {
     fetch: async (env) => {
+        const minStars = readPositiveInteger(env.PROJECT_MIN_STARS, DEFAULT_MIN_STARS, { allowZero: true });
+        const activeDays = readPositiveInteger(env.PROJECT_ACTIVE_DAYS, DEFAULT_ACTIVE_DAYS);
+        const maxQueriesPerRun = readPositiveInteger(
+            env.PROJECT_MAX_QUERIES_PER_RUN,
+            DEFAULT_MAX_QUERIES_PER_RUN,
+            { allowZero: true }
+        );
         console.log(`Fetching projects from: ${env.PROJECTS_API_URL}`);
         const resolvedDate = getFetchDate() || getISODate();
         const baseDate = new Date(`${resolvedDate}T00:00:00+08:00`);
@@ -33,15 +54,24 @@ const ProjectsDataSource = {
             .split(/\s*\|\s*|\r?\n/)
             .map((url) => url.trim())
             .filter(Boolean);
+        if (urlList.length === 0) {
+            return { error: "PROJECTS_API_URL is not set", items: [] };
+        }
+
         const resolvedUrlList = urlList.map((url) => {
             if (!resolvedDate) return url;
             return url
                 .replaceAll("{date}", resolvedDate)
                 .replaceAll("{today}", resolvedDate)
-                .replaceAll("{yesterday}", yesterdayDate);
+                .replaceAll("{yesterday}", yesterdayDate)
+                .replaceAll("{date_minus_active_days}", getDateMinusDays(resolvedDate, activeDays))
+                .replace(/\{date_minus_(\d+)\}/g, (match, dayCount) => getDateMinusDays(resolvedDate, dayCount));
         });
-        if (urlList.length === 0) {
-            return { error: "PROJECTS_API_URL is not set", items: [] };
+        const limitedUrlList = maxQueriesPerRun > 0
+            ? resolvedUrlList.slice(0, maxQueriesPerRun)
+            : resolvedUrlList;
+        if (limitedUrlList.length < resolvedUrlList.length) {
+            console.log(`Limited GitHub project search URLs to ${limitedUrlList.length}/${resolvedUrlList.length} by PROJECT_MAX_QUERIES_PER_RUN=${maxQueriesPerRun}.`);
         }
 
         const normalizeProjects = (raw) => {
@@ -69,7 +99,7 @@ const ProjectsDataSource = {
         const projectsByKey = new Map();
         const errors = [];
 
-        for (const url of resolvedUrlList) {
+        for (const url of limitedUrlList) {
             let fetchOptions = {};
             try {
                 const parsedUrl = new URL(url);
@@ -118,13 +148,13 @@ const ProjectsDataSource = {
                 lastActivityAt: getLastActivityAt(project)
             }))
             .filter((project) => {
-                if (toNumber(project.totalStars) < MIN_STARS) return false;
+                if (toNumber(project.totalStars) < minStars) return false;
                 if (!project.lastActivityAt) return false;
-                return isDateWithinLastDays(project.lastActivityAt, ACTIVE_DAYS);
+                return isDateWithinLastDays(project.lastActivityAt, activeDays);
             });
 
         if (projects.length === 0) {
-            console.warn(`No projects matched filters (stars>=${MIN_STARS}, active within ${ACTIVE_DAYS} days).`);
+            console.warn(`No projects matched filters (stars>=${minStars}, active within ${activeDays} days).`);
             return [];
         }
 
