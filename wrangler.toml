@@ -98,7 +98,7 @@ BLOG_REPO_BRANCH = "main"
 GITHUB_BRANCH = "main"
 LOGIN_USERNAME = "qqee1133"
 
-DAILY_CRON_SCHEDULE = "0 11 * * *"
+DAILY_CRON_SCHEDULE = "20 11 * * *"
 OPPORTUNITY_CRON_SCHEDULE = "30 11 * * *"
 PROJECT_OPPORTUNITY_CRON_SCHEDULE = "30 11 * * *"
 DAILY_TITLE = "AI生命延续学日报"
@@ -122,7 +122,7 @@ INSERT_APP_URL = "<h3>[查看最新 AI生命延续学日报](https://news.aibioo
 
 [triggers]
 crons = [
-  "0 11 * * *",
+  "20 11 * * *",
   "30 11 * * *",
   "0 10 * * *"
 ]

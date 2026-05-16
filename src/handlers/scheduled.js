@@ -9,6 +9,7 @@ import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpport
 import { insertFoot } from '../foot.js';
 import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
+import { resolveDailyPromptItemCap, selectDailyPromptItems } from '../dailyPromptSelection.js';
 import {
     DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
     DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION,
@@ -158,6 +159,23 @@ async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt) {
     output = convertPlaceholdersToMarkdownImages(output);
     output = replaceIncorrectDomainLinks(output, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aibioo.cn');
     return output.trim();
+}
+
+async function generateScheduledMarkdownWithFallback(env, userPrompt, systemPrompt, label) {
+    let output = '';
+    try {
+        for await (const chunk of callChatAPIStream(env, userPrompt, systemPrompt)) {
+            output += chunk;
+        }
+        return output;
+    } catch (error) {
+        const message = String(error?.message || error);
+        if (!/(524|timeout|timed out|yielded no content|truncated|max_tokens)/i.test(message)) {
+            throw error;
+        }
+        console.warn(`[Scheduled][${label}] Stream generation failed, retrying non-stream: ${message}`);
+        return callChatAPI(env, userPrompt, systemPrompt);
+    }
 }
 
 async function commitBioSectionOutputs(env, dateStr, section, markdownContent, options) {
@@ -386,12 +404,17 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             }
         }
         
-        // Combine: items with media first, then items without media
-        selectedContentItems.push(...itemsWithMedia, ...itemsWithoutMedia);
+        // Combine: items with media first, then cap the prompt to avoid scheduled LLM timeouts.
+        selectedContentItems.push(...selectDailyPromptItems(
+            itemsWithMedia,
+            itemsWithoutMedia,
+            resolveDailyPromptItemCap(env, Boolean(specifiedDate))
+        ));
         
         if (itemsWithMedia.length > 0) {
             console.log(`[Scheduled] Found ${itemsWithMedia.length} items with images/videos, ${itemsWithoutMedia.length} items without.`);
         }
+        console.log(`[Scheduled] Selected ${selectedContentItems.length} prompt items for daily generation.`);
 
         if (selectedContentItems.length === 0) {
             console.log(`[Scheduled] No items found. Skipping generation.`);
@@ -403,10 +426,12 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr);
         let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n';
         
-        let outputOfCall2 = "";
-        for await (const chunk of callChatAPIStream(env, fullPromptForCall2_User, fullPromptForCall2_System)) {
-            outputOfCall2 += chunk;
-        }
+        let outputOfCall2 = await generateScheduledMarkdownWithFallback(
+            env,
+            fullPromptForCall2_User,
+            fullPromptForCall2_System,
+            'DailyBody'
+        );
         outputOfCall2 = removeMarkdownCodeBlock(outputOfCall2);
         outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
         // 替换错误的域名链接
@@ -418,10 +443,12 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
         let fullPromptForCall3_User = outputOfCall2;
         
-        let outputOfCall3 = "";
-        for await (const chunk of callChatAPIStream(env, fullPromptForCall3_User, fullPromptForCall3_System)) {
-            outputOfCall3 += chunk;
-        }
+        let outputOfCall3 = await generateScheduledMarkdownWithFallback(
+            env,
+            fullPromptForCall3_User,
+            fullPromptForCall3_System,
+            'DailySummary'
+        );
         outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
         outputOfCall3 = normalizeSummaryLines(outputOfCall3);
 
