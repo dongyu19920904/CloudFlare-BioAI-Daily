@@ -8,7 +8,7 @@ function isEnabled(value) {
 
 export function resolveScheduledModeFromCron(cronValue, env = {}) {
     const cron = normalizeCron(cronValue);
-    const blogCrons = new Set(['0 23 * * *', '0 10 * * *']);
+    const blogCrons = new Set(['30 12 * * *', '0 23 * * *', '0 10 * * *']);
     if (blogCrons.has(cron)) return 'blog';
 
     const dailyCron = normalizeCron(env.DAILY_CRON_SCHEDULE || '0 11 * * *');

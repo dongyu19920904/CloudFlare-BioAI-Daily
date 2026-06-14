@@ -29,6 +29,10 @@ test("resolveScheduledModeFromCron can route a separate project-opportunity cron
   );
 });
 
-test("resolveScheduledModeFromCron keeps the existing blog cron route", () => {
+test("resolveScheduledModeFromCron routes the same-day blog cron after daily generation", () => {
+  assert.equal(resolveScheduledModeFromCron("30 12 * * *", env), "blog");
+});
+
+test("resolveScheduledModeFromCron keeps the legacy blog cron route", () => {
   assert.equal(resolveScheduledModeFromCron("0 10 * * *", env), "blog");
 });
