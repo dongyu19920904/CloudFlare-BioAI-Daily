@@ -1,3 +1,5 @@
+import { buildMonthDirectoryIndex, getYearMonth } from "./contentUtils.js";
+
 const FRONT_MATTER_REGEX = /^---\s*\r?\n[\s\S]*?\r?\n---\s*\r?\n/;
 
 export const DEFAULT_BIO_OPPORTUNITY_DESCRIPTION =
@@ -32,11 +34,18 @@ function replaceOrInsertFrontMatterLine(frontMatter, field, value) {
 }
 
 export function buildBioSectionPaths(dateStr, section) {
+  const yearMonth = getYearMonth(dateStr);
   return {
-    pagePath: `content/cn/${section}/${dateStr}.md`,
+    yearMonth,
+    pagePath: `content/cn/${section}/${yearMonth}/${dateStr}.md`,
+    monthIndexPath: `content/cn/${section}/${yearMonth}/_index.md`,
     homePath: `content/cn/${section}/_index.md`,
-    publicPath: `/${section}/${dateStr}/`,
+    publicPath: `/${section}/${yearMonth}/${dateStr}/`,
   };
+}
+
+export function buildBioSectionMonthIndexContent(yearMonth, options = {}) {
+  return buildMonthDirectoryIndex(yearMonth, options);
 }
 
 export function buildBioSectionPageContent(dateStr, content, options = {}) {
@@ -65,14 +74,15 @@ function buildBioSectionHomeFrontMatter(dateStr, options = {}) {
     linkTitle = title,
     description = DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
     sectionPrefix = "/opportunity",
+    nextPath,
   } = options;
-  const nextPath = `${sectionPrefix}/${dateStr}`;
+  const resolvedNextPath = nextPath || `${sectionPrefix}/${getYearMonth(dateStr)}/${dateStr}/`;
 
   return `---
 linkTitle: ${linkTitle}
 title: ${title}
 breadcrumbs: false
-next: ${nextPath}
+next: ${resolvedNextPath}
 description: "${description}"
 cascade:
   type: docs
@@ -86,13 +96,14 @@ export function updateBioSectionHomeIndexContent(existingContent, sectionContent
     linkTitle = title,
     description = DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
     sectionPrefix = "/opportunity",
+    nextPath,
   } = options;
-  const nextPath = `${sectionPrefix}/${dateStr}`;
+  const resolvedNextPath = nextPath || `${sectionPrefix}/${getYearMonth(dateStr)}/${dateStr}/`;
   let frontMatter = "";
 
   if (existingContent && FRONT_MATTER_REGEX.test(existingContent)) {
     frontMatter = existingContent.match(FRONT_MATTER_REGEX)[0];
-    frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "next", nextPath);
+    frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "next", resolvedNextPath);
     frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "title", title);
     frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "linkTitle", linkTitle);
     frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "description", `"${description}"`);
@@ -102,6 +113,7 @@ export function updateBioSectionHomeIndexContent(existingContent, sectionContent
       linkTitle,
       description,
       sectionPrefix,
+      nextPath: resolvedNextPath,
     });
   }
 

@@ -4,18 +4,18 @@ export function insertAd() {
 
 ## **AI 账号极速发货: [爱窝啦 Aivora ⬆️](https://aivora.cn)**
 
-还在为 ChatGPT Plus、Claude 4.5、Gemini 3 Pro、Claude Pro、Midjourney 的支付问题烦恼？**爱窝啦 Aivora** 为您提供一站式 AI 账号解决方案！
+想快速体验 ChatGPT、Cursor、Claude、Gemini、Codex、Grok、Perplexity 等主流 AI 工具？**爱窝啦 Aivora** 提供 AI 账号、镜像入口、中转额度和编程工具方案。
 
-✅ **极速发货**：下单即发，无需等待，即刻开启 AI 之旅。
-✅ **稳定可靠**：精选优质独享账号，拒绝封号焦虑，售后无忧。
-✅ **超全品类**：ChatGPT Plus、Claude 4.5、Gemini 3 Pro、Claude Pro、Midjourney、Poe、Sunno 等热门 AI 工具账号应有尽有。
-✅ **超高性价比**：比官方订阅更优惠的价格，享受同等尊贵服务。
+✅ **24h 自助**：官网下单，卡密秒发，适合先低成本试用。
+✅ **按场景选**：官方号、镜像站、Cursor 激活器/换号器、Codex/Claude 中转、三合一额度包。
+✅ **覆盖开发与内容**：Codex、Cursor、Claude、Gemini、ChatGPT、Grok、Perplexity、Consensus 等常用方向。
+✅ **中文售后**：教程、入口、额度和常见问题有说明，遇到问题可联系群主处理。
 
-🚀 **立即访问 [aivora.cn](https://aivora.cn) 选购您的 AI 助手，释放无限创造力！**
+🚀 **访问 [aivora.cn](https://aivora.cn) 查看当前可下单商品。**
     `;
 }
 
-const MID_SOFT_AD = `> 💡 **提示**：想第一时间体验文中提到的最新 AI 模型（Claude 4.5、GPT、Gemini 3 Pro）？没有账号？来 [**爱窝啦 Aivora**](https://aivora.cn?utm_source=daily_news&utm_medium=mid_ad&utm_campaign=content) 领个号，一分钟上手，售后无忧。`;
+const MID_SOFT_AD = `> 💡 **提示**：想体验文中提到的 GPT、Claude、Gemini、Codex、Cursor、Grok 等工具，但不想折腾海外支付、注册、额度和教程？来 [**爱窝啦 Aivora**](https://aivora.cn?utm_source=daily_news&utm_medium=mid_ad&utm_campaign=content) 按场景选择官方号、镜像、Cursor 方案或中转入口，官网自助下单，卡密秒发。`;
 
 /**
  * 将中插软广注入到 AI 生成的 Markdown 中：

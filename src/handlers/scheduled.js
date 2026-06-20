@@ -9,10 +9,11 @@ import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpport
 import { insertFoot } from '../foot.js';
 import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
-import { resolveDailyPromptItemCap, selectDailyPromptItems } from '../dailyPromptSelection.js';
+import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import {
     DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
     DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION,
+    buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
     buildBioSectionPaths,
     updateBioSectionHomeIndexContent,
@@ -34,9 +35,10 @@ function shiftDate(dateStr, days) {
     return getISODate(new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000));
 }
 
-async function backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData) {
-    const lookbackDays = Math.max(parseInt(env.FOLO_FILTER_DAYS || '3', 10), 1);
+async function backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData, dedupeKeys = null) {
+    const lookbackDays = parsePositiveInteger(env.LONGEVITY_BACKFILL_DAYS || env.FOLO_FILTER_DAYS, 5);
     const categories = ['news', 'paper', 'socialMedia'];
+    const maxBackfillItems = parsePositiveInteger(env.LONGEVITY_MAX_BACKFILL_ITEMS, 4);
     let usedFallback = false;
 
     for (const category of categories) {
@@ -48,9 +50,25 @@ async function backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData) {
             const previousDate = shiftDate(dateStr, -offset);
             const cachedItems = await getFromKV(env.DATA_KV, `${previousDate}-${category}`);
             if (Array.isArray(cachedItems) && cachedItems.length > 0) {
-                allUnifiedData[category] = cachedItems;
+                const fallbackItems = cachedItems
+                    .filter((item) => !hasDedupeMatch(item, dedupeKeys))
+                    .slice(0, maxBackfillItems)
+                    .map((item) => ({
+                        ...item,
+                        details: {
+                            ...(item.details || {}),
+                            backfilledFrom: previousDate,
+                        },
+                    }));
+                if (fallbackItems.length === 0) {
+                    continue;
+                }
+                for (const item of fallbackItems) {
+                    addDedupeKeys(item, dedupeKeys);
+                }
+                allUnifiedData[category] = fallbackItems;
                 usedFallback = true;
-                console.log(`[Scheduled] Backfilled ${category} from ${previousDate} (${cachedItems.length} items).`);
+                console.log(`[Scheduled] Backfilled ${category} from ${previousDate} (${fallbackItems.length} non-duplicate items).`);
                 break;
             }
         }
@@ -62,6 +80,126 @@ async function backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData) {
 function parsePositiveInteger(value, defaultValue) {
     const parsed = Number.parseInt(String(value ?? '').trim(), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+function extractFirstMediaUrl(item) {
+    const explicitImage = item?.details?.imageUrl || item?.imageUrl;
+    if (explicitImage) return explicitImage;
+
+    const contentHtml = String(item?.details?.content_html || '');
+    const imageMatch = contentHtml.match(/<img\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
+    if (imageMatch) return imageMatch[1];
+    const videoMatch = contentHtml.match(/<video\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
+    if (videoMatch) return videoMatch[1];
+    return '';
+}
+
+function buildMediaPromptHint(item) {
+    const mediaUrl = extractFirstMediaUrl(item);
+    if (!/^https?:\/\//i.test(mediaUrl)) return '';
+    const title = String(item?.title || '相关图片').replace(/\s+/g, ' ').trim();
+    return `[图片: ${title} ${mediaUrl}]`;
+}
+
+function normalizeDedupeUrl(url) {
+    if (!url) return '';
+    try {
+        const parsed = new URL(url);
+        for (const key of [...parsed.searchParams.keys()]) {
+            if (/^(utm_|fbclid$|gclid$|ref$|ref_src$)/i.test(key)) {
+                parsed.searchParams.delete(key);
+            }
+        }
+        parsed.hash = '';
+        return parsed.toString().replace(/\/$/, '').toLowerCase();
+    } catch {
+        return String(url).trim().replace(/\/$/, '').toLowerCase();
+    }
+}
+
+function normalizeDedupeTitle(title) {
+    return String(title || '')
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getItemDedupeKeys(item) {
+    return {
+        url: normalizeDedupeUrl(item?.url),
+        title: normalizeDedupeTitle(item?.title),
+    };
+}
+
+function hasDedupeMatch(item, dedupeKeys) {
+    if (!dedupeKeys) return false;
+    const keys = getItemDedupeKeys(item);
+    if (keys.url && dedupeKeys.urls.has(keys.url)) return true;
+    return keys.title && keys.title.length >= 24 && dedupeKeys.titles.has(keys.title);
+}
+
+function addDedupeKeys(item, dedupeKeys) {
+    if (!dedupeKeys) return;
+    const keys = getItemDedupeKeys(item);
+    if (keys.url) dedupeKeys.urls.add(keys.url);
+    if (keys.title && keys.title.length >= 24) dedupeKeys.titles.add(keys.title);
+}
+
+async function buildRecentDedupeKeys(env, dateStr, categories, lookbackDays, logPrefix) {
+    const dedupeKeys = { urls: new Set(), titles: new Set() };
+    if (!env.DATA_KV || lookbackDays <= 0) return dedupeKeys;
+
+    for (let offset = 1; offset <= lookbackDays; offset += 1) {
+        const previousDate = shiftDate(dateStr, -offset);
+        for (const category of categories) {
+            try {
+                const cachedItems = await getFromKV(env.DATA_KV, `${previousDate}-${category}`);
+                for (const item of cachedItems || []) {
+                    addDedupeKeys(item, dedupeKeys);
+                }
+            } catch (error) {
+                console.warn(`${logPrefix} Failed to load ${previousDate}-${category} for de-duplication: ${error.message}`);
+            }
+        }
+    }
+
+    return dedupeKeys;
+}
+
+function filterRecentDuplicates(allUnifiedData, dedupeKeys, logPrefix) {
+    if (!dedupeKeys) return 0;
+    let removedCount = 0;
+
+    for (const sourceType in allUnifiedData) {
+        if (!Object.hasOwnProperty.call(allUnifiedData, sourceType)) continue;
+        const nextItems = [];
+        for (const item of allUnifiedData[sourceType] || []) {
+            if (hasDedupeMatch(item, dedupeKeys)) {
+                removedCount += 1;
+                continue;
+            }
+            addDedupeKeys(item, dedupeKeys);
+            nextItems.push(item);
+        }
+        allUnifiedData[sourceType] = nextItems;
+    }
+
+    if (removedCount > 0) {
+        console.log(`${logPrefix} Removed ${removedCount} items duplicated within the recent lookback window.`);
+    }
+    return removedCount;
+}
+
+function snapshotDataForCache(allUnifiedData) {
+    const cacheData = {};
+    for (const sourceType in dataSources) {
+        if (Object.hasOwnProperty.call(dataSources, sourceType)) {
+            cacheData[sourceType] = [...(allUnifiedData[sourceType] || [])];
+        }
+    }
+    return cacheData;
 }
 
 async function resolveScheduledFoloCookie(env, logPrefix = '[Scheduled]') {
@@ -81,12 +219,17 @@ async function fetchAndCacheScheduledData(env, dateStr, logPrefix = '[Scheduled]
     console.log(`${logPrefix} Fetching data...`);
     const foloCookie = await resolveScheduledFoloCookie(env, logPrefix);
     const allUnifiedData = await fetchAllData(env, foloCookie);
-    const usedFallback = await backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData);
+    const categories = Object.keys(dataSources);
+    const dedupeDays = parsePositiveInteger(env.DAILY_DEDUPE_DAYS, 7);
+    const dedupeKeys = await buildRecentDedupeKeys(env, dateStr, categories, dedupeDays, logPrefix);
+    filterRecentDuplicates(allUnifiedData, dedupeKeys, logPrefix);
+    const cacheData = snapshotDataForCache(allUnifiedData);
+    const usedFallback = await backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData, dedupeKeys);
     const fetchPromises = [];
 
     for (const sourceType in dataSources) {
         if (Object.hasOwnProperty.call(dataSources, sourceType)) {
-            fetchPromises.push(storeInKV(env.DATA_KV, `${dateStr}-${sourceType}`, allUnifiedData[sourceType] || []));
+            fetchPromises.push(storeInKV(env.DATA_KV, `${dateStr}-${sourceType}`, cacheData[sourceType] || []));
         }
     }
 
@@ -195,6 +338,16 @@ async function commitBioSectionOutputs(env, dateStr, section, markdownContent, o
         existingPageSha
     );
 
+    const monthIndexContent = buildBioSectionMonthIndexContent(paths.yearMonth, { sidebarOpen: true });
+    const existingMonthIndexSha = await getGitHubFileSha(env, paths.monthIndexPath);
+    await createOrUpdateGitHubFile(
+        env,
+        paths.monthIndexPath,
+        monthIndexContent,
+        `${existingMonthIndexSha ? 'Update' : 'Create'} ${section} month index for ${paths.yearMonth} (Scheduled)`,
+        existingMonthIndexSha
+    );
+
     let existingHomeContent = '';
     try {
         existingHomeContent = await getGitHubFileContent(env, paths.homePath);
@@ -207,6 +360,7 @@ async function commitBioSectionOutputs(env, dateStr, section, markdownContent, o
         linkTitle: options.homeLinkTitle,
         description: options.description,
         sectionPrefix: `/${section}`,
+        nextPath: paths.publicPath,
     });
     const existingHomeSha = await getGitHubFileSha(env, paths.homePath);
     await createOrUpdateGitHubFile(
@@ -337,41 +491,22 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
 
     try {
         // 1. Fetch Data
-        console.log(`[Scheduled] Fetching data...`);
-        // 定时任务无法从浏览器 localStorage 获取 Cookie，这里优先使用环境变量 FOLO_COOKIE，
-        // 如果未设置则尝试从 KV(FOLO_COOKIE_KV_KEY) 读取。
-        let foloCookie = env.FOLO_COOKIE;
-        if (!foloCookie && env.FOLO_COOKIE_KV_KEY) {
-            try {
-                foloCookie = await getFromKV(env.DATA_KV, env.FOLO_COOKIE_KV_KEY);
-                if (foloCookie) console.log(`[Scheduled] Loaded Folo cookie from KV (${env.FOLO_COOKIE_KV_KEY}).`);
-            } catch (err) {
-                console.warn(`[Scheduled] Failed to load Folo cookie from KV: ${err.message}`);
-            }
-        }
-
-        const allUnifiedData = await fetchAllData(env, foloCookie);
-        const fetchPromises = [];
-        const usedFallback = await backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData);
-        for (const sourceType in dataSources) {
-            if (Object.hasOwnProperty.call(dataSources, sourceType)) {
-                fetchPromises.push(storeInKV(env.DATA_KV, `${dateStr}-${sourceType}`, allUnifiedData[sourceType] || []));
-            }
-        }
-        await Promise.all(fetchPromises);
-        console.log(`[Scheduled] Data fetched and stored.${usedFallback ? ' Used recent KV fallback.' : ''}`);
+        const allUnifiedData = await fetchAndCacheScheduledData(env, dateStr, '[Scheduled]');
 
         // 2. Prepare Content Items
         // Priority: items with images/videos first
-        const selectedContentItems = [];
-        const itemsWithMedia = [];
-        const itemsWithoutMedia = [];
+        const promptCandidates = [];
+        const sourceStats = {};
         
         for (const sourceType in allUnifiedData) {
             const items = allUnifiedData[sourceType];
             if (items && items.length > 0) {
                 for (const item of items) {
-                    const itemHasMedia = item.details?.content_html && hasMedia(item.details.content_html);
+                    const mediaPromptHint = buildMediaPromptHint(item);
+                    const itemHasMedia = Boolean(mediaPromptHint || (item.details?.content_html && hasMedia(item.details.content_html)));
+                    sourceStats[item.type || sourceType] = sourceStats[item.type || sourceType] || { total: 0, media: 0 };
+                    sourceStats[item.type || sourceType].total += 1;
+                    if (itemHasMedia) sourceStats[item.type || sourceType].media += 1;
                     let itemText = "";
                     switch (item.type) {
                         case 'news':
@@ -394,27 +529,40 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                             break;
                     }
                     if (itemText) {
-                        if (itemHasMedia) {
-                            itemsWithMedia.push(itemText);
-                        } else {
-                            itemsWithoutMedia.push(itemText);
+                        if (mediaPromptHint) {
+                            itemText += `\n${mediaPromptHint}`;
                         }
+                        promptCandidates.push({
+                            key: item.url || `${item.type || sourceType}:${item.title}`,
+                            text: itemText,
+                            sourceType: item.type || sourceType,
+                            hasMedia: Boolean(itemHasMedia),
+                            publishedDate: item.published_date,
+                            url: item.url,
+                            title: item.title,
+                        });
                     }
                 }
             }
         }
         
-        // Combine: items with media first, then cap the prompt to avoid scheduled LLM timeouts.
-        selectedContentItems.push(...selectDailyPromptItems(
-            itemsWithMedia,
-            itemsWithoutMedia,
+        const selectedCandidates = selectDailyPromptCandidates(
+            promptCandidates,
+            env,
             resolveDailyPromptItemCap(env, Boolean(specifiedDate))
-        ));
+        );
+        const selectedContentItems = selectedCandidates.map((candidate) => candidate.text);
         
-        if (itemsWithMedia.length > 0) {
-            console.log(`[Scheduled] Found ${itemsWithMedia.length} items with images/videos, ${itemsWithoutMedia.length} items without.`);
+        if (promptCandidates.some((candidate) => candidate.hasMedia)) {
+            const mediaCount = promptCandidates.filter((candidate) => candidate.hasMedia).length;
+            console.log(`[Scheduled] Found ${mediaCount} items with images/videos, ${promptCandidates.length - mediaCount} items without.`);
         }
-        console.log(`[Scheduled] Selected ${selectedContentItems.length} prompt items for daily generation.`);
+        const selectedStats = selectedCandidates.reduce((acc, candidate) => {
+            acc[candidate.sourceType] = (acc[candidate.sourceType] || 0) + 1;
+            return acc;
+        }, {});
+        console.log(`[Scheduled] Source stats before selection: ${JSON.stringify(sourceStats)}.`);
+        console.log(`[Scheduled] Selected ${selectedContentItems.length} prompt items for daily generation: ${JSON.stringify(selectedStats)}.`);
 
         if (selectedContentItems.length === 0) {
             console.log(`[Scheduled] No items found. Skipping generation.`);

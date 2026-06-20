@@ -1,4 +1,4 @@
-const DEFAULT_DAILY_DESCRIPTION = '每日自动汇总最新 AI 行业动态，帮中文用户用最低成本玩转ChatGPT、Claude、Cursor、Augment 等 AI 工具。由爱窝啦 AI 账号店提供支持。';
+const DEFAULT_DAILY_DESCRIPTION = '每日聚焦 AI + 长寿、延寿、衰老、生物年龄和健康科技前沿，同时记录 ChatGPT、Claude、Cursor、Codex、Gemini、Consensus 等工具如何辅助研究、内容和项目验证。由爱窝啦提供 AI 工具入口支持。';
 
 // 辅助函数：获取月日
 function getMonthDay(dateStr) {

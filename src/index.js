@@ -50,8 +50,8 @@ async function runScheduledMode(mode, event, env, ctx, specifiedDate = null) {
 
 export default {
     async scheduled(event, env, ctx) {
-        // 根据不同的 cron 执行不同的任务
         const mode = resolveScheduledModeFromCron(event.cron, env);
+        // Route scheduled crons to the correct task.
         if (mode === 'blog') {
             // 博客生成任务 - UTC 23:00 (北京时间 07:00)
             await handleScheduledBlog(event, env, ctx);
