@@ -2,7 +2,7 @@ name: Daily Self-Heal Guard (BioAI)
 
 on:
   schedule:
-    - cron: "35 11 * * *"
+    - cron: "45 11 * * *"
     - cron: "20 12 * * *"
   workflow_dispatch:
     inputs:
@@ -24,7 +24,7 @@ jobs:
       DEFAULT_TRIGGER_SECRET: test-secret-key-change-me
 
     steps:
-      - name: Check missing daily and auto-heal
+      - name: Check missing daily modules and auto-heal
         id: guard
         shell: bash
         env:
@@ -45,116 +45,173 @@ jobs:
             exit 1
           fi
 
+          YEAR_MONTH="${TARGET_DATE:0:7}"
           WORKER_BASE_URL="${WORKER_BASE_URL:-$DEFAULT_WORKER_BASE_URL}"
           TRIGGER_SECRET="${TRIGGER_SECRET:-$DEFAULT_TRIGGER_SECRET}"
-          RAW_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/daily/${TARGET_DATE}.md"
-          TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduled?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
-          FORCE_LOCAL_TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduled?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1&forceLocal=1"
+
+          DAILY_RAW_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/daily/${TARGET_DATE}.md"
+          DAILY_PAGE_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/content/cn/${YEAR_MONTH}/${TARGET_DATE}.md"
+          OPPORTUNITY_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/content/cn/opportunity/${YEAR_MONTH}/${TARGET_DATE}.md"
+          PROJECT_OPPORTUNITY_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/content/cn/project-opportunity/${YEAR_MONTH}/${TARGET_DATE}.md"
+
+          DAILY_TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduled?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
+          OPPORTUNITY_BATCH_TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduledOpportunity?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
 
           echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
-          echo "raw_url=$RAW_URL" >> "$GITHUB_OUTPUT"
+          echo "daily_raw_url=$DAILY_RAW_URL" >> "$GITHUB_OUTPUT"
+          echo "daily_page_url=$DAILY_PAGE_URL" >> "$GITHUB_OUTPUT"
+          echo "opportunity_url=$OPPORTUNITY_URL" >> "$GITHUB_OUTPUT"
+          echo "project_opportunity_url=$PROJECT_OPPORTUNITY_URL" >> "$GITHUB_OUTPUT"
           echo "worker_base_url=$WORKER_BASE_URL" >> "$GITHUB_OUTPUT"
 
-          if curl -fsSI "$RAW_URL" > /dev/null; then
-            echo "status=already_exists" >> "$GITHUB_OUTPUT"
-            {
-              echo "trigger_response<<EOF"
-              echo "not_needed"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-            echo "Daily file already exists: $RAW_URL"
-            exit 0
+          probe_url() {
+            curl -fsSLI "$1" >/dev/null 2>&1
+          }
+
+          wait_for_url() {
+            local label="$1"
+            local url="$2"
+            for i in {1..30}; do
+              if probe_url "$url"; then
+                echo "${label} is present: ${url}"
+                return 0
+              fi
+              echo "Waiting for ${label} (${i}/30): ${url}"
+              sleep 20
+            done
+            return 1
+          }
+
+          trigger_worker() {
+            local label="$1"
+            local url="$2"
+            local body_file
+            local status_code
+            local response_body
+
+            echo "Triggering ${label}: ${url%%\?*}"
+            body_file="$(mktemp)"
+            status_code="$(curl -sS --max-time 900 -o "$body_file" -w "%{http_code}" "$url" || true)"
+            response_body="$(cat "$body_file" 2>/dev/null || true)"
+            rm -f "$body_file"
+
+            if [[ -z "${status_code:-}" ]]; then
+              status_code="000"
+            fi
+
+            echo "${label} trigger status: ${status_code}"
+            echo "${label} trigger response: ${response_body:-<empty>}"
+            response_log="${response_log}${label} HTTP ${status_code}"$'\n'"${response_body:-<empty>}"$'\n\n'
+
+            if [[ ! "$status_code" =~ ^2[0-9][0-9]$ ]]; then
+              return 1
+            fi
+            return 0
+          }
+
+          response_log=""
+          overall_status="ok"
+          daily_status="already_exists"
+          opportunity_status="already_exists"
+          project_opportunity_status="already_exists"
+
+          if ! probe_url "$DAILY_RAW_URL" || ! probe_url "$DAILY_PAGE_URL"; then
+            daily_status="missing"
+            if trigger_worker "daily" "$DAILY_TRIGGER_URL" &&
+              wait_for_url "daily raw file" "$DAILY_RAW_URL" &&
+              wait_for_url "daily content page" "$DAILY_PAGE_URL"; then
+              daily_status="self_healed"
+            else
+              daily_status="failed"
+              overall_status="failed"
+            fi
           fi
 
-          echo "Daily file missing, triggering worker for date: $TARGET_DATE"
-          trigger_body_file="$(mktemp)"
-          trigger_status="$(curl -sS --max-time 900 -o "$trigger_body_file" -w "%{http_code}" "$TRIGGER_URL" || true)"
-          trigger_response="$(cat "$trigger_body_file" 2>/dev/null || true)"
-          rm -f "$trigger_body_file"
-
-          if [[ -z "${trigger_status:-}" ]]; then
-            trigger_status="000"
+          need_opportunity_batch="false"
+          if ! probe_url "$OPPORTUNITY_URL"; then
+            opportunity_status="missing"
+            need_opportunity_batch="true"
+          fi
+          if ! probe_url "$PROJECT_OPPORTUNITY_URL"; then
+            project_opportunity_status="missing"
+            need_opportunity_batch="true"
           fi
 
-          echo "Trigger status: ${trigger_status}"
-          echo "Trigger response: ${trigger_response:-<empty>}"
+          if [[ "$need_opportunity_batch" == "true" ]]; then
+            if trigger_worker "opportunity-batch" "$OPPORTUNITY_BATCH_TRIGGER_URL"; then
+              if wait_for_url "opportunity page" "$OPPORTUNITY_URL"; then
+                if [[ "$opportunity_status" == "missing" ]]; then
+                  opportunity_status="self_healed"
+                fi
+              else
+                opportunity_status="failed"
+                overall_status="failed"
+              fi
 
+              if wait_for_url "project opportunity page" "$PROJECT_OPPORTUNITY_URL"; then
+                if [[ "$project_opportunity_status" == "missing" ]]; then
+                  project_opportunity_status="self_healed"
+                fi
+              else
+                project_opportunity_status="failed"
+                overall_status="failed"
+              fi
+            else
+              if [[ "$opportunity_status" == "missing" ]]; then
+                opportunity_status="failed"
+              fi
+              if [[ "$project_opportunity_status" == "missing" ]]; then
+                project_opportunity_status="failed"
+              fi
+              overall_status="failed"
+            fi
+          fi
+
+          echo "status=$overall_status" >> "$GITHUB_OUTPUT"
+          echo "daily_status=$daily_status" >> "$GITHUB_OUTPUT"
+          echo "opportunity_status=$opportunity_status" >> "$GITHUB_OUTPUT"
+          echo "project_opportunity_status=$project_opportunity_status" >> "$GITHUB_OUTPUT"
           {
-            echo "trigger_status=$trigger_status"
             echo "trigger_response<<EOF"
-            echo "${trigger_response:-<empty>}"
+            echo "${response_log:-not_needed}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-          healed="false"
-          for i in {1..30}; do
-            if curl -fsSI "$RAW_URL" > /dev/null; then
-              healed="true"
-              break
-            fi
-            sleep 20
-          done
-
-          fallback_trigger_status=""
-          fallback_trigger_response=""
-          if [[ "$healed" != "true" ]]; then
-            echo "Primary self-heal did not recover the daily, retrying with forceLocal fallback."
-            fallback_body_file="$(mktemp)"
-            fallback_trigger_status="$(curl -sS --max-time 900 -o "$fallback_body_file" -w "%{http_code}" "$FORCE_LOCAL_TRIGGER_URL" || true)"
-            fallback_trigger_response="$(cat "$fallback_body_file" 2>/dev/null || true)"
-            rm -f "$fallback_body_file"
-
-            if [[ -z "${fallback_trigger_status:-}" ]]; then
-              fallback_trigger_status="000"
-            fi
-
-            echo "ForceLocal trigger status: ${fallback_trigger_status}"
-            echo "ForceLocal trigger response: ${fallback_trigger_response:-<empty>}"
-
-            {
-              echo "fallback_trigger_status=$fallback_trigger_status"
-              echo "fallback_trigger_response<<EOF"
-              echo "${fallback_trigger_response:-<empty>}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-
-            for i in {1..30}; do
-              if curl -fsSI "$RAW_URL" > /dev/null; then
-                healed="true"
-                break
-              fi
-              sleep 20
-            done
-          fi
-
-          if [[ "$healed" == "true" ]]; then
-            echo "status=self_healed" >> "$GITHUB_OUTPUT"
-            echo "Recovered successfully: $RAW_URL"
-          else
-            echo "status=failed" >> "$GITHUB_OUTPUT"
-            echo "Still missing after auto-heal attempt: $RAW_URL"
-          fi
+          echo "Daily status: ${daily_status}"
+          echo "Opportunity status: ${opportunity_status}"
+          echo "Project opportunity status: ${project_opportunity_status}"
+          echo "Overall status: ${overall_status}"
 
       - name: Create alert issue when self-heal fails
         if: steps.guard.outputs.status == 'failed'
         uses: actions/github-script@v7
         env:
           TARGET_DATE: ${{ steps.guard.outputs.target_date }}
-          RAW_URL: ${{ steps.guard.outputs.raw_url }}
+          DAILY_RAW_URL: ${{ steps.guard.outputs.daily_raw_url }}
+          DAILY_PAGE_URL: ${{ steps.guard.outputs.daily_page_url }}
+          OPPORTUNITY_URL: ${{ steps.guard.outputs.opportunity_url }}
+          PROJECT_OPPORTUNITY_URL: ${{ steps.guard.outputs.project_opportunity_url }}
           WORKER_BASE_URL: ${{ steps.guard.outputs.worker_base_url }}
-          TRIGGER_STATUS: ${{ steps.guard.outputs.trigger_status }}
+          DAILY_STATUS: ${{ steps.guard.outputs.daily_status }}
+          OPPORTUNITY_STATUS: ${{ steps.guard.outputs.opportunity_status }}
+          PROJECT_OPPORTUNITY_STATUS: ${{ steps.guard.outputs.project_opportunity_status }}
           TRIGGER_RESPONSE: ${{ steps.guard.outputs.trigger_response }}
         with:
           script: |
             const { owner, repo } = context.repo;
             const title = `[Self-Heal][BioAI Daily] ${process.env.TARGET_DATE} auto-recovery failed`;
             const body = [
-              "Daily guard detected a missing file and auto-recovery did not finish successfully.",
+              "Daily guard detected missing BioAI daily module files and auto-recovery did not finish successfully.",
               "",
               `- Date: ${process.env.TARGET_DATE}`,
-              `- Daily URL: ${process.env.RAW_URL}`,
+              `- Daily raw status: ${process.env.DAILY_STATUS}`,
+              `- Opportunity status: ${process.env.OPPORTUNITY_STATUS}`,
+              `- Project opportunity status: ${process.env.PROJECT_OPPORTUNITY_STATUS}`,
+              `- Daily raw URL: ${process.env.DAILY_RAW_URL}`,
+              `- Daily content URL: ${process.env.DAILY_PAGE_URL}`,
+              `- Opportunity URL: ${process.env.OPPORTUNITY_URL}`,
+              `- Project opportunity URL: ${process.env.PROJECT_OPPORTUNITY_URL}`,
               `- Worker: ${process.env.WORKER_BASE_URL}`,
-              `- Trigger HTTP Status: ${process.env.TRIGGER_STATUS || "unknown"}`,
               "",
               "Trigger response:",
               "```json",
@@ -185,7 +242,7 @@ jobs:
             });
             core.info(`Created alert issue: #${created.data.number}`);
 
-      - name: Fail job on unrecovered daily
+      - name: Fail job on unrecovered daily modules
         if: steps.guard.outputs.status == 'failed'
         run: |
           echo "Self-heal failed and alert issue was created."
@@ -199,7 +256,12 @@ jobs:
             echo ""
             echo "- Status: ${{ steps.guard.outputs.status }}"
             echo "- Date: ${{ steps.guard.outputs.target_date }}"
-            echo "- Daily URL: ${{ steps.guard.outputs.raw_url }}"
+            echo "- Daily raw: ${{ steps.guard.outputs.daily_status }}"
+            echo "- Opportunity: ${{ steps.guard.outputs.opportunity_status }}"
+            echo "- Project opportunity: ${{ steps.guard.outputs.project_opportunity_status }}"
+            echo "- Daily raw URL: ${{ steps.guard.outputs.daily_raw_url }}"
+            echo "- Daily content URL: ${{ steps.guard.outputs.daily_page_url }}"
+            echo "- Opportunity URL: ${{ steps.guard.outputs.opportunity_url }}"
+            echo "- Project opportunity URL: ${{ steps.guard.outputs.project_opportunity_url }}"
             echo "- Worker: ${{ steps.guard.outputs.worker_base_url }}"
-            echo "- Trigger HTTP Status: ${{ steps.guard.outputs.trigger_status }}"
           } >> "$GITHUB_STEP_SUMMARY"
