@@ -1,17 +1,55 @@
 // src/chatapi.js
 
-const GEMINI_API_VERSIONS = ["v1beta", "v1", ""];
+const GEMINI_API_VERSIONS = ["v1beta", "v1"];
 
 function normalizeBaseUrl(url) {
     return String(url || "").replace(/\/+$/, "");
 }
 
+function getAnthropicModelName(env) {
+    return env.DEFAULT_ANTHROPIC_MODEL || env.ANTHROPIC_MODEL || "claude-opus-4-5";
+}
+
+function getAnthropicBackupModelName(env) {
+    return env.DEFAULT_ANTHROPIC_BACKUP_MODEL || env.ANTHROPIC_BACKUP_MODEL || getAnthropicModelName(env);
+}
+
+function getAnthropicRoutes(env) {
+    const primaryBaseUrl = normalizeBaseUrl(env.ANTHROPIC_API_URL || env.ANTHROPIC_BASE_URL);
+    const backupBaseUrl = normalizeBaseUrl(env.ANTHROPIC_BASE_URL || env.ANTHROPIC_API_URL);
+    const routes = [];
+
+    if (primaryBaseUrl && env.ANTHROPIC_API_KEY) {
+        routes.push({
+            baseUrl: primaryBaseUrl,
+            apiKey: env.ANTHROPIC_API_KEY,
+            modelName: getAnthropicModelName(env),
+            role: "primary"
+        });
+    }
+
+    if (backupBaseUrl && env.ANTHROPIC_BACKUP_API_KEY) {
+        routes.push({
+            baseUrl: backupBaseUrl,
+            apiKey: env.ANTHROPIC_BACKUP_API_KEY,
+            modelName: getAnthropicBackupModelName(env),
+            role: "backup"
+        });
+    }
+
+    const deduped = [];
+    const seen = new Set();
+    for (const route of routes) {
+        const key = `${route.baseUrl}\n${route.apiKey}\n${route.modelName}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(route);
+    }
+    return deduped;
+}
+
 function getAnthropicBaseUrls(env) {
-    const urls = [
-        normalizeBaseUrl(env.ANTHROPIC_API_URL),
-        normalizeBaseUrl(env.ANTHROPIC_BASE_URL)
-    ].filter(Boolean);
-    return [...new Set(urls)];
+    return getAnthropicRoutes(env).map(route => route.baseUrl);
 }
 
 function getAnthropicBaseUrl(env) {
@@ -150,6 +188,10 @@ function isRateLimitError(error) {
     const message = String(error?.message || error || "").toLowerCase();
     return (
         message.includes("429") ||
+        (message.includes("401") && message.includes("quota")) ||
+        message.includes("quota exceeded") ||
+        message.includes("insufficient_quota") ||
+        message.includes("insufficient quota") ||
         message.includes("too many requests") ||
         message.includes("resource_exhausted") ||
         message.includes("骞跺彂璇锋眰鏁伴噺杩囧")
@@ -162,6 +204,16 @@ function canUseAnthropicFallback(env) {
 
 function canUseOpenAIFallback(env) {
     return Boolean(getOpenAIBaseUrl(env) && env.OPENAI_API_KEY);
+}
+
+function getAnthropicRetryConfig(env) {
+    const maxRetries = Number.parseInt(env.ANTHROPIC_RETRY_MAX ?? "2", 10);
+    const baseDelayMs = Number.parseInt(env.ANTHROPIC_RETRY_BASE_MS ?? "3000", 10);
+    return {
+        maxRetries: Number.isFinite(maxRetries) && maxRetries >= 0 ? maxRetries : 2,
+        baseDelayMs: Number.isFinite(baseDelayMs) && baseDelayMs >= 0 ? baseDelayMs : 3000,
+        retryStatuses: new Set([429, 524])
+    };
 }
 
 function shouldTryNextAnthropicBaseUrl(error) {
@@ -177,6 +229,19 @@ function shouldTryNextAnthropicBaseUrl(error) {
     );
 }
 
+function shouldTryNextAnthropicRoute(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+        shouldTryNextAnthropicBaseUrl(error) ||
+        /anthropic chat api error \((401|403|429|5\d\d|524)\)/.test(message) ||
+        message.includes("unauthorized") ||
+        message.includes("forbidden") ||
+        message.includes("quota") ||
+        message.includes("account suspended") ||
+        message.includes("account blocked")
+    );
+}
+
 export function shouldFailoverFromAnthropic(error) {
     const message = String(error?.message || error || "").toLowerCase();
     return (
@@ -184,31 +249,41 @@ export function shouldFailoverFromAnthropic(error) {
         /anthropic chat api error \((401|403|408|409|429|5\d\d|524)\)/.test(message) ||
         message.includes("unauthorized") ||
         message.includes("forbidden") ||
+        message.includes("quota") ||
         message.includes("account suspended") ||
         message.includes("account blocked")
     );
 }
 
 async function postAnthropicWithBaseUrlFallback(env, payload) {
-    const baseUrls = getAnthropicBaseUrls(env);
-    if (baseUrls.length === 0 || !env.ANTHROPIC_API_KEY) {
+    const routes = getAnthropicRoutes(env);
+    if (routes.length === 0) {
         throw new Error("ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) or ANTHROPIC_API_KEY not set.");
     }
 
+    const retryConfig = getAnthropicRetryConfig(env);
+    const debugLog = (message, meta) => console.warn(`[Anthropic retry] ${message}`, meta || {});
+
     let lastError = null;
-    for (let index = 0; index < baseUrls.length; index++) {
-        const baseUrl = baseUrls[index];
-        const url = `${baseUrl}/v1/messages`;
+    for (let index = 0; index < routes.length; index++) {
+        const route = routes[index];
+        const url = `${route.baseUrl}/v1/messages`;
+        const effectivePayload = {
+            ...payload,
+            model: route.modelName || payload.model
+        };
         try {
-            const response = await fetchWithTimeout(url, {
+            const response = await fetchWithRetry(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${env.ANTHROPIC_API_KEY}`,
+                    'Authorization': `Bearer ${route.apiKey}`,
+                    'x-api-key': route.apiKey,
+                    'anthropic-version': '2023-06-01',
                     'User-Agent': 'Cloudflare-Worker/1.0'
                 },
-                body: JSON.stringify(payload)
-            }, 180000);
+                body: JSON.stringify(effectivePayload)
+            }, 180000, retryConfig, debugLog);
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -218,13 +293,13 @@ async function postAnthropicWithBaseUrlFallback(env, payload) {
             return response;
         } catch (error) {
             lastError = error;
-            const hasNext = index < baseUrls.length - 1;
-            if (!hasNext || !shouldTryNextAnthropicBaseUrl(error)) {
+            const hasNext = index < routes.length - 1;
+            if (!hasNext || !shouldTryNextAnthropicRoute(error)) {
                 throw error;
             }
-            console.warn(`[Anthropic fallback] Primary route failed, trying next base URL.`, {
-                failedBaseUrl: baseUrl,
-                nextBaseUrl: baseUrls[index + 1],
+            console.warn(`[Anthropic fallback] Route failed, trying next Anthropic route.`, {
+                failedBaseUrl: route.baseUrl,
+                nextBaseUrl: routes[index + 1].baseUrl,
                 error: String(error?.message || error)
             });
         }
@@ -354,7 +429,7 @@ async function fetchWithRetry(url, options, timeout, retryConfig, debugLog) {
         const retryAfter = parseRetryAfterMillis(response.headers?.get?.("retry-after"));
         const delayMs = retryAfter ?? (baseDelayMs * Math.pow(2, attempt));
         if (debugLog) {
-            debugLog(`Gemini retrying after ${response.status}`, { delayMs, attempt });
+            debugLog(`Retrying after ${response.status}`, { delayMs, attempt });
         }
         try {
             response.body?.cancel?.();
@@ -1071,7 +1146,7 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
     if (!baseUrl || !env.ANTHROPIC_API_KEY) {
         throw new Error("ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) or ANTHROPIC_API_KEY not set.");
     }
-    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-opus-4-5";
+    const modelName = getAnthropicModelName(env);
     const maxTokens = getAnthropicMaxTokens(env);
 
     const messages = [{ role: "user", content: promptText }];
@@ -1128,7 +1203,7 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
     if (!baseUrl || !env.ANTHROPIC_API_KEY) {
         throw new Error("ANTHROPIC_BASE_URL (or ANTHROPIC_API_URL) or ANTHROPIC_API_KEY not set.");
     }
-    const modelName = env.DEFAULT_ANTHROPIC_MODEL || "claude-opus-4-5";
+    const modelName = getAnthropicModelName(env);
     const maxTokens = getAnthropicMaxTokens(env);
 
     const messages = [{ role: "user", content: promptText }];
