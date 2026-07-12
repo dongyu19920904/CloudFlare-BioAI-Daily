@@ -193,7 +193,10 @@ test("primary model success is labeled model and is called exactly once", async 
       return modelJson();
     },
   });
-  const response = await handler(request(), configuredEnv());
+  const response = await handler(
+    request(),
+    configuredEnv({ PROJECT_LAB_PRIMARY_TIMEOUT_MS: "24000" })
+  );
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.resultSource, "model");
@@ -202,6 +205,7 @@ test("primary model success is labeled model and is called exactly once", async 
   assert.equal(calls[0].DEFAULT_ANTHROPIC_MODEL, "unit-test-primary-model");
   assert.equal(calls[0].ANTHROPIC_RETRY_MAX, "0");
   assert.equal(calls[0].ANTHROPIC_MAX_TOKENS, "1200");
+  assert.equal(calls[0].ANTHROPIC_REQUEST_TIMEOUT_MS, "24000");
   assert.equal(calls[0].ANTHROPIC_BACKUP_API_KEY, "");
   assert.equal(calls[0].OPENAI_API_KEY, "");
   assert.equal(calls[0].OPENAI_API_URL, "");

@@ -433,11 +433,20 @@ export function createAgingClockPlanHandler({
       400,
       4000
     );
-    // Reserve most of the public request budget for the independent backup
-    // route so a stalled primary cannot consume its opportunity to respond.
+    // Keep a bounded part of the public request budget for the independent
+    // backup route. Production can tune the primary slice without increasing
+    // the overall timeout or adding retries.
     const deadline = Date.now() + Math.max(1000, timeoutMs - 750);
-    const primaryAttemptTimeoutMs = providers.backupConfigured
+    const defaultPrimaryAttemptTimeoutMs = providers.backupConfigured
       ? Math.max(1000, Math.floor(timeoutMs * 0.3))
+      : timeoutMs;
+    const primaryAttemptTimeoutMs = providers.backupConfigured
+      ? boundedInteger(
+          env.PROJECT_LAB_PRIMARY_TIMEOUT_MS,
+          defaultPrimaryAttemptTimeoutMs,
+          1000,
+          timeoutMs
+        )
       : timeoutMs;
     let failureReason = providers.primaryConfigured
       ? "provider_error"
