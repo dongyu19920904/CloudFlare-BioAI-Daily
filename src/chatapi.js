@@ -73,6 +73,7 @@ export function resolveAnthropicConfig(env) {
 export function buildAnthropicHeaders(apiKey) {
     return {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
         'User-Agent': 'Cloudflare-Worker/1.0'
