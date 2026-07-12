@@ -338,15 +338,30 @@ test("Rate Limiting Binding rejects the sixth request and handles a missing IP",
   assert.deepEqual(new Set(keys), new Set(["aging-clock-plan:unknown"]));
 });
 
-test("KV rate limiting remains a fallback only when the binding is absent", async () => {
+test("KV rate limiting works alone and as an aligned second layer", async () => {
   const handler = createAgingClockPlanHandler();
-  const env = {
+  const kvOnlyEnv = {
     PROJECT_LAB_AI_ENABLED: "false",
     DATA_KV: createKv(),
     PROJECT_LAB_RATE_LIMIT: "1",
   };
-  assert.equal((await handler(request(), env)).status, 200);
-  const limited = await handler(request(), env);
+  assert.equal((await handler(request(), kvOnlyEnv)).status, 200);
+  const limited = await handler(request(), kvOnlyEnv);
   assert.equal(limited.status, 429);
   assert.equal((await limited.json()).error.code, "rate_limit_exceeded");
+
+  let bindingCalls = 0;
+  const layeredEnv = {
+    ...kvOnlyEnv,
+    DATA_KV: createKv(),
+    PROJECT_LAB_RATE_LIMITER: {
+      async limit() {
+        bindingCalls += 1;
+        return { success: true };
+      },
+    },
+  };
+  assert.equal((await handler(request(), layeredEnv)).status, 200);
+  assert.equal((await handler(request(), layeredEnv)).status, 429);
+  assert.equal(bindingCalls, 2);
 });
