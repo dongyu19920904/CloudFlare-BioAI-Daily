@@ -8,6 +8,7 @@ import { handleCommitToGitHub } from './handlers/commitToGitHub.js';
 import { handleRss } from './handlers/getRss.js';
 import { handleWriteRssData } from './handlers/writeRssData.js';
 import { handleUpdateAllMonthIndexes } from './handlers/updateAllMonthIndexes.js';
+import { handleVisitorStats } from './handlers/visitorStats.js';
 import { dataSources } from './dataFetchers.js';
 import { handleLogin, isAuthenticated, handleLogout } from './auth.js';
 import {
@@ -108,7 +109,9 @@ export default {
         console.log(`Request received: ${request.method} ${path}`);
 
         // Handle login path specifically
-        if (path === '/login') {
+        if (path === '/visitorStats') {
+            return await handleVisitorStats(request, env);
+        } else if (path === '/login') {
             return await handleLogin(request, env);
         } else if (path === '/logout') { // Handle logout path
             return await handleLogout(request, env);
