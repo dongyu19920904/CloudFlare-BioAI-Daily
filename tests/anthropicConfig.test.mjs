@@ -67,9 +67,9 @@ test("new Anthropic endpoint variables take precedence with legacy fallbacks", (
   assert.equal(legacy.backup.modelName, "legacy-backup-model");
 });
 
-test("Anthropic headers use x-api-key without a Bearer Authorization header", () => {
+test("Anthropic proxy headers preserve x-api-key and Bearer compatibility", () => {
   const headers = buildAnthropicHeaders("unit-test-placeholder");
   assert.equal(headers["x-api-key"], "unit-test-placeholder");
   assert.equal(headers["anthropic-version"], "2023-06-01");
-  assert.equal("Authorization" in headers, false);
+  assert.equal(headers.Authorization, "Bearer unit-test-placeholder");
 });
