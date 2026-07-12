@@ -9,6 +9,7 @@ import { handleRss } from './handlers/getRss.js';
 import { handleWriteRssData } from './handlers/writeRssData.js';
 import { handleUpdateAllMonthIndexes } from './handlers/updateAllMonthIndexes.js';
 import { handleVisitorStats } from './handlers/visitorStats.js';
+import { handleAgingClockPlan } from './handlers/agingClockPlan.js';
 import { dataSources } from './dataFetchers.js';
 import { handleLogin, isAuthenticated, handleLogout } from './auth.js';
 import {
@@ -61,6 +62,12 @@ export default {
         await runScheduledMode(mode, event, env, ctx);
     },
     async fetch(request, env, ctx) {
+        const url = new URL(request.url);
+        const path = url.pathname;
+        if (path === '/api/project-lab/aging-clock-plan') {
+            return await handleAgingClockPlan(request, env);
+        }
+
         // Check essential environment variables
         const requiredEnvVars = [
             'DATA_KV', 'OPEN_TRANSLATE', 'USE_MODEL_PLATFORM',
@@ -81,7 +88,9 @@ export default {
 
         const missingVars = requiredEnvVars.filter(varName => !env[varName]);
         if (platform.startsWith('ANTHROPIC')) {
-            const hasAnthropicBaseUrl = Boolean(env.ANTHROPIC_BASE_URL || env.ANTHROPIC_API_URL);
+            const hasAnthropicBaseUrl = Boolean(
+                env.ANTHROPIC_API_BASE_URL || env.ANTHROPIC_API_URL || env.ANTHROPIC_BASE_URL
+            );
             if (!hasAnthropicBaseUrl) missingVars.push('ANTHROPIC_BASE_URL');
         } else if (platform.startsWith('OPEN')) {
             const hasOpenAIBaseUrl = Boolean(env.OPENAI_BASE_URL || env.OPENAI_API_URL);
@@ -104,8 +113,6 @@ export default {
             return new Response(errorPage, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         }
 
-        const url = new URL(request.url);
-        const path = url.pathname;
         console.log(`Request received: ${request.method} ${path}`);
 
         // Handle login path specifically

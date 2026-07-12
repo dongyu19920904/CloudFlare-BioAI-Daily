@@ -4,15 +4,26 @@ main = "src/index.js"
 compatibility_date = "2025-05-20"
 compatibility_flags = ["global_fetch_strictly_public"]
 workers_dev = true
+preview_urls = true
 
 kv_namespaces = [
   { binding = "DATA_KV", id = "0fdda7edec29459292c20992434360b5", preview_id = "0fdda7edec29459292c20992434360b5" }
 ]
 
+[[ratelimits]]
+name = "PROJECT_LAB_RATE_LIMITER"
+namespace_id = "2026071201"
+
+  [ratelimits.simple]
+  limit = 5
+  period = 60
+
 [vars]
 IMG_PROXY = ""
 OPEN_TRANSLATE = "false"
 USE_MODEL_PLATFORM = "ANTHROPIC"
+ANTHROPIC_API_BASE_URL = "https://business.newcli.com"
+ANTHROPIC_BACKUP_API_BASE_URL = "https://code.newcli.com/claude/aws"
 ANTHROPIC_API_URL = "https://business.newcli.com"
 ANTHROPIC_BASE_URL = ""
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"
@@ -35,6 +46,12 @@ FOLO_COOKIE_KV_KEY = "folo_auth_cookie"
 FOLO_DATA_API = "https://api.follow.is/entries"
 FOLO_FILTER_DAYS = 7
 DATA_SOURCE_FETCH_TIMEOUT_MS = "20000"
+PROJECT_LAB_AI_ENABLED = "true"
+PROJECT_LAB_ALLOWED_ORIGINS = "https://yuyu.aivora.cn"
+PROJECT_LAB_MAX_BODY_BYTES = "16384"
+PROJECT_LAB_TIMEOUT_MS = "30000"
+PROJECT_LAB_MAX_TOKENS = "1200"
+PROJECT_LAB_RATE_LIMIT = "5"
 
 # News aggregator list/feed IDs (optional)
 NEWS_AGGREGATOR_LIST_ID = ""

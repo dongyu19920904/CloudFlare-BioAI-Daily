@@ -6,33 +6,95 @@ function normalizeBaseUrl(url) {
     return String(url || "").replace(/\/+$/, "");
 }
 
+function firstNonEmpty(...values) {
+    return values.find(value => String(value || "").trim()) || "";
+}
+
+export function normalizeAnthropicMessagesUrl(url) {
+    const raw = String(url || "").trim();
+    if (!raw) return "";
+
+    const parsed = new URL(raw);
+    parsed.hash = "";
+    parsed.search = "";
+    let path = parsed.pathname.replace(/\/+$/, "");
+    if (/\/v1\/messages$/i.test(path)) {
+        parsed.pathname = path;
+    } else if (/\/v1$/i.test(path)) {
+        parsed.pathname = `${path}/messages`;
+    } else {
+        parsed.pathname = `${path}/v1/messages`;
+    }
+    return parsed.toString();
+}
+
 function getAnthropicModelName(env) {
-    return env.DEFAULT_ANTHROPIC_MODEL || env.ANTHROPIC_MODEL || "claude-opus-4-5";
+    return env.DEFAULT_ANTHROPIC_MODEL || env.ANTHROPIC_MODEL || "";
 }
 
 function getAnthropicBackupModelName(env) {
-    return env.DEFAULT_ANTHROPIC_BACKUP_MODEL || env.ANTHROPIC_BACKUP_MODEL || getAnthropicModelName(env);
+    return env.DEFAULT_ANTHROPIC_BACKUP_MODEL || env.FALLBACK_ANTHROPIC_MODEL || env.ANTHROPIC_BACKUP_MODEL || getAnthropicModelName(env);
+}
+
+export function resolveAnthropicConfig(env) {
+    const primaryRaw = firstNonEmpty(
+        env.ANTHROPIC_API_BASE_URL,
+        env.ANTHROPIC_API_URL,
+        env.ANTHROPIC_BASE_URL
+    );
+    const legacyBackupRaw =
+        env.ANTHROPIC_API_URL &&
+        env.ANTHROPIC_BASE_URL &&
+        normalizeBaseUrl(env.ANTHROPIC_API_URL) !== normalizeBaseUrl(env.ANTHROPIC_BASE_URL)
+            ? env.ANTHROPIC_BASE_URL
+            : "";
+    const backupRaw = firstNonEmpty(
+        env.ANTHROPIC_BACKUP_API_BASE_URL,
+        env.ANTHROPIC_BACKUP_API_URL,
+        env.ANTHROPIC_BACKUP_BASE_URL,
+        legacyBackupRaw,
+        primaryRaw
+    );
+
+    return {
+        primary: {
+            baseUrl: normalizeBaseUrl(primaryRaw),
+            messagesUrl: normalizeAnthropicMessagesUrl(primaryRaw),
+            modelName: getAnthropicModelName(env)
+        },
+        backup: {
+            baseUrl: normalizeBaseUrl(backupRaw),
+            messagesUrl: normalizeAnthropicMessagesUrl(backupRaw),
+            modelName: getAnthropicBackupModelName(env)
+        }
+    };
+}
+
+export function buildAnthropicHeaders(apiKey) {
+    return {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'User-Agent': 'Cloudflare-Worker/1.0'
+    };
 }
 
 function getAnthropicRoutes(env) {
-    const primaryBaseUrl = normalizeBaseUrl(env.ANTHROPIC_API_URL || env.ANTHROPIC_BASE_URL);
-    const backupBaseUrl = normalizeBaseUrl(env.ANTHROPIC_BASE_URL || env.ANTHROPIC_API_URL);
+    const config = resolveAnthropicConfig(env);
     const routes = [];
 
-    if (primaryBaseUrl && env.ANTHROPIC_API_KEY) {
+    if (config.primary.messagesUrl && env.ANTHROPIC_API_KEY) {
         routes.push({
-            baseUrl: primaryBaseUrl,
+            ...config.primary,
             apiKey: env.ANTHROPIC_API_KEY,
-            modelName: getAnthropicModelName(env),
             role: "primary"
         });
     }
 
-    if (backupBaseUrl && env.ANTHROPIC_BACKUP_API_KEY) {
+    if (config.backup.messagesUrl && env.ANTHROPIC_BACKUP_API_KEY) {
         routes.push({
-            baseUrl: backupBaseUrl,
+            ...config.backup,
             apiKey: env.ANTHROPIC_BACKUP_API_KEY,
-            modelName: getAnthropicBackupModelName(env),
             role: "backup"
         });
     }
@@ -40,7 +102,7 @@ function getAnthropicRoutes(env) {
     const deduped = [];
     const seen = new Set();
     for (const route of routes) {
-        const key = `${route.baseUrl}\n${route.apiKey}\n${route.modelName}`;
+        const key = `${route.messagesUrl}\n${route.apiKey}\n${route.modelName}`;
         if (seen.has(key)) continue;
         seen.add(key);
         deduped.push(route);
@@ -206,6 +268,14 @@ function canUseOpenAIFallback(env) {
     return Boolean(getOpenAIBaseUrl(env) && env.OPENAI_API_KEY);
 }
 
+function getAnthropicRequestTimeoutMs(env) {
+    const configured = Number.parseInt(String(env.ANTHROPIC_REQUEST_TIMEOUT_MS ?? "").trim(), 10);
+    if (Number.isFinite(configured) && configured >= 1000 && configured <= 180000) {
+        return configured;
+    }
+    return 180000;
+}
+
 function getAnthropicRetryConfig(env) {
     const maxRetries = Number.parseInt(env.ANTHROPIC_RETRY_MAX ?? "2", 10);
     const baseDelayMs = Number.parseInt(env.ANTHROPIC_RETRY_BASE_MS ?? "3000", 10);
@@ -267,7 +337,7 @@ async function postAnthropicWithBaseUrlFallback(env, payload) {
     let lastError = null;
     for (let index = 0; index < routes.length; index++) {
         const route = routes[index];
-        const url = `${route.baseUrl}/v1/messages`;
+        const url = route.messagesUrl;
         const effectivePayload = {
             ...payload,
             model: route.modelName || payload.model
@@ -275,19 +345,15 @@ async function postAnthropicWithBaseUrlFallback(env, payload) {
         try {
             const response = await fetchWithRetry(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${route.apiKey}`,
-                    'x-api-key': route.apiKey,
-                    'anthropic-version': '2023-06-01',
-                    'User-Agent': 'Cloudflare-Worker/1.0'
-                },
+                headers: buildAnthropicHeaders(route.apiKey),
                 body: JSON.stringify(effectivePayload)
-            }, 180000, retryConfig, debugLog);
+            }, getAnthropicRequestTimeoutMs(env), retryConfig, debugLog);
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Anthropic Chat API error (${response.status}): ${errorText}`);
+                await response.body?.cancel?.();
+                const providerError = new Error(`Anthropic Chat API error (${response.status})`);
+                providerError.status = response.status;
+                throw providerError;
             }
 
             return response;
@@ -298,9 +364,9 @@ async function postAnthropicWithBaseUrlFallback(env, payload) {
                 throw error;
             }
             console.warn(`[Anthropic fallback] Route failed, trying next Anthropic route.`, {
-                failedBaseUrl: route.baseUrl,
-                nextBaseUrl: routes[index + 1].baseUrl,
-                error: String(error?.message || error)
+                failedRole: route.role,
+                nextRole: routes[index + 1].role,
+                status: Number.isInteger(error?.status) ? error.status : null
             });
         }
     }
@@ -1183,7 +1249,10 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
 
         throw new Error("Anthropic Chat API returned no content.");
     } catch (error) {
-        console.error("Error calling Anthropic Chat API:", error);
+        console.error("Error calling Anthropic Chat API", {
+            status: Number.isInteger(error?.status) ? error.status : null,
+            type: shouldFailoverFromAnthropic(error) ? "route_error" : "provider_error"
+        });
         throw error;
     }
 }
@@ -1281,7 +1350,10 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
             throw new Error("Anthropic stream completed but yielded no content.");
         }
     } catch (error) {
-        console.error("Error calling Anthropic Chat API Stream:", error);
+        console.error("Error calling Anthropic Chat API Stream", {
+            status: Number.isInteger(error?.status) ? error.status : null,
+            type: shouldFailoverFromAnthropic(error) ? "route_error" : "provider_error"
+        });
         throw error;
     }
 }
