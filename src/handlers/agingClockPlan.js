@@ -110,12 +110,17 @@ async function enforceRateLimit(request, env, now) {
   ) {
     try {
       const result = await env.PROJECT_LAB_RATE_LIMITER.limit({ key: routeKey });
-      return { allowed: result?.success === true, unavailable: false };
+      if (result?.success !== true) {
+        return { allowed: false, unavailable: false };
+      }
     } catch {
       return { allowed: false, unavailable: true };
     }
   }
 
+  // Cloudflare documents its Rate Limiting Binding as permissive and
+  // eventually consistent. Keep the existing namespaced KV counter as an
+  // aligned second layer for deterministic sequential cost protection.
   if (!env.DATA_KV || typeof env.DATA_KV.get !== "function") {
     return { allowed: true, unavailable: false };
   }
