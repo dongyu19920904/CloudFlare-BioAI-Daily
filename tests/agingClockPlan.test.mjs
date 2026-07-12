@@ -285,6 +285,26 @@ test("the total model timeout is capped and fails safely", async () => {
   assert.match(body.message, /超时/);
 });
 
+test("a stalled primary keeps time available for one backup attempt", async () => {
+  let calls = 0;
+  const handler = createAgingClockPlanHandler({
+    callChat: async () => {
+      calls += 1;
+      if (calls === 1) return new Promise(() => {});
+      return JSON.stringify(validPlan());
+    },
+  });
+  const response = await handler(
+    request(),
+    configuredEnv({ PROJECT_LAB_TIMEOUT_MS: "4000" })
+  );
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.resultSource, "backup-model");
+  assert.equal(calls, 2);
+  assert.equal(validateAgingClockPlan(body.plan).ok, true);
+});
+
 test("Rate Limiting Binding rejects the sixth request and handles a missing IP", async () => {
   let count = 0;
   const keys = [];

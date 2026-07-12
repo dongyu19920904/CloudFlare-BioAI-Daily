@@ -203,9 +203,13 @@ async function attemptModel({
   route,
   request,
   deadline,
+  attemptTimeoutMs,
   maxTokens,
 }) {
-  const remainingMs = deadline - Date.now();
+  const remainingMs = Math.min(
+    deadline - Date.now(),
+    attemptTimeoutMs || Number.POSITIVE_INFINITY
+  );
   if (remainingMs < 1000) throw new Error("project_lab_timeout");
   const raw = await withTimeout(
     callChat(
@@ -429,7 +433,12 @@ export function createAgingClockPlanHandler({
       400,
       4000
     );
-    const deadline = Date.now() + timeoutMs;
+    // Reserve most of the public request budget for the independent backup
+    // route so a stalled primary cannot consume its opportunity to respond.
+    const deadline = Date.now() + Math.max(1000, timeoutMs - 750);
+    const primaryAttemptTimeoutMs = providers.backupConfigured
+      ? Math.max(1000, Math.floor(timeoutMs * 0.3))
+      : timeoutMs;
     let failureReason = providers.primaryConfigured
       ? "provider_error"
       : "not_configured";
@@ -442,6 +451,7 @@ export function createAgingClockPlanHandler({
           route: providers.primary,
           request: validated.value,
           deadline,
+          attemptTimeoutMs: primaryAttemptTimeoutMs,
           maxTokens,
         });
         return jsonResponse(request, env, {
@@ -462,6 +472,7 @@ export function createAgingClockPlanHandler({
           route: providers.backup,
           request: validated.value,
           deadline,
+          attemptTimeoutMs: timeoutMs,
           maxTokens,
         });
         return jsonResponse(request, env, {
