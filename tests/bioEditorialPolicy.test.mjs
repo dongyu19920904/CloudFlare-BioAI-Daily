@@ -115,6 +115,31 @@ test('daily validator blocks evidence upgrades and sources outside the supplied 
   assert.ok(result.errors.some((error) => /不在输入素材/.test(error)));
 });
 
+test('daily validator requires one independent signal for every selected source', () => {
+  const first = normalizeEditorialItem(paper());
+  const second = normalizeEditorialItem({
+    ...paper(),
+    title: 'A second independent aging study',
+    url: 'https://doi.org/10.1234/example.2',
+    details: { ...paper().details, doi: '10.1234/example.2' },
+  });
+  const markdown = `## 今日重要信号\n\n${signal(1).replaceAll('https://doi.org/10.1000/test.1', first.url)}`;
+  const result = validateDailyMarkdown(markdown, [first, second]);
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => /一一对应/.test(error)));
+  assert.ok(result.errors.some((error) => error.includes(second.url)));
+});
+
+test('daily validator rejects duplicate source URLs across signals', () => {
+  const duplicated = signal(2).replaceAll('https://doi.org/10.1000/test.2', 'https://doi.org/10.1000/test.1');
+  const markdown = `## 今日重要信号\n\n${signal(1)}\n\n${duplicated}\n\n${signal(3)}`;
+  const result = validateDailyMarkdown(markdown);
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => /重复使用/.test(error)));
+});
+
 test('published evidence overview can use only items present in the final markdown', () => {
   const first = normalizeEditorialItem(paper());
   const second = normalizeEditorialItem({

@@ -26,7 +26,7 @@ test('legacy media helper still respects the new maximum', () => {
 test('source caps favor papers and trustworthy news without requiring social filler', () => {
   assert.deepEqual(resolveDailySourceCaps({}), {
     news: 3,
-    paper: 4,
+    paper: 6,
     project: 2,
     socialMedia: 1,
   });

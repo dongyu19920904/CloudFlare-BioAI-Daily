@@ -9,7 +9,7 @@ function clampDailyCap(value) {
 
 const DEFAULT_SOURCE_CAPS = {
     news: 3,
-    paper: 4,
+    paper: 6,
     project: 2,
     socialMedia: 1,
 };

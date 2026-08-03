@@ -405,9 +405,18 @@ export function validateDailyMarkdown(markdown = '', expectedItems = []) {
         const url = normalizeUrl(editorial?.primarySourceUrl || item.url).toLowerCase();
         if (url) expectedByUrl.set(url, editorial);
     }
+    if (expectedByUrl.size > 0 && headingMatches.length !== expectedByUrl.size) {
+        errors.push(`重要信号必须与输入素材一一对应：输入 ${expectedByUrl.size} 条，输出 ${headingMatches.length} 条`);
+    }
     const evidenceRank = { '初步': 1, '中': 2, '高': 3 };
+    const usedSourceUrls = new Set();
 
     sections.forEach(({ section, url }, index) => {
+        const normalizedSourceUrl = normalizeUrl(url).toLowerCase();
+        if (usedSourceUrls.has(normalizedSourceUrl)) {
+            errors.push(`第 ${index + 1} 条重复使用了其他信号的来源 URL`);
+        }
+        usedSourceUrls.add(normalizedSourceUrl);
         for (const label of REQUIRED_SIGNAL_LABELS) {
             if (!new RegExp(`\\*\\*${label.replace('/', '\\/')}\\*\\*`).test(section)) {
                 errors.push(`第 ${index + 1} 条缺少“${label}”`);
@@ -420,7 +429,7 @@ export function validateDailyMarkdown(markdown = '', expectedItems = []) {
             errors.push(`第 ${index + 1} 条必须提供可点击的一手或官方来源`);
         }
         if (expectedByUrl.size > 0) {
-            const expected = expectedByUrl.get(url.toLowerCase());
+            const expected = expectedByUrl.get(normalizedSourceUrl);
             if (!expected) {
                 errors.push(`第 ${index + 1} 条来源 URL 不在输入素材中`);
             } else {
@@ -443,6 +452,14 @@ export function validateDailyMarkdown(markdown = '', expectedItems = []) {
             }
         }
     });
+
+    if (expectedByUrl.size > 0) {
+        for (const expectedUrl of expectedByUrl.keys()) {
+            if (!usedSourceUrls.has(expectedUrl)) {
+                errors.push(`缺少输入素材对应的独立信号：${expectedUrl}`);
+            }
+        }
+    }
 
     const forbiddenPatterns = [
         [/aivora\.cn/i, '普通日报不得硬塞爱窝啦商品链接'],
