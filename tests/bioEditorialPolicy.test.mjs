@@ -69,6 +69,25 @@ test('a sufficiently sized primary-source randomized trial can be high evidence'
   assert.equal(item.details.editorial.evidenceLevel, '高');
 });
 
+test('narrative reviews are not misclassified as cohorts or assigned a participant count', () => {
+  const item = normalizeEditorialItem(paper({
+    abstractText: 'In this review, we summarize public T cell receptor evidence from cohorts spanning 7943 samples and more than 200 studies.',
+  }));
+  assert.equal(item.details.editorial.studyType, '综述/观点');
+  assert.equal(item.details.editorial.sampleSize, '不适用');
+  assert.equal(item.details.editorial.evidenceLevel, '初步');
+});
+
+test('GWAS records are labeled as observational association studies', () => {
+  const item = normalizeEditorialItem(paper({
+    abstractText: 'A genome-wide association study included 41,957 human participants and identified associated loci.',
+  }));
+  assert.equal(item.details.editorial.studyType, '观察性研究（GWAS）');
+  assert.equal(item.details.editorial.species, '人类');
+  assert.equal(item.details.editorial.sampleSize, 'n=41957');
+  assert.equal(item.details.editorial.evidenceLevel, '中');
+});
+
 test('DOI and canonical GitHub repositories produce entity-level dedupe keys', () => {
   const first = buildEditorialDedupeKeys(paper());
   const second = buildEditorialDedupeKeys(paper({ content_html: 'DOI: 10.1234/EXAMPLE.1' }));

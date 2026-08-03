@@ -137,8 +137,10 @@ export function inferStudyMetadata(item = {}) {
     let studyType = details.studyType || '未报告';
     if (studyType === '未报告') {
         if (/systematic review|meta-analysis|meta analysis/i.test(text)) studyType = '系统综述/荟萃分析';
+        else if (/\b(?:narrative|scoping) review\b|\breview article\b|\bin this review\b|\bwe review\b|\bwe summarize\b|\bperspective\b/i.test(text)) studyType = '综述/观点';
         else if (/randomi[sz]ed controlled|randomi[sz]ed trial|\brct\b/i.test(text)) studyType = '随机对照试验';
         else if (/clinical trial|phase\s*[1-4iIvV]+/i.test(text)) studyType = '临床试验';
+        else if (/genome-wide association stud(?:y|ies)|\bgwas\b/i.test(text)) studyType = '观察性研究（GWAS）';
         else if (/prospective cohort|retrospective cohort|cohort study|\bcohorts?\b/i.test(text)) studyType = '队列研究';
         else if (/cross-sectional|observational study/i.test(text)) studyType = '观察性研究';
         else if (/preprint|biorxiv|medrxiv|arxiv/i.test(text) || details.isPreprint) studyType = '预印本';
@@ -168,7 +170,8 @@ export function inferStudyMetadata(item = {}) {
     let sampleSize = details.sampleSize || '未报告';
     if (sampleSize === '未报告') {
         const sampleMatch = text.match(/(?:n\s*=\s*|included\s+|enrolled\s+|among\s+)([1-9]\d{0,2}(?:,\d{3})+|[1-9]\d{1,6})(?:\s+(?:participants|patients|people|adults|subjects|samples|mice|rats))?/i);
-        if (sampleMatch) sampleSize = `n=${sampleMatch[1].replace(/,/g, '')}`;
+        if (studyType === '综述/观点') sampleSize = '不适用';
+        else if (sampleMatch) sampleSize = `n=${sampleMatch[1].replace(/,/g, '')}`;
         else if (item.type === 'project') sampleSize = '不适用';
     }
 
@@ -185,6 +188,7 @@ function evidenceFor(item, metadata, authority) {
     const isPreliminary = metadata.studyType === '预印本'
         || metadata.studyType === '动物研究'
         || metadata.studyType === '细胞/类器官研究'
+        || metadata.studyType === '综述/观点'
         || metadata.studyType === '新闻/机构发布'
         || metadata.studyType === '开源项目'
         || metadata.peerReviewStatus.includes('预印本')
@@ -204,7 +208,8 @@ function evidenceFor(item, metadata, authority) {
     if (metadata.studyType === '随机对照试验' && authority === '一手/官方' && Number.isFinite(parsedSample) && parsedSample >= 200) {
         return { level: '高', reason: `一手随机对照研究，报告样本量 ${metadata.sampleSize}` };
     }
-    if (['随机对照试验', '临床试验', '队列研究', '观察性研究'].includes(metadata.studyType)
+    if ((['随机对照试验', '临床试验', '队列研究', '观察性研究'].includes(metadata.studyType)
+        || metadata.studyType.startsWith('观察性研究'))
         && metadata.species === '人类'
         && authority === '一手/官方') {
         return {
