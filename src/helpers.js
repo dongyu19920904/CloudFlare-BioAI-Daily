@@ -42,10 +42,10 @@ export function escapeHtml(unsafe) {
     }
     const str = String(unsafe);
     const map = {
-        '&': '&',
-        '<': '<',
-        '>': '>',
-        '"': '"',
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
         "'": '&#039;'
     };
     return str.replace(/[&<>"']/g, (m) => map[m]);
@@ -92,6 +92,7 @@ export function normalizeDailyBody(markdown) {
     if (!markdown) return '';
     const text = addTopItemNumbering(String(markdown));
     const markers = [
+        '## 今日重要信号',
         '## **今日 AI 生命科学资讯**',
         '## **今日 AI 资讯**'
     ];
@@ -447,16 +448,10 @@ export function replaceImageProxy(proxy, content) {
  * @param {string} correctDomain - 正确的域名，默认为 news.aivora.cn
  * @returns {string} 替换后的内容
  */
-export function replaceIncorrectDomainLinks(content, correctDomain = 'news.aivora.cn') {
+export function replaceIncorrectDomainLinks(content, correctDomain = 'news.aibioo.cn') {
     if (!content || typeof content !== 'string') {
         return content;
     }
     
-    // 替换 Markdown 链接格式: [text](https://ai.hubtoday.app/...)
-    content = content.replace(/https:\/\/ai\.hubtoday\.app\//g, `https://${correctDomain}/`);
-    
-    // 替换纯 URL 格式: https://ai.hubtoday.app/...
-    content = content.replace(/https:\/\/ai\.hubtoday\.app\//g, `https://${correctDomain}/`);
-    
-    return content;
+    return content.replace(/https:\/\/ai\.hubtoday\.app(?=\/|[\s)\]]|$)/g, `https://${correctDomain}`);
 }

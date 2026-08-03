@@ -21,6 +21,7 @@ import {
 } from './handlers/scheduled.js';
 import { handleScheduledBlog } from './handlers/scheduledBlog.js';
 import { resolveScheduledModeFromCron } from './scheduleRouting.js';
+import { createScheduledRunEnvironment } from './scheduledRunEnvironment.js';
 
 function resolveManualScheduledMode(path, requestedMode) {
     if (path.endsWith('ProjectOpportunity')) return 'project-opportunity';
@@ -161,15 +162,17 @@ export default {
                 });
             }
             const dateParam = url.searchParams.get('date');
-            const forceSync = url.searchParams.get('sync') === '1';
+            const dryRun = url.searchParams.get('dryRun') === '1';
+            const forceSync = dryRun || url.searchParams.get('sync') === '1';
             const forceAsync = url.searchParams.get('async') === '1';
             const specifiedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
             const mode = resolveManualScheduledMode(path, url.searchParams.get('mode'));
+            const runEnv = createScheduledRunEnvironment(env, mode, dryRun);
             const fakeEvent = { scheduledTime: Date.now(), cron: '' };
             try {
                 const waitUntil = ctx && typeof ctx.waitUntil === 'function' ? ctx.waitUntil.bind(ctx) : null;
                 if (waitUntil && forceAsync && !forceSync) {
-                    waitUntil(runScheduledMode(mode, fakeEvent, env, ctx, specifiedDate));
+                    waitUntil(runScheduledMode(mode, fakeEvent, runEnv, ctx, specifiedDate));
                     return new Response(JSON.stringify({
                         success: true,
                         message: `Scheduled ${mode} task started${specifiedDate ? ` for date: ${specifiedDate}` : ''}`,
@@ -183,13 +186,14 @@ export default {
                     });
                 }
                 const fakeCtx = { waitUntil: (promise) => promise };
-                const result = await runScheduledMode(mode, fakeEvent, env, fakeCtx, specifiedDate);
+                const result = await runScheduledMode(mode, fakeEvent, runEnv, fakeCtx, specifiedDate);
                 if (result && result.success === false) {
                     return new Response(JSON.stringify({
                         success: false,
                         error: result.error || result.reason || 'Scheduled task failed',
                         mode,
                         date: specifiedDate || 'current date',
+                        dryRun,
                         async: false,
                         result,
                         timestamp: new Date().toISOString()
@@ -203,6 +207,7 @@ export default {
                     message: `Scheduled ${mode} task completed${specifiedDate ? ` for date: ${specifiedDate}` : ' for current date'}`,
                     mode,
                     date: specifiedDate || 'current date',
+                    dryRun,
                     async: false,
                     result,
                     timestamp: new Date().toISOString()
@@ -281,16 +286,19 @@ export default {
                 // Manual trigger for scheduled task (for testing)
                 // Support date parameter: ?date=2026-01-02
                 const dateParam = url.searchParams.get('date');
+                const dryRun = url.searchParams.get('dryRun') === '1';
                 const specifiedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
                 const mode = resolveManualScheduledMode(path, url.searchParams.get('mode'));
+                const runEnv = createScheduledRunEnvironment(env, mode, dryRun);
                 const fakeEvent = { scheduledTime: Date.now(), cron: '' };
                 const fakeCtx = { waitUntil: (promise) => promise };
-                const result = await runScheduledMode(mode, fakeEvent, env, fakeCtx, specifiedDate);
+                const result = await runScheduledMode(mode, fakeEvent, runEnv, fakeCtx, specifiedDate);
                 response = new Response(JSON.stringify({
                     success: result?.success ?? true,
                     message: `Scheduled ${mode} task triggered successfully${specifiedDate ? ` for date: ${specifiedDate}` : ''}`,
                     mode,
                     date: specifiedDate || 'current date',
+                    dryRun,
                     result,
                     timestamp: new Date().toISOString()
                 }), {

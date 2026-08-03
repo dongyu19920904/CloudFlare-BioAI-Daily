@@ -1,4 +1,4 @@
-const DEFAULT_DAILY_DESCRIPTION = '每日聚焦 AI + 长寿、延寿、衰老、生物年龄和健康科技前沿，同时记录 ChatGPT、Claude、Cursor、Codex、Gemini、Consensus 等工具如何辅助研究、内容和项目验证。由爱窝啦提供 AI 工具入口支持。';
+const DEFAULT_DAILY_DESCRIPTION = '每日精选 AI 与衰老科学、健康寿命、生物年龄和相关研究工具的重要信号，说明证据强弱、研究边界与距离实际应用还有多远。';
 
 // 辅助函数：获取月日
 function getMonthDay(dateStr) {
@@ -75,12 +75,21 @@ export function buildDailyFrontMatter(dateStr, options = {}) {
     const weight = computeWeight(dateStr);
     const resolvedTitle = title === undefined ? `${monthDay}-日报-AI资讯日报` : title;
     return `---
-linkTitle: ${monthDay}-日报
-title: ${resolvedTitle}
+linkTitle: ${JSON.stringify(`${monthDay}-日报`)}
+title: ${JSON.stringify(resolvedTitle)}
 weight: ${weight}
 breadcrumbs: false
 comments: true
-description: "${description}"
+date: ${dateStr}T00:00:00+08:00
+lastmod: ${dateStr}T00:00:00+08:00
+author: "AI 生命延续学编辑部"
+editor: "AI 生命延续学编辑部"
+description: ${JSON.stringify(description)}
+keywords:
+  - AI生命延续学
+  - 衰老研究
+  - 生物年龄
+  - 证据分级
 ---`;
 }
 
@@ -93,16 +102,18 @@ function buildDefaultHomeFrontMatter(dateStr, options = {}) {
     const {
         description = DEFAULT_DAILY_DESCRIPTION,
         title,
-        linkTitle = 'BioAI 生命科学日报'
+        linkTitle = 'AI 生命延续学日报'
     } = options;
     const nextPath = `/${getYearMonth(dateStr)}/${dateStr}`;
     const resolvedTitle = title === undefined ? linkTitle : title;
     return `---
-linkTitle: ${linkTitle}
-title: ${resolvedTitle}
+linkTitle: ${JSON.stringify(linkTitle)}
+title: ${JSON.stringify(resolvedTitle)}
 breadcrumbs: false
+layout: home
+type: home
 next: ${nextPath}
-description: "${description}"
+description: ${JSON.stringify(description)}
 cascade:
   type: docs
 ---
@@ -159,6 +170,20 @@ export function updateHomeIndexContent(existingContent, dailyContent, dateStr, o
         frontMatter = buildDefaultHomeFrontMatter(dateStr, { description, title, linkTitle });
     }
 
-    const body = stripFrontMatter(dailyContent).trimStart();
-    return frontMatter.trimEnd() + '\n\n' + body;
+    const body = `## 今天值得知道什么
+
+这里不追求塞满资讯。每期只保留最值得跟踪的 5–8 个信号；当可靠来源不足时，宁可少发，也不以二手转述和推测凑数。
+
+{{< latest-daily >}}
+
+## 如何阅读证据等级
+
+- **高**：通常来自质量较高的一手人体研究或系统证据，仍不等于医疗建议。
+- **中**：有人体数据或较完整验证，但研究设计、样本或外部验证仍有限。
+- **初步**：预印本、动物/细胞研究、项目演示、新闻稿或信息不完整的线索。
+
+## 历史日报
+
+可通过左侧月份目录或站内搜索查找历史日报、论文标题、项目名和中英文关键词。`;
+    return frontMatter.trimEnd() + '\n\n' + body.trimStart() + '\n';
 }
