@@ -554,6 +554,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             return {
                 success: true,
                 dryRun: true,
+                pipelineVersion: 'project01-evidence-v1',
+                conclusionMode: 'deterministic',
                 date: dateStr,
                 selectedCount: selectedContentItems.length,
                 signalCount: bodyValidation.signalCount,
