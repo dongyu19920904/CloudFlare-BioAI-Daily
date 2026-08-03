@@ -12,6 +12,23 @@ test('normalizeDailyBody keeps a clean evidence-aware body unchanged', () => {
     assert.equal(normalizeDailyBody(input), input);
 });
 
+test('normalizeDailyBody removes model commentary after the final source field', () => {
+    const input = `## 今日重要信号
+
+### 1. [研究](https://doi.org/10.1000/test)
+- **来源**：[论文](https://doi.org/10.1000/test)
+
+---
+
+**编者说明**
+
+其余候选不予收录。`;
+    assert.equal(normalizeDailyBody(input), `## 今日重要信号
+
+### 1. [研究](https://doi.org/10.1000/test)
+- **来源**：[论文](https://doi.org/10.1000/test)`);
+});
+
 test('legacy site links are normalized to the real BioAI domain without touching primary sources', () => {
     const input = '[旧入口](https://ai.hubtoday.app/archive) [论文](https://doi.org/10.1000/test)';
     assert.equal(

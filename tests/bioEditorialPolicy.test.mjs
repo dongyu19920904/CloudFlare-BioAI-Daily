@@ -144,7 +144,7 @@ test('daily conclusions are derived from validated signals and evidence counts',
 });
 
 test('daily validator rejects model commentary about omitted candidates', () => {
-  const markdown = `## 今日重要信号\n\n${signal(1)}\n\n${signal(2)}\n\n${signal(3)}\n\n> 关于本期未收录素材的说明：其他项目未入选。`;
+  const markdown = `## 今日重要信号\n\n${signal(1)}\n\n${signal(2)}\n\n${signal(3)}\n\n**编者说明**：其他项目不予收录。`;
   const result = validateDailyMarkdown(markdown);
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => /未收录/.test(error)));

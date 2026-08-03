@@ -99,13 +99,20 @@ export function normalizeDailyBody(markdown) {
     for (const marker of markers) {
         const index = text.indexOf(marker);
         if (index >= 0) {
-            return text.slice(index).trim();
+            return trimAfterLastDailySource(text.slice(index).trim());
         }
     }
     const fallbackMarker = '## **今日';
     const fallbackIndex = text.indexOf(fallbackMarker);
-    if (fallbackIndex <= 0) return text.trim();
-    return text.slice(fallbackIndex).trim();
+    if (fallbackIndex <= 0) return trimAfterLastDailySource(text.trim());
+    return trimAfterLastDailySource(text.slice(fallbackIndex).trim());
+}
+
+function trimAfterLastDailySource(markdown) {
+    const sourceLines = [...String(markdown).matchAll(/^\s*(?:-\s*)?\*\*来源\*\*[^\r\n]*$/gm)];
+    if (sourceLines.length === 0) return String(markdown).trim();
+    const lastSource = sourceLines[sourceLines.length - 1];
+    return String(markdown).slice(0, lastSource.index + lastSource[0].length).trim();
 }
 
 function addTopItemNumbering(markdown) {
