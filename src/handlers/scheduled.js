@@ -3,19 +3,13 @@ import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
 import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationPromptStepZero";
+import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
+import { insertFoot } from '../foot.js';
+import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
-import {
-    buildEditorialDedupeKeys,
-    buildDailyConclusionLines,
-    buildEvidenceOverview,
-    formatDailyPromptItem,
-    matchDailyEvidenceItems,
-    normalizeEditorialItem,
-    validateDailyMarkdown,
-} from '../bioEditorialPolicy.js';
 import {
     DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
     DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION,
@@ -25,6 +19,16 @@ import {
     updateBioSectionHomeIndexContent,
 } from '../bioOpportunityUtils.js';
 import { createOrUpdateGitHubFile, getGitHubFileContent, getGitHubFileSha } from '../github.js';
+
+function normalizeSummaryLines(summaryText) {
+    if (!summaryText) return '';
+    const lines = String(summaryText)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+    if (lines.length <= 3) return summaryText.trim();
+    return lines.slice(-3).join('\n');
+}
 
 function shiftDate(dateStr, days) {
     const baseDate = new Date(`${dateStr}T00:00:00+08:00`);
@@ -78,18 +82,73 @@ function parsePositiveInteger(value, defaultValue) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
+function extractFirstMediaUrl(item) {
+    const explicitImage = item?.details?.imageUrl || item?.imageUrl;
+    if (explicitImage) return explicitImage;
+
+    const contentHtml = String(item?.details?.content_html || '');
+    const imageMatch = contentHtml.match(/<img\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
+    if (imageMatch) return imageMatch[1];
+    const videoMatch = contentHtml.match(/<video\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
+    if (videoMatch) return videoMatch[1];
+    return '';
+}
+
+function buildMediaPromptHint(item) {
+    const mediaUrl = extractFirstMediaUrl(item);
+    if (!/^https?:\/\//i.test(mediaUrl)) return '';
+    const title = String(item?.title || '相关图片').replace(/\s+/g, ' ').trim();
+    return `[图片: ${title} ${mediaUrl}]`;
+}
+
+function normalizeDedupeUrl(url) {
+    if (!url) return '';
+    try {
+        const parsed = new URL(url);
+        for (const key of [...parsed.searchParams.keys()]) {
+            if (/^(utm_|fbclid$|gclid$|ref$|ref_src$)/i.test(key)) {
+                parsed.searchParams.delete(key);
+            }
+        }
+        parsed.hash = '';
+        return parsed.toString().replace(/\/$/, '').toLowerCase();
+    } catch {
+        return String(url).trim().replace(/\/$/, '').toLowerCase();
+    }
+}
+
+function normalizeDedupeTitle(title) {
+    return String(title || '')
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getItemDedupeKeys(item) {
+    return {
+        url: normalizeDedupeUrl(item?.url),
+        title: normalizeDedupeTitle(item?.title),
+    };
+}
+
 function hasDedupeMatch(item, dedupeKeys) {
     if (!dedupeKeys) return false;
-    return buildEditorialDedupeKeys(item).some((key) => dedupeKeys.values.has(key));
+    const keys = getItemDedupeKeys(item);
+    if (keys.url && dedupeKeys.urls.has(keys.url)) return true;
+    return keys.title && keys.title.length >= 24 && dedupeKeys.titles.has(keys.title);
 }
 
 function addDedupeKeys(item, dedupeKeys) {
     if (!dedupeKeys) return;
-    for (const key of buildEditorialDedupeKeys(item)) dedupeKeys.values.add(key);
+    const keys = getItemDedupeKeys(item);
+    if (keys.url) dedupeKeys.urls.add(keys.url);
+    if (keys.title && keys.title.length >= 24) dedupeKeys.titles.add(keys.title);
 }
 
 async function buildRecentDedupeKeys(env, dateStr, categories, lookbackDays, logPrefix) {
-    const dedupeKeys = { values: new Set() };
+    const dedupeKeys = { urls: new Set(), titles: new Set() };
     if (!env.DATA_KV || lookbackDays <= 0) return dedupeKeys;
 
     for (let offset = 1; offset <= lookbackDays; offset += 1) {
@@ -434,39 +493,55 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         // 1. Fetch Data
         const allUnifiedData = await fetchAndCacheScheduledData(env, dateStr, '[Scheduled]');
 
-        // 2. Prepare evidence-aware content candidates. Images are not passed to the
-        // model because feed images may be licensed figures or unstable hotlinks.
+        // 2. Prepare Content Items
+        // Priority: items with images/videos first
         const promptCandidates = [];
         const sourceStats = {};
         
         for (const sourceType in allUnifiedData) {
             const items = allUnifiedData[sourceType];
             if (items && items.length > 0) {
-                for (const rawItem of items) {
-                    // Recompute the current contract even for KV-cached items so a
-                    // policy rollout is not bypassed by stale editorial metadata.
-                    const item = normalizeEditorialItem(rawItem, sourceType);
-                    const editorial = item.details.editorial;
-                    if (editorial.dailyExclusionReason) {
-                        console.log(`[Scheduled] Skipping ${editorial.canonicalId}: ${editorial.dailyExclusionReason}.`);
-                        continue;
+                for (const item of items) {
+                    const mediaPromptHint = buildMediaPromptHint(item);
+                    const itemHasMedia = Boolean(mediaPromptHint || (item.details?.content_html && hasMedia(item.details.content_html)));
+                    sourceStats[item.type || sourceType] = sourceStats[item.type || sourceType] || { total: 0, media: 0 };
+                    sourceStats[item.type || sourceType].total += 1;
+                    if (itemHasMedia) sourceStats[item.type || sourceType].media += 1;
+                    let itemText = "";
+                    switch (item.type) {
+                        case 'news':
+                            itemText = `News Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nContent Summary: ${stripHtml(item.details.content_html)}`;
+                            break;
+                        case 'project':
+                            itemText = `Project Name: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
+                            break;
+                        case 'paper':
+                            itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
+                            break;
+                        case 'socialMedia':
+                            itemText = `socialMedia Post by ${item.authors}：Published: ${item.published_date}\nUrl: ${item.url}\nContent: ${stripHtml(item.details.content_html)}`;
+                            break;
+                        default:
+                            itemText = `Type: ${item.type}\nTitle: ${item.title || 'N/A'}\nDescription: ${item.description || 'N/A'}\nURL: ${item.url || 'N/A'}`;
+                            if (item.published_date) itemText += `\nPublished: ${item.published_date}`;
+                            if (item.source) itemText += `\nSource: ${item.source}`;
+                            if (item.details && item.details.content_html) itemText += `\nContent: ${stripHtml(item.details.content_html)}`;
+                            break;
                     }
-                    const resolvedSourceType = item.type || sourceType;
-                    const itemHasMedia = Boolean(item.details?.content_html && hasMedia(item.details.content_html));
-                    sourceStats[resolvedSourceType] = sourceStats[resolvedSourceType] || { total: 0, primary: 0 };
-                    sourceStats[resolvedSourceType].total += 1;
-                    if (editorial.sourceAuthority === '一手/官方') sourceStats[resolvedSourceType].primary += 1;
-                    promptCandidates.push({
-                        key: editorial.canonicalId || item.url || `${resolvedSourceType}:${item.title}`,
-                        text: formatDailyPromptItem(item),
-                        sourceType: resolvedSourceType,
-                        hasMedia: itemHasMedia,
-                        publishedDate: item.published_date,
-                        url: editorial.primarySourceUrl || item.url,
-                        title: item.title,
-                        editorial,
-                        item,
-                    });
+                    if (itemText) {
+                        if (mediaPromptHint) {
+                            itemText += `\n${mediaPromptHint}`;
+                        }
+                        promptCandidates.push({
+                            key: item.url || `${item.type || sourceType}:${item.title}`,
+                            text: itemText,
+                            sourceType: item.type || sourceType,
+                            hasMedia: Boolean(itemHasMedia),
+                            publishedDate: item.published_date,
+                            url: item.url,
+                            title: item.title,
+                        });
+                    }
                 }
             }
         }
@@ -478,6 +553,10 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         );
         const selectedContentItems = selectedCandidates.map((candidate) => candidate.text);
         
+        if (promptCandidates.some((candidate) => candidate.hasMedia)) {
+            const mediaCount = promptCandidates.filter((candidate) => candidate.hasMedia).length;
+            console.log(`[Scheduled] Found ${mediaCount} items with images/videos, ${promptCandidates.length - mediaCount} items without.`);
+        }
         const selectedStats = selectedCandidates.reduce((acc, candidate) => {
             acc[candidate.sourceType] = (acc[candidate.sourceType] || 0) + 1;
             return acc;
@@ -485,9 +564,9 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         console.log(`[Scheduled] Source stats before selection: ${JSON.stringify(sourceStats)}.`);
         console.log(`[Scheduled] Selected ${selectedContentItems.length} prompt items for daily generation: ${JSON.stringify(selectedStats)}.`);
 
-        if (selectedContentItems.length < 3) {
-            console.log(`[Scheduled] Only ${selectedContentItems.length} qualified items found. Skipping generation.`);
-            return { success: false, date: dateStr, reason: 'insufficient_qualified_items', selectedCount: selectedContentItems.length };
+        if (selectedContentItems.length === 0) {
+            console.log(`[Scheduled] No items found. Skipping generation.`);
+            return { success: false, date: dateStr, reason: 'no_items' };
         }
 
         // 3. Generate Content (Call 2)
@@ -503,68 +582,33 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         );
         outputOfCall2 = removeMarkdownCodeBlock(outputOfCall2);
         outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
-        outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aibioo.cn');
+        // 替换错误的域名链接
+        outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
 
-        const expectedEvidenceItems = selectedCandidates.map((candidate) => candidate.item);
-        let bodyValidation = validateDailyMarkdown(outputOfCall2, expectedEvidenceItems);
-        if (!bodyValidation.valid) {
-            console.warn(`[Scheduled] Daily body validation failed; attempting one targeted repair: ${bodyValidation.errors.join('; ')}`);
-            const repairSystemPrompt = `${getSystemPromptSummarizationStepOne(dateStr)}\n\n这是一次格式与证据边界修复。只修复列出的错误，保留原始事实和 URL，不新增素材。`;
-            const repairUserPrompt = `校验错误：\n- ${bodyValidation.errors.join('\n- ')}\n\n待修复原稿：\n${outputOfCall2}`;
-            outputOfCall2 = await generateScheduledMarkdownWithFallback(
-                env,
-                repairUserPrompt,
-                repairSystemPrompt,
-                'DailyBodyRepair'
-            );
-            outputOfCall2 = normalizeDailyBody(replaceIncorrectDomainLinks(
-                convertPlaceholdersToMarkdownImages(removeMarkdownCodeBlock(outputOfCall2)),
-                env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aibioo.cn'
-            ));
-            bodyValidation = validateDailyMarkdown(outputOfCall2, expectedEvidenceItems);
-        }
-
-        if (!bodyValidation.valid) {
-            console.error(`[Scheduled] Daily body remains invalid after one repair. Publication skipped: ${bodyValidation.errors.join('; ')}`);
-            return {
-                success: false,
-                date: dateStr,
-                reason: 'invalid_daily_output',
-                validationErrors: bodyValidation.errors,
-                selectedCount: selectedContentItems.length,
-            };
-        }
-
-        // 4. Build the issue-level conclusion from the already validated body.
-        // This avoids a second model call inventing aggregate claims that conflict
-        // with the per-signal evidence contract.
-        const publishedEvidenceItems = matchDailyEvidenceItems(outputOfCall2, expectedEvidenceItems);
-        const evidenceOverview = buildEvidenceOverview(publishedEvidenceItems);
-        const conclusionLines = buildDailyConclusionLines(outputOfCall2, evidenceOverview)
-            .map((line) => `- ${line}`)
-            .join('\n');
+        // 4. Generate Summary (Call 3)
+        console.log(`[Scheduled] Generating summary...`);
+        let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
+        let fullPromptForCall3_User = outputOfCall2;
+        
+        let outputOfCall3 = await generateScheduledMarkdownWithFallback(
+            env,
+            fullPromptForCall3_User,
+            fullPromptForCall3_System,
+            'DailySummary'
+        );
+        outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
+        outputOfCall3 = normalizeSummaryLines(outputOfCall3);
 
         // 5. Assemble Markdown
-        let dailySummaryMarkdownContent = `## 今日结论\n\n${conclusionLines}\n\n`;
-        dailySummaryMarkdownContent += `## 证据概览\n\n> ${evidenceOverview}\n\n`;
-        dailySummaryMarkdownContent += `${outputOfCall2}\n\n`;
-        dailySummaryMarkdownContent += '> 阅读提示：本站内容用于信息与研究跟踪，不构成诊断、治疗、用药或抗衰建议。证据等级表示当前研究可信度，不等于临床可用性。\n';
-
-        if (String(env.DAILY_DRY_RUN || '').toLowerCase() === 'true') {
-            console.log(`[Scheduled] Dry-run passed validation. GitHub publication skipped.`);
-            return {
-                success: true,
-                dryRun: true,
-                pipelineVersion: 'project01-evidence-v1',
-                conclusionMode: 'deterministic',
-                date: dateStr,
-                selectedCount: selectedContentItems.length,
-                signalCount: bodyValidation.signalCount,
-                evidenceOverview,
-                markdown: dailySummaryMarkdownContent,
-            };
-        }
+        const contentWithMidAd = insertMidAd(outputOfCall2);
+        let dailySummaryMarkdownContent = `## **今日摘要**\n\n\`\`\`\n${outputOfCall3}\n\`\`\`\n\n`;
+        dailySummaryMarkdownContent += '\n\n## ⚡ 快速导航\n\n';
+        dailySummaryMarkdownContent += '- [📰 今日 AI 资讯](#今日ai资讯) - 最新动态速览\n\n';
+        dailySummaryMarkdownContent += `\n\n${contentWithMidAd}`;
+        
+        if (env.INSERT_AD=='true') dailySummaryMarkdownContent += insertAd() +`\n`;
+        if (env.INSERT_FOOT=='true') dailySummaryMarkdownContent += insertFoot() +`\n\n`;
 
         // 6. Commit to GitHub
         console.log(`[Scheduled] Committing to GitHub...`);
@@ -597,7 +641,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         } catch (error) {
             console.warn(`[Scheduled] Home page not found, will create a new one.`);
         }
-        const homeTitle = env.DAILY_TITLE || 'AI 生命延续学日报';
+        const homeTitle = dailyPageTitle;
         const homeContent = updateHomeIndexContent(existingHomeContent, dailySummaryMarkdownContent, dateStr, { title: homeTitle });
         const existingHomeSha = await getGitHubFileSha(env, homePath);
         const homeCommitMessage = `${existingHomeSha ? 'Update' : 'Create'} home page for ${dateStr} (Scheduled)`;

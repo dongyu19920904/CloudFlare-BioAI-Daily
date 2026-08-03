@@ -32,7 +32,7 @@ export async function handleCommitToGitHub(request, env) {
             } catch (error) {
                 console.warn('[commitToGitHub] Home page not found, will create a new one.');
             }
-            const homeTitle = env.DAILY_TITLE || 'AI 生命延续学日报';
+            const homeTitle = dailyPageTitle;
             // Use configured min title or full title for the linkTitle in _index.md
             const linkTitle = env.DAILY_TITLE_MIN || env.DAILY_TITLE || 'BioAI 生命科学日报';
             const homeContent = updateHomeIndexContent(existingHomeContent, normalizedDailyMd, dateStr, {

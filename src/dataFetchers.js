@@ -16,9 +16,7 @@ import {
     LongevitySocialRssDataSource,
     PapersCoolDataSource,
 } from './dataSources/longevity-rss.js';
-import EuropePmcDataSource from './dataSources/europe-pmc.js';
 import { applyLinuxDoPolicy, resolveLinuxDoPolicy } from './sourcePolicies.js';
-import { normalizeEditorialItem } from './bioEditorialPolicy.js';
 
 
 // Register data sources as arrays to support multiple sources per type
@@ -26,7 +24,7 @@ export const dataSources = {
     // news 下支持多个可选 Folo feed/list 源：只要在环境变量中配置对应 *_FEED_ID 或 LIST_ID 即可自动生效
     news: { name: '新闻', sources: [LongevityNewsRssDataSource, NewsAggregatorDataSource, FoloMultiFeedsDataSource, AibaseDataSource, JiqizhixinDataSource, QbitDataSource, XinzhiyuanDataSource, XiaohuDataSource] },
     project: { name: '项目', sources: [GithubTrendingDataSource] },
-    paper: { name: '论文', sources: [EuropePmcDataSource, PapersCoolDataSource, PapersDataSource, HuggingfacePapersDataSource] },
+    paper: { name: '论文', sources: [PapersCoolDataSource, PapersDataSource, HuggingfacePapersDataSource] },
     socialMedia: { name: '社交平台', sources: [LongevitySocialRssDataSource, TwitterDataSource, RedditDataSource] },
     // Add new data sources here as arrays, e.g.,
     // newType: { name: '新类型', sources: [NewTypeDataSource1, NewTypeDataSource2] },
@@ -51,8 +49,7 @@ export async function fetchAndTransformDataForType(sourceType, env, foloCookie) 
         try {
             // Pass foloCookie to the fetch method of the data source
             const rawData = await dataSource.fetch(env, foloCookie);
-            const unifiedData = dataSource.transform(rawData, sourceType)
-                .map((item) => normalizeEditorialItem(item, sourceType));
+            const unifiedData = dataSource.transform(rawData, sourceType);
             allUnifiedDataForType = allUnifiedDataForType.concat(unifiedData);
         } catch (error) {
             console.error(`Error fetching or transforming data from source ${dataSource.type} for type ${sourceType}:`, error.message);

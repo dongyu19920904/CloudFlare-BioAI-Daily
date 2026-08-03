@@ -1,5 +1,7 @@
 import { getISODate, escapeHtml, convertEnglishQuotesToChinese } from '../helpers.js';
 import { generateGenAiPageHtml } from '../htmlGenerators.js';
+import { insertFoot } from '../foot.js';
+import { insertAd } from '../ad.js';
 
 export async function handleGenAIDailyPage(request, env) {
     let dateStr;
@@ -9,8 +11,9 @@ export async function handleGenAIDailyPage(request, env) {
         dateStr = dateParam ? dateParam : getISODate();
 
         let dailySummaryMarkdownContent = '';
-        dailySummaryMarkdownContent += `## 今日结论\n\n- 等待生成并通过证据校验。\n\n`;
-        dailySummaryMarkdownContent += '> 阅读提示：本站内容用于信息与研究跟踪，不构成诊断、治疗、用药或抗衰建议。\n';
+        dailySummaryMarkdownContent += `## **今日摘要**\n\n\`\`\`\n这里输入内容摘要\n\`\`\`\n\n`;
+        if (env.INSERT_AD=='true') dailySummaryMarkdownContent += insertAd() +`\n`;
+        if (env.INSERT_FOOT=='true') dailySummaryMarkdownContent += insertFoot() +`\n\n`;
 
         const successHtml = generateGenAiPageHtml(
             env, 
