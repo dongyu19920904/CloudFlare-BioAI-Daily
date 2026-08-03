@@ -3,13 +3,13 @@ import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
 import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationPromptStepZero";
-import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import {
     buildEditorialDedupeKeys,
+    buildDailyConclusionLines,
     buildEvidenceOverview,
     formatDailyPromptItem,
     matchDailyEvidenceItems,
@@ -25,18 +25,6 @@ import {
     updateBioSectionHomeIndexContent,
 } from '../bioOpportunityUtils.js';
 import { createOrUpdateGitHubFile, getGitHubFileContent, getGitHubFileSha } from '../github.js';
-
-function normalizeSummaryLines(summaryText, fallbackLines = []) {
-    const lines = String(summaryText || '')
-        .split(/\r?\n/)
-        .map((line) => line.trim().replace(/^[-*\d.、]+\s*/, ''))
-        .filter(Boolean);
-    for (const fallbackLine of fallbackLines) {
-        if (lines.length >= 3) break;
-        if (fallbackLine && !lines.includes(fallbackLine)) lines.push(fallbackLine);
-    }
-    return lines.slice(0, 3).join('\n');
-}
 
 function shiftDate(dateStr, days) {
     const baseDate = new Date(`${dateStr}T00:00:00+08:00`);
@@ -546,28 +534,16 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             };
         }
 
-        // 4. Generate Summary (Call 3)
-        console.log(`[Scheduled] Generating summary...`);
-        let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
-        let fullPromptForCall3_User = outputOfCall2;
-        
-        let outputOfCall3 = await generateScheduledMarkdownWithFallback(
-            env,
-            fullPromptForCall3_User,
-            fullPromptForCall3_System,
-            'DailySummary'
-        );
-        outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
+        // 4. Build the issue-level conclusion from the already validated body.
+        // This avoids a second model call inventing aggregate claims that conflict
+        // with the per-signal evidence contract.
         const publishedEvidenceItems = matchDailyEvidenceItems(outputOfCall2, expectedEvidenceItems);
         const evidenceOverview = buildEvidenceOverview(publishedEvidenceItems);
-        outputOfCall3 = normalizeSummaryLines(outputOfCall3, [
-            `今天筛选出 ${bodyValidation.signalCount} 条值得跟踪的 AI 与衰老研究信号。`,
-            evidenceOverview,
-            '距离日常医疗或抗衰应用仍需独立验证、监管评估与长期随访。',
-        ]);
+        const conclusionLines = buildDailyConclusionLines(outputOfCall2, evidenceOverview)
+            .map((line) => `- ${line}`)
+            .join('\n');
 
         // 5. Assemble Markdown
-        const conclusionLines = outputOfCall3.split(/\r?\n/).filter(Boolean).map((line) => `- ${line}`).join('\n');
         let dailySummaryMarkdownContent = `## 今日结论\n\n${conclusionLines}\n\n`;
         dailySummaryMarkdownContent += `## 证据概览\n\n> ${evidenceOverview}\n\n`;
         dailySummaryMarkdownContent += `${outputOfCall2}\n\n`;

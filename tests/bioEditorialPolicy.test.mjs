@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildDailyConclusionLines,
   buildEditorialDedupeKeys,
   matchDailyEvidenceItems,
   normalizeEditorialItem,
@@ -131,4 +132,20 @@ test('low-information correction notices are excluded from ordinary daily candid
     title: 'Author Correction: A prior aging study',
   });
   assert.match(item.details.editorial.dailyExclusionReason, /更正|勘误/);
+});
+
+test('daily conclusions are derived from validated signals and evidence counts', () => {
+  const overview = '高 0 条 / 中 1 条 / 初步 2 条。';
+  const lines = buildDailyConclusionLines(`## 今日重要信号\n\n${signal(1)}`, overview);
+  assert.equal(lines.length, 3);
+  assert.match(lines[0], /可信标题 1.*初步/);
+  assert.match(lines[1], /中 1 条.*初步 2 条/);
+  assert.match(lines[2], /医疗.*验证|验证.*医疗/);
+});
+
+test('daily validator rejects model commentary about omitted candidates', () => {
+  const markdown = `## 今日重要信号\n\n${signal(1)}\n\n${signal(2)}\n\n${signal(3)}\n\n> 关于本期未收录素材的说明：其他项目未入选。`;
+  const result = validateDailyMarkdown(markdown);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => /未收录/.test(error)));
 });

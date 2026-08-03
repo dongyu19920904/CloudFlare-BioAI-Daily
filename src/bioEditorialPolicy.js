@@ -355,6 +355,19 @@ export function matchDailyEvidenceItems(markdown = '', expectedItems = []) {
     return matched;
 }
 
+export function buildDailyConclusionLines(markdown = '', evidenceOverview = '') {
+    const signals = markdownSignalSections(markdown);
+    const first = signals[0];
+    const firstLevel = first?.section.match(/\*\*证据等级\*\*\s*[：:]\s*(高|中|初步)/)?.[1] || '未确认';
+    return [
+        first
+            ? `本期优先关注“${first.title}”；当前证据等级为${firstLevel}，请结合研究设计与局限解读。`
+            : `本期收录 ${signals.length} 条经来源校验的 AI 与衰老研究信号。`,
+        `本期证据构成：${evidenceOverview}`,
+        '所有条目仅用于研究跟踪；距离医疗、健康管理或抗衰应用，仍需独立验证、监管评估与真实世界检验。',
+    ];
+}
+
 const REQUIRED_SIGNAL_LABELS = [
     '发生了什么',
     '这意味着什么',
@@ -426,6 +439,7 @@ export function validateDailyMarkdown(markdown = '', expectedItems = []) {
         [/逆龄神器|长生不老|延寿神器|生物黑客狂喜|下一个风口|震惊！|治愈衰老/i, '包含夸大或营销化措辞'],
         [/\bTOP\s*10\b|重磅\s*TOP/i, '不得使用 TOP 榜单结构'],
         [/##\s+.*趋势预测|##\s+.*相关问题|##\s+.*FAQ/i, '不得批量生成趋势预测或 FAQ'],
+        [/关于本期未收录|未收录素材/i, '不得追加未收录素材清单或生成过程说明'],
         [/动物(?:实验|研究).{0,40}(?:证明|证实).{0,30}(?:人体|患者).{0,30}(?:有效|疗效)/i, '动物研究被夸大为人体疗效'],
         [/(?:相关性|观察性研究).{0,40}(?:证明|证实).{0,30}(?:因果|治疗有效)/i, '相关性研究被夸大为因果或疗效'],
     ];
