@@ -170,7 +170,7 @@ export async function handleGenAIContent(request, env) {
             const item = itemsOfType ? itemsOfType.find(dataItem => String(dataItem.id) === idStr) : null;
 
             if (item) {
-                const normalizedItem = item.details?.editorial ? item : normalizeEditorialItem(item, type);
+                const normalizedItem = normalizeEditorialItem(item, type);
                 if (normalizedItem.details.editorial.dailyExclusionReason) {
                     console.warn(`Skipping ${selection}: ${normalizedItem.details.editorial.dailyExclusionReason}.`);
                     continue;

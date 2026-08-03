@@ -443,7 +443,9 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             const items = allUnifiedData[sourceType];
             if (items && items.length > 0) {
                 for (const rawItem of items) {
-                    const item = rawItem.details?.editorial ? rawItem : normalizeEditorialItem(rawItem, sourceType);
+                    // Recompute the current contract even for KV-cached items so a
+                    // policy rollout is not bypassed by stale editorial metadata.
+                    const item = normalizeEditorialItem(rawItem, sourceType);
                     const editorial = item.details.editorial;
                     if (editorial.dailyExclusionReason) {
                         console.log(`[Scheduled] Skipping ${editorial.canonicalId}: ${editorial.dailyExclusionReason}.`);
