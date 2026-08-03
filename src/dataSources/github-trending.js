@@ -90,6 +90,7 @@ const ProjectsDataSource = {
                     starsToday: null,
                     updatedAt: item.updated_at ?? item.updatedAt ?? null,
                     pushedAt: item.pushed_at ?? item.pushedAt ?? null,
+                    licenseSpdxId: item.license?.spdx_id || item.license?.key || "",
                     builtBy: []
                 }));
             }
@@ -252,6 +253,7 @@ JSON Array of Chinese Translations:`;
                         totalStars: project.totalStars,
                         forks: project.forks,
                         starsToday: project.starsToday,
+                        licenseSpdxId: project.licenseSpdxId || project.license?.spdx_id || project.license?.key || "",
                         builtBy: project.builtBy || []
                     }
                 });

@@ -145,6 +145,27 @@ test('ordinary daily excludes news that cannot be traced to a primary or officia
   assert.match(item.details.editorial.dailyExclusionReason, /一手|官方/);
 });
 
+test('ordinary daily requires a declared license before calling a GitHub repository open source', () => {
+  const missingLicense = normalizeEditorialItem({
+    type: 'project',
+    title: 'Biological age calculator',
+    url: 'https://github.com/example/biological-age-calculator',
+    source: 'GitHub Trending',
+    details: { licenseSpdxId: 'NOASSERTION' },
+  });
+  const licensed = normalizeEditorialItem({
+    type: 'project',
+    title: 'Reproducible aging toolkit',
+    url: 'https://github.com/example/aging-toolkit',
+    source: 'GitHub Trending',
+    details: { licenseSpdxId: 'MIT' },
+  });
+
+  assert.match(missingLicense.details.editorial.dailyExclusionReason, /许可证/);
+  assert.equal(licensed.details.editorial.dailyExclusionReason, '');
+  assert.equal(licensed.details.editorial.projectLicense, 'MIT');
+});
+
 test('daily conclusions are derived from validated signals and evidence counts', () => {
   const overview = '高 0 条 / 中 1 条 / 初步 2 条。';
   const lines = buildDailyConclusionLines(`## 今日重要信号\n\n${signal(1)}`, overview);

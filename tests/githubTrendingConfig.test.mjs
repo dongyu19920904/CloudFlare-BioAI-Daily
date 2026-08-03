@@ -34,6 +34,7 @@ test("github trending obeys env filters, query limit, date placeholders, and par
             language: "Python",
             stargazers_count: 1,
             forks_count: 0,
+            license: { spdx_id: "Apache-2.0" },
             updated_at: "2026-03-16T00:00:00Z",
             pushed_at: "2026-03-16T00:00:00Z",
           },
@@ -63,6 +64,11 @@ test("github trending obeys env filters, query limit, date placeholders, and par
     assert.equal(projects.length, 1);
     assert.equal(projects[0].name, "lab/aging-clock");
     assert.equal(projects[0].description_zh, "Small but active aging clock project");
+    assert.equal(projects[0].licenseSpdxId, "Apache-2.0");
+    assert.equal(
+      GithubTrendingDataSource.transform(projects, "project")[0].details.licenseSpdxId,
+      "Apache-2.0",
+    );
   } finally {
     setFetchDate(originalFetchDate);
     globalThis.fetch = originalFetch;

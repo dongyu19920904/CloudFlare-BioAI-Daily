@@ -266,10 +266,15 @@ export function normalizeEditorialItem(item = {}, sourceType = item.type || 'unk
     const canonicalId = doi ? `doi:${doi}` : pmid ? `pmid:${pmid}` : nctId ? `trial:${nctId}` : githubRepo ? `repo:${githubRepo}` : `url:${normalizeUrl(item.url)}`;
     const primarySourceUrl = normalizeUrl(details.primarySourceUrl || item.url);
     const isLowInformationNotice = /^(?:author\s+)?correction\b|^erratum\b|^corrigendum\b|^更正(?:通知)?\b/i.test(compactText(item.title));
+    const projectLicense = compactText(details.licenseSpdxId || details.license?.spdx_id || details.license?.key || details.license);
+    const projectHasNoDeclaredLicense = normalizedItem.type === 'project'
+        && (!projectLicense || /^(?:noassertion|other|unknown|none)$/i.test(projectLicense));
     const dailyExclusionReason = isLowInformationNotice
         ? '信息量不足的更正或勘误通知'
         : /待回溯|待核实/.test(authority)
             ? '缺少可回溯的一手或官方来源'
+            : projectHasNoDeclaredLicense
+                ? '项目缺少明确许可证，不能按开源项目发布'
             : '';
     const editorial = {
         canonicalId,
@@ -282,6 +287,7 @@ export function normalizeEditorialItem(item = {}, sourceType = item.type || 'unk
         pmid: pmid || '',
         clinicalTrialId: nctId || '',
         githubRepo: githubRepo || '',
+        projectLicense: projectLicense || '',
         studyType: metadata.studyType,
         species: metadata.species,
         sampleSize: metadata.sampleSize,
