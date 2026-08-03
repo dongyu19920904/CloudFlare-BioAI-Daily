@@ -265,6 +265,12 @@ export function normalizeEditorialItem(item = {}, sourceType = item.type || 'unk
     const githubRepo = extractGithubRepo(item.url, item.title, item.description);
     const canonicalId = doi ? `doi:${doi}` : pmid ? `pmid:${pmid}` : nctId ? `trial:${nctId}` : githubRepo ? `repo:${githubRepo}` : `url:${normalizeUrl(item.url)}`;
     const primarySourceUrl = normalizeUrl(details.primarySourceUrl || item.url);
+    const isLowInformationNotice = /^(?:author\s+)?correction\b|^erratum\b|^corrigendum\b|^更正(?:通知)?\b/i.test(compactText(item.title));
+    const dailyExclusionReason = isLowInformationNotice
+        ? '信息量不足的更正或勘误通知'
+        : /待回溯|待核实/.test(authority)
+            ? '缺少可回溯的一手或官方来源'
+            : '';
     const editorial = {
         canonicalId,
         entityType: normalizedItem.type,
@@ -284,9 +290,7 @@ export function normalizeEditorialItem(item = {}, sourceType = item.type || 'unk
         evidenceReason: evidence.reason,
         applicationDistance: inferApplicationDistance(normalizedItem, metadata, evidence),
         topicKey: inferTopicKey(normalizedItem),
-        dailyExclusionReason: /^(?:author\s+)?correction\b|^erratum\b|^corrigendum\b|^更正(?:通知)?\b/i.test(compactText(item.title))
-            ? '信息量不足的更正或勘误通知'
-            : '',
+        dailyExclusionReason,
     };
     editorial.qualityScore = qualityScore(normalizedItem, editorial);
     normalizedItem.details.editorial = editorial;

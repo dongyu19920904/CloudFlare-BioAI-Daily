@@ -134,6 +134,17 @@ test('low-information correction notices are excluded from ordinary daily candid
   assert.match(item.details.editorial.dailyExclusionReason, /更正|勘误/);
 });
 
+test('ordinary daily excludes news that cannot be traced to a primary or official source', () => {
+  const item = normalizeEditorialItem({
+    type: 'news',
+    title: 'Company partnership reported by an unknown aggregator',
+    url: 'https://example.com/industry-news',
+    source: 'Example Aggregator',
+    details: {},
+  });
+  assert.match(item.details.editorial.dailyExclusionReason, /一手|官方/);
+});
+
 test('daily conclusions are derived from validated signals and evidence counts', () => {
   const overview = '高 0 条 / 中 1 条 / 初步 2 条。';
   const lines = buildDailyConclusionLines(`## 今日重要信号\n\n${signal(1)}`, overview);
