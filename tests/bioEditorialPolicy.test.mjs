@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildEditorialDedupeKeys,
+  matchDailyEvidenceItems,
   normalizeEditorialItem,
   validateDailyMarkdown,
 } from '../src/bioEditorialPolicy.js';
@@ -99,4 +100,35 @@ test('daily validator blocks marketing links and animal-to-human efficacy claims
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => /爱窝啦/.test(error)));
   assert.ok(result.errors.some((error) => /动物研究/.test(error)));
+});
+
+test('daily validator blocks evidence upgrades and sources outside the supplied contract', () => {
+  const expected = normalizeEditorialItem(paper({
+    isPreprint: true,
+    abstractText: 'A preprint with 80 participants.',
+  }));
+  const upgraded = `## 今日重要信号\n\n${signal(1).replace('https://doi.org/10.1000/test.1', expected.url).replace('初步（', '中（')}\n\n${signal(2)}\n\n${signal(3)}`;
+  const result = validateDailyMarkdown(upgraded, [expected]);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => /不得.*升级/.test(error)));
+  assert.ok(result.errors.some((error) => /不在输入素材/.test(error)));
+});
+
+test('published evidence overview can use only items present in the final markdown', () => {
+  const first = normalizeEditorialItem(paper());
+  const second = normalizeEditorialItem({
+    ...paper(),
+    url: 'https://doi.org/10.1234/example.2',
+    details: { ...paper().details, doi: '10.1234/example.2' },
+  });
+  const markdown = `## 今日重要信号\n\n${signal(1).replace('https://doi.org/10.1000/test.1', first.url)}`;
+  assert.deepEqual(matchDailyEvidenceItems(markdown, [first, second]).map((item) => item.url), [first.url]);
+});
+
+test('low-information correction notices are excluded from ordinary daily candidates', () => {
+  const item = normalizeEditorialItem({
+    ...paper(),
+    title: 'Author Correction: A prior aging study',
+  });
+  assert.match(item.details.editorial.dailyExclusionReason, /更正|勘误/);
 });

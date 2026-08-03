@@ -12,6 +12,7 @@ import {
     buildEditorialDedupeKeys,
     buildEvidenceOverview,
     formatDailyPromptItem,
+    matchDailyEvidenceItems,
     normalizeEditorialItem,
     validateDailyMarkdown,
 } from '../bioEditorialPolicy.js';
@@ -456,6 +457,10 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                 for (const rawItem of items) {
                     const item = rawItem.details?.editorial ? rawItem : normalizeEditorialItem(rawItem, sourceType);
                     const editorial = item.details.editorial;
+                    if (editorial.dailyExclusionReason) {
+                        console.log(`[Scheduled] Skipping ${editorial.canonicalId}: ${editorial.dailyExclusionReason}.`);
+                        continue;
+                    }
                     const resolvedSourceType = item.type || sourceType;
                     const itemHasMedia = Boolean(item.details?.content_html && hasMedia(item.details.content_html));
                     sourceStats[resolvedSourceType] = sourceStats[resolvedSourceType] || { total: 0, primary: 0 };
@@ -511,7 +516,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aibioo.cn');
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
 
-        let bodyValidation = validateDailyMarkdown(outputOfCall2);
+        const expectedEvidenceItems = selectedCandidates.map((candidate) => candidate.item);
+        let bodyValidation = validateDailyMarkdown(outputOfCall2, expectedEvidenceItems);
         if (!bodyValidation.valid) {
             console.warn(`[Scheduled] Daily body validation failed; attempting one targeted repair: ${bodyValidation.errors.join('; ')}`);
             const repairSystemPrompt = `${getSystemPromptSummarizationStepOne(dateStr)}\n\n这是一次格式与证据边界修复。只修复列出的错误，保留原始事实和 URL，不新增素材。`;
@@ -526,7 +532,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                 convertPlaceholdersToMarkdownImages(removeMarkdownCodeBlock(outputOfCall2)),
                 env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aibioo.cn'
             ));
-            bodyValidation = validateDailyMarkdown(outputOfCall2);
+            bodyValidation = validateDailyMarkdown(outputOfCall2, expectedEvidenceItems);
         }
 
         if (!bodyValidation.valid) {
@@ -552,7 +558,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             'DailySummary'
         );
         outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
-        const evidenceOverview = buildEvidenceOverview(selectedCandidates.map((candidate) => candidate.item));
+        const publishedEvidenceItems = matchDailyEvidenceItems(outputOfCall2, expectedEvidenceItems);
+        const evidenceOverview = buildEvidenceOverview(publishedEvidenceItems);
         outputOfCall3 = normalizeSummaryLines(outputOfCall3, [
             `今天筛选出 ${bodyValidation.signalCount} 条值得跟踪的 AI 与衰老研究信号。`,
             evidenceOverview,

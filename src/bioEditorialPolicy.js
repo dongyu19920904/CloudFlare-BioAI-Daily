@@ -284,6 +284,9 @@ export function normalizeEditorialItem(item = {}, sourceType = item.type || 'unk
         evidenceReason: evidence.reason,
         applicationDistance: inferApplicationDistance(normalizedItem, metadata, evidence),
         topicKey: inferTopicKey(normalizedItem),
+        dailyExclusionReason: /^(?:author\s+)?correction\b|^erratum\b|^corrigendum\b|^更正(?:通知)?\b/i.test(compactText(item.title))
+            ? '信息量不足的更正或勘误通知'
+            : '',
     };
     editorial.qualityScore = qualityScore(normalizedItem, editorial);
     normalizedItem.details.editorial = editorial;
@@ -321,6 +324,37 @@ export function buildEvidenceOverview(items = []) {
     return `高 ${counts['高']} 条 / 中 ${counts['中']} 条 / 初步 ${counts['初步']} 条。证据等级表示当前研究可信度，不代表治疗建议或可直接应用。`;
 }
 
+function markdownSignalSections(markdown = '') {
+    return String(markdown || '')
+        .split(/^###\s+\d+\.\s+/m)
+        .slice(1)
+        .map((section) => {
+            const heading = section.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)/);
+            return { section, title: heading?.[1] || '', url: normalizeUrl(heading?.[2] || '') };
+        });
+}
+
+export function matchDailyEvidenceItems(markdown = '', expectedItems = []) {
+    const byUrl = new Map();
+    for (const item of expectedItems) {
+        const normalized = item?.details?.editorial ? item : normalizeEditorialItem(item);
+        const editorial = normalized.details?.editorial;
+        const url = normalizeUrl(editorial?.primarySourceUrl || normalized.url).toLowerCase();
+        if (url) byUrl.set(url, normalized);
+    }
+    const matched = [];
+    const seen = new Set();
+    for (const signal of markdownSignalSections(markdown)) {
+        const item = byUrl.get(signal.url.toLowerCase());
+        const canonicalId = item?.details?.editorial?.canonicalId;
+        if (item && !seen.has(canonicalId)) {
+            seen.add(canonicalId);
+            matched.push(item);
+        }
+    }
+    return matched;
+}
+
 const REQUIRED_SIGNAL_LABELS = [
     '发生了什么',
     '这意味着什么',
@@ -333,15 +367,24 @@ const REQUIRED_SIGNAL_LABELS = [
     '来源',
 ];
 
-export function validateDailyMarkdown(markdown = '') {
+export function validateDailyMarkdown(markdown = '', expectedItems = []) {
     const text = String(markdown || '').trim();
     const errors = [];
     if (!/^##\s+今日重要信号\s*$/m.test(text)) errors.push('缺少“## 今日重要信号”标题');
     const headingMatches = [...text.matchAll(/^###\s+(\d+)\.\s+\[[^\]]+\]\((https?:\/\/[^)]+)\)\s*$/gm)];
     if (headingMatches.length < 3 || headingMatches.length > 8) errors.push(`重要信号数量必须为 3-8 条，当前为 ${headingMatches.length} 条`);
 
-    const sections = text.split(/^###\s+\d+\.\s+/m).slice(1);
-    sections.forEach((section, index) => {
+    const sections = markdownSignalSections(text);
+    const expectedByUrl = new Map();
+    for (const rawItem of expectedItems) {
+        const item = rawItem?.details?.editorial ? rawItem : normalizeEditorialItem(rawItem);
+        const editorial = item.details?.editorial;
+        const url = normalizeUrl(editorial?.primarySourceUrl || item.url).toLowerCase();
+        if (url) expectedByUrl.set(url, editorial);
+    }
+    const evidenceRank = { '初步': 1, '中': 2, '高': 3 };
+
+    sections.forEach(({ section, url }, index) => {
         for (const label of REQUIRED_SIGNAL_LABELS) {
             if (!new RegExp(`\\*\\*${label.replace('/', '\\/')}\\*\\*`).test(section)) {
                 errors.push(`第 ${index + 1} 条缺少“${label}”`);
@@ -352,6 +395,29 @@ export function validateDailyMarkdown(markdown = '') {
         }
         if (!/\*\*来源\*\*\s*[：:]\s*\[[^\]]+\]\(https?:\/\//.test(section)) {
             errors.push(`第 ${index + 1} 条必须提供可点击的一手或官方来源`);
+        }
+        if (expectedByUrl.size > 0) {
+            const expected = expectedByUrl.get(url.toLowerCase());
+            if (!expected) {
+                errors.push(`第 ${index + 1} 条来源 URL 不在输入素材中`);
+            } else {
+                const level = section.match(/\*\*证据等级\*\*\s*[：:]\s*(高|中|初步)/)?.[1];
+                if (level && evidenceRank[level] > evidenceRank[expected.evidenceLevel]) {
+                    errors.push(`第 ${index + 1} 条证据等级不得从“${expected.evidenceLevel}”升级为“${level}”`);
+                }
+                if (expected.studyType !== '未报告' && !section.includes(expected.studyType)) {
+                    errors.push(`第 ${index + 1} 条研究类型必须保留程序字段“${expected.studyType}”`);
+                }
+                if (expected.species !== '未报告' && !section.includes(expected.species)) {
+                    errors.push(`第 ${index + 1} 条物种/对象必须保留程序字段“${expected.species}”`);
+                }
+                if (expected.sampleSize !== '未报告') {
+                    const normalizedSection = section.replace(/,/g, '');
+                    if (!normalizedSection.includes(expected.sampleSize.replace(/,/g, ''))) {
+                        errors.push(`第 ${index + 1} 条样本量必须保留程序字段“${expected.sampleSize}”`);
+                    }
+                }
+            }
         }
     });
 

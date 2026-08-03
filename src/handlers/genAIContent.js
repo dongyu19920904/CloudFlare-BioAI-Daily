@@ -10,7 +10,7 @@ import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPr
 import { getSystemPromptPodcastFormatting, getSystemPromptShortPodcastFormatting } from '../prompt/podcastFormattingPrompt.js';
 import { getSystemPromptDailyAnalysis } from '../prompt/dailyAnalysisPrompt.js'; // Import new prompt
 import { getDailyReportContent } from '../github.js'; // 导入 getDailyReportContent
-import { buildEvidenceOverview, formatDailyPromptItem, normalizeEditorialItem, validateDailyMarkdown } from '../bioEditorialPolicy.js';
+import { buildEvidenceOverview, formatDailyPromptItem, matchDailyEvidenceItems, normalizeEditorialItem, validateDailyMarkdown } from '../bioEditorialPolicy.js';
 
 export async function handleGenAIPodcastScript(request, env) {
     let dateStr;
@@ -172,6 +172,10 @@ export async function handleGenAIContent(request, env) {
 
             if (item) {
                 const normalizedItem = item.details?.editorial ? item : normalizeEditorialItem(item, type);
+                if (normalizedItem.details.editorial.dailyExclusionReason) {
+                    console.warn(`Skipping ${selection}: ${normalizedItem.details.editorial.dailyExclusionReason}.`);
+                    continue;
+                }
                 selectedContentItems.push(formatDailyPromptItem(normalizedItem));
                 selectedEvidenceItems.push(normalizedItem);
                 validItemsProcessedCount++;
@@ -242,14 +246,14 @@ export async function handleGenAIContent(request, env) {
         }
 
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
-        let bodyValidation = validateDailyMarkdown(outputOfCall2);
+        let bodyValidation = validateDailyMarkdown(outputOfCall2, selectedEvidenceItems);
         if (!bodyValidation.valid) {
             const repairSystemPrompt = `${getSystemPromptSummarizationStepOne(dateStr)}\n\n这是一次格式与证据边界修复。只修复列出的错误，保留原始事实和 URL，不新增素材。`;
             const repairUserPrompt = `校验错误：\n- ${bodyValidation.errors.join('\n- ')}\n\n待修复原稿：\n${outputOfCall2}`;
             const repairedChunks = [];
             for await (const chunk of callChatAPIStream(env, repairUserPrompt, repairSystemPrompt)) repairedChunks.push(chunk);
             outputOfCall2 = normalizeDailyBody(convertPlaceholdersToMarkdownImages(removeMarkdownCodeBlock(repairedChunks.join(''))));
-            bodyValidation = validateDailyMarkdown(outputOfCall2);
+            bodyValidation = validateDailyMarkdown(outputOfCall2, selectedEvidenceItems);
         }
         if (!bodyValidation.valid) {
             const errorHtml = generateGenAiPageHtml(env, '生成AI日报出错，证据校验未通过', `<p><strong>成稿未通过证据与格式校验，已停止发布。</strong></p><p>${escapeHtml(bodyValidation.errors.join('；'))}</p>`, dateStr, true, selectedItemsParams, fullPromptForCall2_System, fullPromptForCall2_User);
@@ -284,7 +288,8 @@ export async function handleGenAIContent(request, env) {
             const errorHtml = generateGenAiPageHtml(env, '生成AI日报出错(摘要)', `<p><strong>Failed during processing of summarized content:</strong> ${escapeHtml(error.message)}</p>${error.stack ? `<pre>${escapeHtml(error.stack)}</pre>` : ''}`, dateStr, true, selectedItemsParams, fullPromptForCall3_System, fullPromptForCall3_User);
             return new Response(errorHtml, { status: 500, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         }
-        const evidenceOverview = buildEvidenceOverview(selectedEvidenceItems);
+        const publishedEvidenceItems = matchDailyEvidenceItems(outputOfCall2, selectedEvidenceItems);
+        const evidenceOverview = buildEvidenceOverview(publishedEvidenceItems);
         const summaryLines = String(outputOfCall3 || '')
             .split(/\r?\n/)
             .map((line) => line.trim().replace(/^[-*\d.、]+\s*/, ''))
