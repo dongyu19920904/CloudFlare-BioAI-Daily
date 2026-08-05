@@ -1,4 +1,4 @@
-const DEFAULT_DAILY_DESCRIPTION = '每日聚焦 AI + 长寿、延寿、衰老、生物年龄和健康科技前沿，同时记录 ChatGPT、Claude、Cursor、Codex、Gemini、Consensus 等工具如何辅助研究、内容和项目验证。由爱窝啦提供 AI 工具入口支持。';
+const DEFAULT_DAILY_DESCRIPTION = '每日精选 AI、衰老、长寿、健康寿命与生物年龄研究信号，说明研究设计、证据强弱、局限和距离实际应用的阶段。';
 
 // 辅助函数：获取月日
 function getMonthDay(dateStr) {
@@ -70,17 +70,29 @@ sidebar:
 }
 
 export function buildDailyFrontMatter(dateStr, options = {}) {
-    const { description = DEFAULT_DAILY_DESCRIPTION, title } = options;
+    const {
+        description = DEFAULT_DAILY_DESCRIPTION,
+        title,
+        evidenceSummary = '逐条说明研究设计与局限',
+        applicationDistance = '研究与验证阶段，不能用于个人医疗决策',
+    } = options;
     const monthDay = getMonthDay(dateStr);
     const weight = computeWeight(dateStr);
     const resolvedTitle = title === undefined ? `${monthDay}-日报-AI资讯日报` : title;
     return `---
 linkTitle: ${monthDay}-日报
 title: ${resolvedTitle}
+date: ${dateStr}T00:00:00+08:00
+lastmod: ${dateStr}T00:00:00+08:00
 weight: ${weight}
 breadcrumbs: false
 comments: true
 description: "${description}"
+authorName: "AI生命延续学编辑部"
+authorType: "Organization"
+editor: "AI生命延续学编辑部"
+evidenceSummary: "${evidenceSummary}"
+applicationDistance: "${applicationDistance}"
 ---`;
 }
 
@@ -159,6 +171,15 @@ export function updateHomeIndexContent(existingContent, dailyContent, dateStr, o
         frontMatter = buildDefaultHomeFrontMatter(dateStr, { description, title, linkTitle });
     }
 
-    const body = stripFrontMatter(dailyContent).trimStart();
+    const summaryLines = stripFrontMatter(dailyContent)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => /^>\s+/.test(line))
+        .slice(0, 3)
+        .map((line) => line.replace(/^>\s+/, ''));
+    const summary = summaryLines.length
+        ? summaryLines.map((line) => `> ${line}`).join('\n')
+        : '> 最新一期已经完成来源、证据强弱与应用距离审查。';
+    const body = `## 最新一期：${dateStr}\n\n${summary}\n\n[阅读 ${dateStr} 完整日报 →](${nextPath}/)\n\n## 本站如何审阅证据\n\n每条信息先说明发生了什么，再解释现实意义、不能得出的结论和距离实际应用的阶段。预印本、动物、体外、观察性和小样本研究会明确标注，不作为个人医疗建议。\n\n历史内容请使用左侧月份目录或站内搜索。`;
     return frontMatter.trimEnd() + '\n\n' + body;
 }

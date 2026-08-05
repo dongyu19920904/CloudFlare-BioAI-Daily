@@ -380,10 +380,13 @@ function createRssDataSource(options) {
 
         transform(rawData, sourceType) {
             if (!rawData || !Array.isArray(rawData.items)) return [];
-            return rawData.items.map((item) => ({
+            return rawData.items.map((item) => {
+                const arxivMatch = String(item.url || '').match(/papers\.cool\/arxiv\/(\d{4}\.\d{4,5})/i);
+                const canonicalUrl = arxivMatch ? `https://arxiv.org/abs/${arxivMatch[1]}` : item.url;
+                return {
                 id: item.id,
                 type: sourceType,
-                url: item.url,
+                url: canonicalUrl,
                 title: item.title,
                 description: stripHtml(item.summary || ''),
                 published_date: item.date_published,
@@ -393,8 +396,11 @@ function createRssDataSource(options) {
                     content_html: buildContentHtml(item),
                     feedUrl: item.feedUrl,
                     imageUrl: item.imageUrl || '',
+                    discoveryUrl: arxivMatch ? item.url : '',
+                    publicationStatus: arxivMatch ? 'preprint' : '',
                 },
-            }));
+                };
+            });
         },
 
         generateHtml(item) {
