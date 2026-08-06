@@ -238,10 +238,18 @@ export default {
             const fakeEvent = { scheduledTime: Date.now(), cron: '0 16 * * *' };
             const fakeCtx = { waitUntil: (p) => p };
             try {
-                await handleScheduledBlog(fakeEvent, env, fakeCtx, specifiedDate);
-                return new Response(JSON.stringify({ success: true, message: 'Blog task done', date: specifiedDate || 'today' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                const result = await handleScheduledBlog(fakeEvent, env, fakeCtx, specifiedDate);
+                return new Response(JSON.stringify({
+                    success: result.success,
+                    message: result.success ? 'Blog task done' : 'Blog task failed',
+                    date: specifiedDate || 'today',
+                    result,
+                }), {
+                    status: result.success ? 200 : 500,
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+                });
             } catch (error) {
-                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
             }
         }
 

@@ -2,6 +2,7 @@
 // 博客生成提示词 v4 - 触发式个人随笔风格
 
 import { getBlogPersonaSupplement } from './blogPersonaSupplement.js';
+import { BLOG_PERSONAL_MATERIALS_20260614 } from './blogPersonalMaterials.js';
 
 /**
  * 获取博客改写提示词
@@ -46,6 +47,8 @@ export function getBlogPrompt(blogType) {
 
 ${getBlogPersonaSupplement(blogType)}
 
+${BLOG_PERSONAL_MATERIALS_20260614}
+
 ---
 
 # 写作的核心原则
@@ -53,6 +56,8 @@ ${getBlogPersonaSupplement(blogType)}
 **这不是新闻改写，这是我的个人随笔。**
 
 日报只是一个触发器——我看到了一些新闻，触发了我的某些记忆、联想、困惑，然后我写下来。
+
+第一手经历只能来自上面的已知资料，或者来自输入日报里明确出现的事实。不能编造“今天某个客户/供应商/订单/微信聊天/咖啡馆场景”。
 
 **比例要求**：
 - 日报内容的引用/讨论 ≤ 30%
@@ -170,9 +175,9 @@ ${getBlogPersonaSupplement(blogType)}
 
 1. **不要生成 frontmatter**（---开头的 YAML 部分），代码会自动加
 2. **不要用 \`\`\`markdown 代码块包裹**，直接输出正文
-3. **只用日报素材里的图片 URL**，不要编造
+3. **只用日报素材里的真实图片 URL**，不要把网页链接当图片，不确定就不用图片
 4. **字数 800-1200 字**
-5. **保留有价值的原始链接**，用 \`[文字](URL)\` 格式
+5. **保留有价值的原始链接**，用 \`[文字](URL)\` 格式；不要硬塞爱窝啦官网链接
 6. **标题控制在 12-28 个字，只写一个短句**
 7. **不要出现“今天”、“日报”、“我刚看完今天的日报”这类标题开头**
 8. **不要把正文第一段当标题**
@@ -181,9 +186,9 @@ ${getBlogPersonaSupplement(blogType)}
 # 格式附录（只约束结构与排版，不改内容与人设）
 
 1. 开头先写 60-120 字导语，用于摘要与 SEO，不要用标题/列表/引用。
-2. 导语后立即添加一个二级标题：## Table of contents，用于生成目录。
-3. 正文使用 2-4 个二级标题（##），标题短句即可；顺序自由，可以省略某个小节，但不要固定模板。
-4. 正文不使用 # 作为标题，只使用 ## - ######；不生成 YAML frontmatter，不输出代码块。
+2. 正文使用 2-4 个二级标题（##），标题短句即可；顺序自由，可以省略某个小节，但不要固定模板。
+3. 正文不使用 # 作为标题，只使用 ## - ######；不生成 YAML frontmatter，不输出代码块。
+4. 不要输出“## Table of contents”或“目录”。
 5. 图片用 Markdown 语法：![简短描述](URL)，仅使用输入日报中的图片 URL，无合适图片就不放。
 `;
 
