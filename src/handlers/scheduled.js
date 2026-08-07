@@ -23,6 +23,7 @@ import {
     validateBioDailyMarkdown,
 } from '../bioDailyPublication.js';
 import { extractDailyMediaCandidates, prepareDailyCandidatesMedia } from '../bioDailyMedia.js';
+import { hydrateDailyPrimaryEvidence } from '../bioDailyPrimaryHydration.js';
 import { buildBioDailyRunId, storeBioDailyStatus } from '../bioDailyStatus.js';
 import { buildBioDailySourceEnv } from '../bioDailyBudget.js';
 import { runIndependentBioTasks } from '../bioTaskIsolation.js';
@@ -606,6 +607,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             resolveDailyPromptItemCap(env, Boolean(specifiedDate)),
             { acceptedKeys }
         );
+        selectedCandidates = await hydrateDailyPrimaryEvidence(selectedCandidates, env);
         selectedCandidates = await prepareDailyCandidatesMedia(selectedCandidates, env);
         selectedCandidates = selectedCandidates.map((candidate) => ({
             ...candidate,
