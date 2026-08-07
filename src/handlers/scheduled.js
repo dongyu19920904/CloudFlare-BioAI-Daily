@@ -6,7 +6,7 @@ import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationProm
 import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
-import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
+import { buildDailyContentWithFrontMatter, getYearMonth, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyMinimumItemCount, resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import {
     buildDailyCandidateIdentity,
@@ -719,7 +719,6 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         const dailyFilePath = `daily/${dateStr}.md`;
         const dailyPagePath = `content/cn/${yearMonth}/${dateStr}.md`;
         const monthDirectoryIndexPath = `content/cn/${yearMonth}/_index.md`;
-        const homePath = 'content/cn/_index.md';
 
         const dailyPageTitle = `${env.DAILY_TITLE} ${formatDateToChinese(dateStr)}`;
         const dailyPageContent = buildDailyContentWithFrontMatter(dateStr, dailySummaryMarkdownContent, {
@@ -742,18 +741,6 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         const dailyCommitMessage = `${existingDailySha ? 'Update' : 'Create'} daily summary for ${dateStr} (Scheduled)`;
         await createOrUpdateGitHubFile(env, dailyFilePath, dailySummaryMarkdownContent, dailyCommitMessage, existingDailySha);
 
-        let existingHomeContent = '';
-        try {
-            existingHomeContent = await getGitHubFileContent(env, homePath);
-        } catch (error) {
-            console.warn(`[Scheduled] Home page not found, will create a new one.`);
-        }
-        const homeTitle = dailyPageTitle;
-        const homeContent = updateHomeIndexContent(existingHomeContent, dailySummaryMarkdownContent, dateStr, { title: homeTitle });
-        const existingHomeSha = await getGitHubFileSha(env, homePath);
-        const homeCommitMessage = `${existingHomeSha ? 'Update' : 'Create'} home page for ${dateStr} (Scheduled)`;
-        await createOrUpdateGitHubFile(env, homePath, homeContent, homeCommitMessage, existingHomeSha);
-
         await storeAcceptedDailyKeys(env, dateStr, selectedCandidates);
         await recordStatus({
             state: 'published',
@@ -763,7 +750,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             itemCount: validation.itemCount,
             validationPassed: true,
             repairAttempted,
-            paths: { dailyFilePath, dailyPagePath, monthDirectoryIndexPath, homePath },
+            paths: { dailyFilePath, dailyPagePath, monthDirectoryIndexPath },
         });
         console.log(`[Scheduled][Daily] Published successfully (${runId}).`);
         return {
