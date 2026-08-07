@@ -33,6 +33,8 @@ function getCandidateText(candidate) {
         candidate?.text,
         candidate?.url,
         candidate?.details?.content_html,
+        candidate?.details?.primaryEvidence?.title,
+        candidate?.details?.primaryEvidence?.contentText,
     ].filter(Boolean).join(' ');
 }
 
@@ -161,6 +163,16 @@ export function getDailyCandidateDedupeKeys(candidate) {
 }
 
 export function classifySourceTier(candidate) {
+    const explicitPrimary = normalizeCanonicalUrl(candidate?.primaryUrl);
+    if (explicitPrimary) {
+        try {
+            if (isPrimaryHostname(new URL(explicitPrimary).hostname)) {
+                return { tier: 'A', reason: '已绑定论文、注册平台、公共机构或项目官方入口' };
+            }
+        } catch {
+            // Fall through to the discovery URL classification.
+        }
+    }
     const canonicalUrl = normalizeCanonicalUrl(candidate?.url);
     let hostname = '';
     try {
@@ -225,7 +237,8 @@ export function inferDailyEvidence(candidate) {
         : detectStudyType(text);
     let evidenceText = text;
     if (sourceType === 'news') {
-        evidenceText = String(candidate?.title || '');
+        const primaryEvidenceText = String(candidate?.details?.primaryEvidence?.contentText || '');
+        evidenceText = primaryEvidenceText || String(candidate?.title || '');
         studyType = detectStudyType(evidenceText);
         if (studyType === '素材未明确说明') studyType = '新闻/机构动态（研究类型需回看一手来源）';
     }
@@ -250,6 +263,66 @@ export function inferDailyEvidence(candidate) {
               : '请根据来源确认是否同行评议',
         evidenceLevel,
     };
+}
+
+function primaryIdentityKeys(candidate) {
+    const identity = buildDailyCandidateIdentity(candidate);
+    return [
+        identity.doi && `doi:${identity.doi}`,
+        identity.arxivId && `arxiv:${identity.arxivId}`,
+        identity.trialId && `trial:${identity.trialId}`,
+    ].filter(Boolean);
+}
+
+/**
+ * Attach a matching first-hand paper record to a discovery candidate before
+ * editorial selection. The source type remains unchanged so source/pool caps
+ * still work, while evidence classification and repair use the primary record.
+ */
+export function enrichDailyCandidatesWithPrimaryEvidence(candidates = []) {
+    const primaryByIdentity = new Map();
+    for (const candidate of candidates) {
+        if (candidate?.sourceType !== 'paper') continue;
+        for (const key of primaryIdentityKeys(candidate)) {
+            if (!primaryByIdentity.has(key)) primaryByIdentity.set(key, candidate);
+        }
+    }
+
+    return candidates.map((candidate) => {
+        if (candidate?.sourceType === 'paper') return candidate;
+        const primary = primaryIdentityKeys(candidate)
+            .map((key) => primaryByIdentity.get(key))
+            .find(Boolean);
+        if (!primary) return candidate;
+
+        const primaryUrl = resolveDailyPrimarySource(primary) || normalizeCanonicalUrl(primary.url);
+        const primaryContent = String(primary.contentText || primary.description || '').replace(/\s+/g, ' ').trim();
+        return {
+            ...candidate,
+            primaryUrl,
+            contentText: [
+                candidate.contentText,
+                primaryContent ? `Primary evidence abstract: ${primaryContent}` : '',
+            ].filter(Boolean).join('\n'),
+            mediaCandidates: [...new Set([
+                ...(candidate.mediaCandidates || []),
+                ...(primary.mediaCandidates || []),
+            ])],
+            details: {
+                ...(candidate.details || {}),
+                discoveryUrl: candidate?.details?.discoveryUrl || normalizeCanonicalUrl(candidate.url),
+                journal: primary?.details?.journal || candidate?.details?.journal || '',
+                publicationTypes: primary?.details?.publicationTypes || candidate?.details?.publicationTypes || [],
+                publicationStatus: primary?.details?.publicationStatus || candidate?.details?.publicationStatus || '',
+                sourceDatabase: primary?.details?.sourceDatabase || candidate?.details?.sourceDatabase || '',
+                primaryEvidence: {
+                    title: primary.title || '',
+                    source: primary.source || '',
+                    contentText: primaryContent,
+                },
+            },
+        };
+    });
 }
 
 export function buildDailyEvidencePromptHint(candidate) {

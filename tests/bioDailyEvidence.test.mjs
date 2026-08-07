@@ -3,12 +3,43 @@ import assert from 'node:assert/strict';
 
 import {
   buildDailyCandidateIdentity,
+  enrichDailyCandidatesWithPrimaryEvidence,
   getDailyCandidateDedupeKeys,
   hasDailyPrimarySource,
   inferDailyEvidence,
   normalizeCanonicalUrl,
   resolveDailyPrimarySource,
 } from '../src/bioDailyEvidence.js';
+
+test('enriches a discovery item with the matching DOI primary record', () => {
+  const discovery = {
+    title: 'Report about a senescence target',
+    url: 'https://news.example/senescence-target',
+    description: 'Original paper DOI 10.1038/example.2026',
+    sourceType: 'news',
+    contentText: 'Secondary report.',
+    details: {},
+  };
+  const paper = {
+    title: 'Primary senescence study',
+    url: 'https://doi.org/10.1038/example.2026',
+    sourceType: 'paper',
+    contentText: 'In vivo inhibition reduced inflammation in aged mice.',
+    details: {
+      journal: 'Nature',
+      publicationTypes: ['Journal Article'],
+      publicationStatus: 'journal record',
+      sourceDatabase: 'MED',
+    },
+  };
+
+  const [enriched] = enrichDailyCandidatesWithPrimaryEvidence([discovery, paper]);
+  assert.equal(enriched.primaryUrl, paper.url);
+  assert.equal(enriched.details.journal, 'Nature');
+  assert.match(enriched.contentText, /Primary evidence abstract:.*aged mice/);
+  assert.equal(inferDailyEvidence(enriched).studyType, '动物研究');
+  assert.match(inferDailyEvidence(enriched).population, /小鼠/);
+});
 
 test('normalizes discovery, DOI, trial and GitHub URLs to canonical identities', () => {
   assert.equal(normalizeCanonicalUrl('https://papers.cool/arxiv/2608.03145?utm_source=x'), 'https://arxiv.org/abs/2608.03145');

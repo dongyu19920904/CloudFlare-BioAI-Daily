@@ -11,6 +11,7 @@ import { resolveDailyMinimumItemCount, resolveDailyPromptItemCap, selectDailyPro
 import {
     buildDailyCandidateIdentity,
     buildDailyEvidencePromptHint,
+    enrichDailyCandidatesWithPrimaryEvidence,
     getDailyCandidateDedupeKeys,
 } from '../bioDailyEvidence.js';
 import {
@@ -593,9 +594,14 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             }
         }
 
+        const enrichedPromptCandidates = enrichDailyCandidatesWithPrimaryEvidence(promptCandidates)
+            .map((candidate) => ({
+                ...candidate,
+                text: buildDailyCandidatePromptText(candidate),
+            }));
         const minimumItems = resolveDailyMinimumItemCount(env);
         let selectedCandidates = selectDailyPromptCandidates(
-            promptCandidates,
+            enrichedPromptCandidates,
             env,
             resolveDailyPromptItemCap(env, Boolean(specifiedDate)),
             { acceptedKeys }
