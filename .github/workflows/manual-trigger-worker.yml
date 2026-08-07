@@ -17,6 +17,11 @@ on:
         required: false
         default: "false"
         type: string
+      dry_run:
+        description: "Daily only: generate and validate without publishing"
+        required: false
+        default: "false"
+        type: string
 
 jobs:
   trigger:
@@ -31,6 +36,7 @@ jobs:
           INPUT_MODE: ${{ github.event.inputs.mode }}
           INPUT_TARGET_DATE: ${{ github.event.inputs.target_date }}
           INPUT_ASYNC: ${{ github.event.inputs.async }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
           WORKER_BASE_URL: ${{ vars.WORKER_BASE_URL }}
           TRIGGER_SECRET: ${{ secrets.TEST_TRIGGER_SECRET }}
         run: |
@@ -49,6 +55,7 @@ jobs:
           TRIGGER_SECRET="${TRIGGER_SECRET:-$DEFAULT_TRIGGER_SECRET}"
           MODE="${INPUT_MODE:-opportunity-batch}"
           ASYNC_FLAG="${INPUT_ASYNC:-false}"
+          DRY_RUN_FLAG="${INPUT_DRY_RUN:-false}"
 
           case "$MODE" in
             daily)
@@ -69,6 +76,9 @@ jobs:
           URL="${WORKER_BASE_URL%/}/${PATH_PART}?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
           if [[ "$ASYNC_FLAG" == "true" || "$ASYNC_FLAG" == "1" ]]; then
             URL="${WORKER_BASE_URL%/}/${PATH_PART}?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&async=1"
+          fi
+          if [[ "$MODE" == "daily" && ( "$DRY_RUN_FLAG" == "true" || "$DRY_RUN_FLAG" == "1" ) ]]; then
+            URL="${URL}&dryRun=1"
           fi
 
           echo "Mode: $MODE"
@@ -97,4 +107,5 @@ jobs:
             echo "- Mode: ${{ github.event.inputs.mode }}"
             echo "- Date: ${{ github.event.inputs.target_date }}"
             echo "- Async: ${{ github.event.inputs.async }}"
+            echo "- Dry run: ${{ github.event.inputs.dry_run }}"
           } >> "$GITHUB_STEP_SUMMARY"
