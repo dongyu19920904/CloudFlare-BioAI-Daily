@@ -734,6 +734,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                 date: dateStr,
                 runId,
                 selectedCount: selectedContentItems.length,
+                repairAttempted,
                 sourceAudit,
                 validation,
                 preview: dailySummaryMarkdownContent,

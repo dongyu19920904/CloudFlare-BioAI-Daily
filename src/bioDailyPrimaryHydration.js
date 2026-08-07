@@ -39,9 +39,8 @@ export async function hydrateDailyPrimaryEvidence(candidates = [], env = {}, fet
     const lookupCap = Math.min(positiveInteger(env.DAILY_PRIMARY_HYDRATION_CAP, 2), 3);
     const lookupIndexes = new Set(candidates
         .map((candidate, index) => ({ candidate, index, identity: buildDailyCandidateIdentity(candidate) }))
-        .filter(({ candidate, identity }) => candidate?.sourceType === 'news'
-            && (!candidate?.pool || candidate.pool === 'research')
-            && Boolean(identity.doi))
+        .filter(({ candidate, identity }) => candidate?.sourceType === 'news' && Boolean(identity.doi))
+        .sort((left, right) => Number(right.candidate?.pool === 'research') - Number(left.candidate?.pool === 'research'))
         .slice(0, lookupCap)
         .map(({ index }) => index));
     const hydrated = [];

@@ -43,7 +43,7 @@ test('hydrates a selected DOI discovery item from the Europe PMC primary record'
     assert.match(inferDailyEvidence(candidate).population, /小鼠/);
 });
 
-test('reserves the bounded DOI lookup budget for research news candidates', async () => {
+test('prioritizes research news within the bounded DOI lookup budget', async () => {
     const requested = [];
     const fetchImpl = async (url) => {
         requested.push(String(url));
@@ -88,6 +88,37 @@ test('reserves the bounded DOI lookup budget for research news candidates', asyn
     assert.equal(hydrated[0].sourceType, 'news');
     assert.equal(hydrated[1].sourceType, 'paper');
     assert.equal(hydrated[2].sourceType, 'paper');
+});
+
+test('hydrates a DOI-backed biomedical news item even when its pool was misclassified', async () => {
+    const requested = [];
+    const fetchImpl = async (url) => {
+        requested.push(String(url));
+        return new Response(JSON.stringify({
+            resultList: {
+                result: [{
+                    doi: '10.1038/s41586-026-10791-2',
+                    title: 'Mitochondrial metabolism and epigenetic crosstalk drive SASP',
+                    abstractText: 'Cell experiments and in vivo work in aged mice showed reduced inflammation.',
+                    source: 'MED',
+                    journalInfo: { journal: { title: 'Nature' } },
+                    pubTypeList: { pubType: ['Journal Article'] },
+                }],
+            },
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+    };
+    const [candidate] = await hydrateDailyPrimaryEvidence([{
+        title: 'Secondary report assigned to the industry pool',
+        url: 'https://news.example/slc25a1',
+        sourceType: 'news',
+        pool: 'industry',
+        description: 'Original paper DOI 10.1038/s41586-026-10791-2',
+    }], { DAILY_PRIMARY_HYDRATION_CAP: '1' }, fetchImpl);
+
+    assert.equal(requested.length, 1);
+    assert.equal(candidate.sourceType, 'paper');
+    assert.equal(candidate.details.journal, 'Nature');
+    assert.match(candidate.contentText, /aged mice/);
 });
 
 test('DOI hydration failures preserve the selected candidate and stay non-blocking', async () => {
