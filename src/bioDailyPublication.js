@@ -1,22 +1,18 @@
 import {
     buildAllowedSourceUrls,
     normalizeCanonicalUrl,
+    resolveDailyPrimarySource,
 } from './bioDailyEvidence.js';
 
 const SIGNAL_SECTION_PATTERN = /^##\s+\*{0,2}今日信号\*{0,2}\s*$/im;
 const SIGNAL_HEADING_PATTERN = /^###\s+(?:\d+[.)]\s*)?(.+?)\s*$/gm;
-const REQUIRED_FIELDS = [
-    '直接结论',
-    '发生了什么',
-    '意味着什么',
-    '不能得出什么结论',
-    '研究类型',
-    '对象与样本',
-    '发表状态',
-    '利益关系',
-    '证据等级',
-    '距离实际应用',
-    '来源',
+const REQUIRED_FIELD_GROUPS = [
+    { label: '一句话结论', aliases: ['一句话结论', '直接结论'] },
+    { label: '发生了什么', aliases: ['发生了什么'] },
+    { label: '为什么重要', aliases: ['为什么重要', '意味着什么'] },
+    { label: '证据说明', aliases: ['证据说明'] },
+    { label: '目前不能得出', aliases: ['目前不能得出', '不能得出什么结论'] },
+    { label: '来源', aliases: ['来源'] },
 ];
 
 const CLINICAL_OVERCLAIM_PATTERNS = [
@@ -49,11 +45,12 @@ function extractSignalCards(markdown) {
     });
 }
 
-function hasRequiredField(body, field) {
+function hasRequiredField(body, fields) {
+    const normalizedFields = new Set(fields.map(normalizeFieldLabel));
     const lines = String(body || '').split(/\r?\n/);
     return lines.some((line) => {
         const match = line.match(/^\s*(?:[-*]\s*)?\*{0,2}([^：:]+)\*{0,2}\s*[：:]/);
-        return match && normalizeFieldLabel(match[1]) === normalizeFieldLabel(field) && line.split(/[：:]/).slice(1).join(':').trim().length > 0;
+        return match && normalizedFields.has(normalizeFieldLabel(match[1])) && line.split(/[：:]/).slice(1).join(':').trim().length > 0;
     });
 }
 
@@ -68,14 +65,29 @@ function extractLinks(markdown) {
 function buildAllowedMediaMap(candidates = []) {
     const map = new Map();
     for (const candidate of candidates) {
-        const mediaUrl = candidate?.mediaUrl;
-        if (!/^https?:\/\//i.test(mediaUrl || '')) continue;
-        map.set(normalizeCanonicalUrl(mediaUrl), {
-            title: String(candidate.title || '研究相关图片').replace(/[\[\]"]/g, '').trim(),
-            source: String(candidate.source || '原始来源').replace(/[\[\]"]/g, '').trim(),
-        });
+        const mediaItems = Array.isArray(candidate?.media) && candidate.media.length > 0
+            ? candidate.media
+            : (candidate?.mediaUrl ? [{ url: candidate.mediaUrl }] : []);
+        for (const media of mediaItems) {
+            if (!/^https?:\/\//i.test(media?.url || '')) continue;
+            map.set(normalizeCanonicalUrl(media.url), {
+                title: String(media.alt || candidate.title || '研究相关图片').replace(/[\[\]"]/g, '').trim(),
+                source: String(media.source || candidate.source || '原始来源').replace(/[\[\]"]/g, '').trim(),
+                sourceUrl: normalizeCanonicalUrl(media.sourceUrl || resolveDailyPrimarySource(candidate) || candidate.url),
+            });
+        }
     }
     return map;
+}
+
+function candidateAllowsLink(candidate, link) {
+    const normalized = normalizeCanonicalUrl(link);
+    return buildAllowedSourceUrls([candidate]).has(normalized);
+}
+
+function evidenceLevelFromCard(body) {
+    const match = String(body || '').match(/\*{0,2}证据说明\*{0,2}\s*[：:]\s*\*{0,2}(高|中|初步)(?:证据)?\*{0,2}/);
+    return match ? match[1] : '';
 }
 
 export function sanitizeBioDailyMedia(markdown, candidates = []) {
@@ -117,13 +129,17 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
         const normalizedTitle = card.title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
         if (normalizedTitle && seenTitles.has(normalizedTitle)) errors.push(`${label}与前文标题重复`);
         if (normalizedTitle) seenTitles.add(normalizedTitle);
-        for (const field of REQUIRED_FIELDS) {
-            if (!hasRequiredField(card.body, field)) errors.push(`${label}缺少字段：${field}`);
+        for (const field of REQUIRED_FIELD_GROUPS) {
+            if (!hasRequiredField(card.body, field.aliases)) errors.push(`${label}缺少字段：${field.label}`);
         }
-        if (!/\*{0,2}证据等级\*{0,2}\s*[：:]\s*(?:高|中|初步)(?:\s|—|-|，|。)/.test(card.body)) {
-            errors.push(`${label}证据等级必须是“高/中/初步”并解释依据`);
+        const evidenceLevel = evidenceLevelFromCard(card.body);
+        if (!evidenceLevel) {
+            errors.push(`${label}证据说明必须以“高/中/初步证据”开头并解释依据`);
         }
-        if (!/\*{0,2}不能得出什么结论\*{0,2}\s*[：:].{12,}/s.test(card.body)) {
+        for (const detail of ['研究类型', '对象/样本', '发表状态', '利益关系', '距离应用']) {
+            if (!card.body.includes(detail)) errors.push(`${label}证据说明缺少：${detail}`);
+        }
+        if (!/\*{0,2}(?:目前不能得出|不能得出什么结论)\*{0,2}\s*[：:].{12,}/s.test(card.body)) {
             errors.push(`${label}必须明确说明目前不能得出的结论`);
         }
         const sourceLinks = extractLinks(card.body);
@@ -131,6 +147,15 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
         for (const link of sourceLinks) {
             const normalized = normalizeCanonicalUrl(link);
             if (!allowedUrls.has(normalized)) errors.push(`${label}使用了未在候选素材中出现的来源：${link}`);
+        }
+        const matchedCandidates = candidates.filter((candidate) => sourceLinks.some((link) => candidateAllowsLink(candidate, link)));
+        const researchCandidates = matchedCandidates.filter((candidate) => candidate.pool === 'research' || candidate.sourceType === 'paper');
+        if (researchCandidates.length > 0) {
+            const hasPrimaryLink = researchCandidates.some((candidate) => {
+                const primaryUrl = resolveDailyPrimarySource(candidate);
+                return primaryUrl && sourceLinks.some((link) => normalizeCanonicalUrl(link) === primaryUrl);
+            });
+            if (!hasPrimaryLink) errors.push(`${label}生物医学研究必须链接论文、注册平台或机构原文`);
         }
     });
 
@@ -151,6 +176,13 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
 
     const imageMatches = [...content.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)/g)];
     const mediaMap = buildAllowedMediaMap(candidates);
+    const uniqueImageUrls = new Set(imageMatches.map((image) => normalizeCanonicalUrl(image[2])));
+    const requiredImageCount = Math.min(2, mediaMap.size);
+    if (uniqueImageUrls.size < requiredImageCount) {
+        errors.push(`已有 ${mediaMap.size} 张通过校验的候选图片，正文至少应使用 ${requiredImageCount} 张`);
+    }
+    if (uniqueImageUrls.size > 4) errors.push('正文图片最多 4 张，避免图片喧宾夺主');
+    if (mediaMap.size === 0) warnings.push('本期没有通过来源与可用性校验的外部图片，将由前端证据概览信息图兜底');
     for (const image of imageMatches) {
         if (!mediaMap.has(normalizeCanonicalUrl(image[2]))) errors.push(`图片不在候选素材允许列表：${image[2]}`);
         if (!image[1] || /^(?:图片|image|配图|AI资讯图片)$/i.test(image[1].trim())) errors.push('图片 alt 必须描述真实信息');
@@ -169,9 +201,9 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
 export function summarizeBioDailyEvidence(markdown) {
     const content = String(markdown || '');
     const counts = { high: 0, medium: 0, preliminary: 0 };
-    counts.high = (content.match(/证据等级\*{0,2}\s*[：:]\s*高(?:\s|—|-|，|。)/g) || []).length;
-    counts.medium = (content.match(/证据等级\*{0,2}\s*[：:]\s*中(?:\s|—|-|，|。)/g) || []).length;
-    counts.preliminary = (content.match(/证据等级\*{0,2}\s*[：:]\s*初步(?:\s|—|-|，|。)/g) || []).length;
+    counts.high = (content.match(/证据说明\*{0,2}\s*[：:]\s*\*{0,2}高(?:证据)?/g) || []).length;
+    counts.medium = (content.match(/证据说明\*{0,2}\s*[：:]\s*\*{0,2}中(?:证据)?/g) || []).length;
+    counts.preliminary = (content.match(/证据说明\*{0,2}\s*[：:]\s*\*{0,2}初步(?:证据)?/g) || []).length;
     const parts = [];
     if (counts.high) parts.push(`高 ${counts.high}`);
     if (counts.medium) parts.push(`中 ${counts.medium}`);
@@ -187,7 +219,7 @@ export function shouldAdoptBioDailyRepair(initialValidation, repairedValidation)
 
 export function buildBioDailyRepairSystemPrompt(validationErrors, candidates = []) {
     const allowed = [...buildAllowedSourceUrls(candidates)].join('\n');
-    return `你是 AI 生命延续学日报的定向修订编辑。只修复下列校验错误，保留已经正确的事实、数字和栏目结构。\n\n校验错误：\n- ${validationErrors.join('\n- ')}\n\n允许使用的来源 URL（不得新增）：\n${allowed}\n\n必须输出完整修订后的 Markdown，不解释修订过程。不得补写素材没有提供的样本量、疗效或医学结论。若样本信息缺失，明确写“素材未报告”，并把证据等级保持为“初步”。`;
+    return `你是 AI 生命延续学日报的定向修订编辑。只修复下列校验错误，保留已经正确的事实、数字和栏目结构。\n\n校验错误：\n- ${validationErrors.join('\n- ')}\n\n允许使用的来源 URL（不得新增）：\n${allowed}\n\n每条只保留“一句话结论、发生了什么、为什么重要、证据说明、目前不能得出、来源”六个阅读字段。证据说明必须在一个紧凑段落中写明证据等级、研究类型、对象/样本、发表状态、利益关系和距离应用。必须输出完整修订后的 Markdown，不解释修订过程。不得补写素材没有提供的样本量、疗效或医学结论；信息缺失时明确写“素材未报告”，证据保持“初步”。`;
 }
 
 export function assembleBioDailyMarkdown(body, summary) {

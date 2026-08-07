@@ -2,6 +2,7 @@ import {
     buildDailyCandidateIdentity,
     classifySourceTier,
     getDailyCandidateDedupeKeys,
+    hasDailyPrimarySource,
     normalizeCanonicalUrl,
 } from './bioDailyEvidence.js';
 
@@ -125,7 +126,7 @@ function candidateSortScore(candidate) {
     const publishedAt = new Date(candidate?.publishedDate || candidate?.published_date || 0).getTime();
     const recencyScore = Number.isFinite(publishedAt) ? Math.max(0, Math.min(20, publishedAt / 1e12)) : 0;
     const bioScore = BIO_RELEVANCE_PATTERN.test(getCandidateEditorialText(candidate)) ? 30 : 0;
-    const mediaScore = candidate?.hasMedia ? 2 : 0;
+    const mediaScore = candidate?.hasMedia ? 8 : 0;
     return tierScore + recencyScore + bioScore + mediaScore;
 }
 
@@ -160,7 +161,8 @@ export function selectDailyPromptCandidates(candidates = [], env = {}, cap = 8, 
         .map((candidate) => ({
             ...candidate,
             pool: candidate.pool || classifyDailyCandidatePool(candidate),
-        }));
+        }))
+        .filter((candidate) => candidate.pool !== 'research' || hasDailyPrimarySource(candidate));
 
     const addCandidate = (candidate, enforcePoolCap = true) => {
         if (!candidate || selected.length >= normalizedCap) return false;
@@ -182,16 +184,12 @@ export function selectDailyPromptCandidates(candidates = [], env = {}, cap = 8, 
     };
 
     // Reserve the editorial mix before filling remaining slots by score.
-    const poolOrder = ['research', 'tool', 'industry', 'project', 'fun'];
+    const poolOrder = ['research', 'research', 'tool', 'industry', 'project', 'fun'];
     for (const pool of poolOrder) {
         const candidate = prepared.find((item) => item.pool === pool && !selected.includes(item));
         if (candidate) addCandidate(candidate);
     }
 
     for (const candidate of prepared) addCandidate(candidate);
-    if (selected.length < normalizedCap) {
-        for (const candidate of prepared) addCandidate(candidate, false);
-    }
-
     return selected.slice(0, normalizedCap);
 }

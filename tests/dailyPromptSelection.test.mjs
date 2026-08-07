@@ -88,7 +88,7 @@ test("selectDailyPromptCandidates keeps source variety", () => {
       DAILY_PROJECT_ITEM_CAP: "1",
       DAILY_SOCIAL_ITEM_CAP: "1",
     }, 5).map((candidate) => candidate.text),
-    ["aging cohort", "FDA policy for biological age", "longevity research discussion", "aging cohort"]
+    ["aging cohort", "aging cohort", "FDA policy for biological age", "longevity research discussion"]
   );
 });
 
@@ -159,14 +159,36 @@ test("an Alzheimer benchmark mentioned only inside an unrelated AI abstract is n
 
 test("one publisher cannot dominate the daily candidate set", () => {
   const candidates = [1, 2, 3].map((index) => ({
-    title: `Biological age signal ${index}`,
-    description: "Aging clock research update.",
+    title: `Longevity software platform launch ${index}`,
+    description: "A company launches a longevity research tool.",
     sourceType: "news",
     url: `https://same-source.example/story-${index}`,
     publishedDate: `2026-08-0${index}T12:00:00Z`,
   }));
   const selected = selectDailyPromptCandidates(candidates, { DAILY_PUBLISHER_ITEM_CAP: "2" }, 8);
   assert.equal(selected.length, 2);
+});
+
+test("secondary biomedical research without a primary source is excluded from the main issue", () => {
+  const selected = selectDailyPromptCandidates([{
+    title: "Biological age study reported by a news site",
+    description: "A report claims a new aging clock predicts lifespan.",
+    sourceType: "news",
+    url: "https://news.example/story",
+    publishedDate: "2026-08-07T02:00:00Z",
+  }], {}, 8);
+  assert.deepEqual(selected, []);
+});
+
+test("a DOI found in discovery material qualifies as the primary biomedical source", () => {
+  const selected = selectDailyPromptCandidates([{
+    title: "Biological age cohort study",
+    description: "The source cites DOI 10.1000/aging-clock.2026.",
+    sourceType: "news",
+    url: "https://news.example/story",
+    publishedDate: "2026-08-07T02:00:00Z",
+  }], {}, 8);
+  assert.equal(selected.length, 1);
 });
 
 test("DOI resolver traffic is grouped by registrant prefix, not as one publisher", () => {

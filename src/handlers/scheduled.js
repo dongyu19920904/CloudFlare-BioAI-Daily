@@ -1,4 +1,4 @@
-import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, convertPlaceholdersToMarkdownImages, setFetchDate, hasMedia, replaceIncorrectDomainLinks, normalizeDailyBody } from '../helpers.js';
+import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, convertPlaceholdersToMarkdownImages, setFetchDate, replaceIncorrectDomainLinks, normalizeDailyBody } from '../helpers.js';
 import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
@@ -21,6 +21,7 @@ import {
     summarizeBioDailyEvidence,
     validateBioDailyMarkdown,
 } from '../bioDailyPublication.js';
+import { extractDailyMediaCandidates, prepareDailyCandidatesMedia } from '../bioDailyMedia.js';
 import { buildBioDailyRunId, storeBioDailyStatus } from '../bioDailyStatus.js';
 import { runIndependentBioTasks } from '../bioTaskIsolation.js';
 import {
@@ -95,23 +96,21 @@ function parsePositiveInteger(value, defaultValue) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
-function extractFirstMediaUrl(item) {
-    const explicitImage = item?.details?.imageUrl || item?.imageUrl;
-    if (explicitImage) return explicitImage;
-
-    const contentHtml = String(item?.details?.content_html || '');
-    const imageMatch = contentHtml.match(/<img\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
-    if (imageMatch) return imageMatch[1];
-    const videoMatch = contentHtml.match(/<video\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
-    if (videoMatch) return videoMatch[1];
-    return '';
-}
-
-function buildMediaPromptHint(item) {
-    const mediaUrl = extractFirstMediaUrl(item);
-    if (!/^https?:\/\//i.test(mediaUrl)) return '';
-    const title = String(item?.title || '相关图片').replace(/\s+/g, ' ').trim();
-    return `[图片: ${title} ${mediaUrl}]`;
+function buildDailyCandidatePromptText(candidate) {
+    const identity = buildDailyCandidateIdentity(candidate);
+    const mediaHints = (candidate.media || [])
+        .map((media) => `[可用图片: ${media.alt} ${media.url}；图注来源：${media.source}]`);
+    return [
+        `Type: ${candidate.sourceType || 'unknown'}`,
+        `Title: ${candidate.title || 'N/A'}`,
+        `Published: ${candidate.publishedDate || 'N/A'}`,
+        `Source name: ${candidate.source || 'N/A'}`,
+        `Url: ${identity.canonicalUrl || candidate.url || 'N/A'}`,
+        candidate.description ? `Description: ${truncatePromptText(candidate.description, 500)}` : '',
+        candidate.contentText ? `Content: ${candidate.contentText}` : '',
+        buildDailyEvidencePromptHint(candidate),
+        ...mediaHints,
+    ].filter(Boolean).join('\n');
 }
 
 function normalizeDedupeUrl(url) {
@@ -557,8 +556,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         for (const sourceType in allUnifiedData) {
             const items = allUnifiedData[sourceType];
             for (const item of items || []) {
-                const mediaUrl = extractFirstMediaUrl(item);
-                const itemHasMedia = Boolean(mediaUrl || (item.details?.content_html && hasMedia(item.details.content_html)));
+                const mediaCandidates = extractDailyMediaCandidates(item);
+                const itemHasMedia = mediaCandidates.length > 0;
                 const resolvedType = item.type || sourceType;
                 sourceStats[resolvedType] = sourceStats[resolvedType] || { total: 0, media: 0 };
                 sourceStats[resolvedType].total += 1;
@@ -574,35 +573,30 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                     description: item.description || '',
                     source: item.source || 'Unknown',
                     details: item.details || {},
-                    mediaUrl,
+                    mediaCandidates,
                 };
                 const contentText = truncatePromptText(
                     stripHtml(item?.details?.content_html || item?.description || ''),
                     1400
                 );
-                const identity = buildDailyCandidateIdentity(candidate);
-                candidate.text = [
-                    `Type: ${resolvedType}`,
-                    `Title: ${item.title || 'N/A'}`,
-                    `Published: ${item.published_date || 'N/A'}`,
-                    `Source name: ${item.source || 'N/A'}`,
-                    `Url: ${identity.canonicalUrl || item.url || 'N/A'}`,
-                    item.description ? `Description: ${truncatePromptText(item.description, 500)}` : '',
-                    contentText ? `Content: ${contentText}` : '',
-                    buildDailyEvidencePromptHint(candidate),
-                    mediaUrl ? `[图片: ${item.title || '研究相关图片'} ${mediaUrl}]` : '',
-                ].filter(Boolean).join('\n');
+                candidate.contentText = contentText;
+                candidate.text = buildDailyCandidatePromptText(candidate);
                 promptCandidates.push(candidate);
             }
         }
 
         const minimumItems = resolveDailyMinimumItemCount(env);
-        const selectedCandidates = selectDailyPromptCandidates(
+        let selectedCandidates = selectDailyPromptCandidates(
             promptCandidates,
             env,
             resolveDailyPromptItemCap(env, Boolean(specifiedDate)),
             { acceptedKeys }
         );
+        selectedCandidates = await prepareDailyCandidatesMedia(selectedCandidates, env);
+        selectedCandidates = selectedCandidates.map((candidate) => ({
+            ...candidate,
+            text: buildDailyCandidatePromptText(candidate),
+        }));
         const selectedContentItems = selectedCandidates.map((candidate) => candidate.text);
         const selectedStats = selectedCandidates.reduce((acc, candidate) => {
             const key = `${candidate.sourceType}:${candidate.pool || 'unclassified'}`;

@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 import {
   buildDailyCandidateIdentity,
   getDailyCandidateDedupeKeys,
+  hasDailyPrimarySource,
   inferDailyEvidence,
   normalizeCanonicalUrl,
+  resolveDailyPrimarySource,
 } from '../src/bioDailyEvidence.js';
 
 test('normalizes discovery, DOI, trial and GitHub URLs to canonical identities', () => {
@@ -32,6 +34,17 @@ test('dedupe keys cover DOI, trial, repo, arXiv and event entity', () => {
   assert.ok(keys.includes('trial:NCT06750432'));
   assert.ok(keys.includes('repo:owner/repo'));
   assert.ok(keys.some((key) => key.startsWith('entity:')));
+});
+
+test('resolves primary sources independently from discovery pages', () => {
+  const candidate = {
+    title: 'Media report about an aging cohort',
+    url: 'https://news.example/story',
+    description: 'The paper DOI is 10.1000/aging.2026.',
+  };
+  assert.equal(resolveDailyPrimarySource(candidate), 'https://doi.org/10.1000/aging.2026');
+  assert.equal(hasDailyPrimarySource(candidate), true);
+  assert.equal(hasDailyPrimarySource({ title: 'Aging report', url: 'https://news.example/story' }), false);
 });
 
 test('preprints, animal and benchmark work cannot exceed preliminary evidence', () => {

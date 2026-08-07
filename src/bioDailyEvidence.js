@@ -40,6 +40,11 @@ function normalizeHostname(hostname) {
     return String(hostname || '').toLowerCase().replace(/^www\./, '');
 }
 
+function isPrimaryHostname(hostname) {
+    const normalized = normalizeHostname(hostname);
+    return PRIMARY_HOSTS.has(normalized) || normalized.endsWith('.gov') || normalized.endsWith('.edu');
+}
+
 export function extractDoi(value) {
     const match = String(value || '').match(DOI_PATTERN);
     return match ? match[0].replace(/[),.;]+$/, '').toLowerCase() : '';
@@ -119,6 +124,28 @@ export function buildDailyCandidateIdentity(candidate) {
         repo: extractGithubRepo(text),
         entity: normalizeEventEntity(candidate?.title),
     };
+}
+
+export function resolveDailyPrimarySource(candidate) {
+    const explicitPrimary = normalizeCanonicalUrl(candidate?.primaryUrl);
+    if (explicitPrimary) return explicitPrimary;
+
+    const identity = buildDailyCandidateIdentity(candidate);
+    if (identity.doi) return `https://doi.org/${identity.doi}`;
+    if (identity.trialId) return `https://clinicaltrials.gov/study/${identity.trialId}`;
+    if (identity.repo) return `https://github.com/${identity.repo}`;
+    if (identity.arxivId) return `https://arxiv.org/abs/${identity.arxivId}`;
+
+    try {
+        const canonicalUrl = normalizeCanonicalUrl(candidate?.url);
+        return isPrimaryHostname(new URL(canonicalUrl).hostname) ? canonicalUrl : '';
+    } catch {
+        return '';
+    }
+}
+
+export function hasDailyPrimarySource(candidate) {
+    return Boolean(resolveDailyPrimarySource(candidate));
 }
 
 export function getDailyCandidateDedupeKeys(candidate) {
@@ -228,8 +255,12 @@ export function inferDailyEvidence(candidate) {
 export function buildDailyEvidencePromptHint(candidate) {
     const evidence = inferDailyEvidence(candidate);
     const identity = buildDailyCandidateIdentity(candidate);
+    const primaryUrl = resolveDailyPrimarySource(candidate);
+    const discoveryUrl = normalizeCanonicalUrl(candidate?.details?.discoveryUrl || (primaryUrl !== identity.canonicalUrl ? identity.canonicalUrl : ''));
     return [
         `Canonical source: ${identity.canonicalUrl || candidate?.url || 'N/A'}`,
+        `Primary source: ${primaryUrl || 'not verified — do not use as a main biomedical claim'}`,
+        discoveryUrl ? `Discovery source: ${discoveryUrl}` : '',
         `Source tier: ${evidence.sourceTier} (${evidence.sourceReason})`,
         `Detected study type: ${evidence.studyType}`,
         `Detected subject/sample: ${evidence.population}`,
@@ -245,7 +276,7 @@ export function buildAllowedSourceUrls(candidates = []) {
     const urls = new Set();
     for (const candidate of candidates) {
         const identity = buildDailyCandidateIdentity(candidate);
-        for (const value of [candidate?.url, identity.canonicalUrl]) {
+        for (const value of [candidate?.url, candidate?.primaryUrl, candidate?.details?.discoveryUrl, identity.canonicalUrl, resolveDailyPrimarySource(candidate)]) {
             const normalized = normalizeCanonicalUrl(value);
             if (normalized) urls.add(normalized);
         }
