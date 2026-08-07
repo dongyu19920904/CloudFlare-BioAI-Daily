@@ -23,6 +23,7 @@ import {
 } from '../bioDailyPublication.js';
 import { extractDailyMediaCandidates, prepareDailyCandidatesMedia } from '../bioDailyMedia.js';
 import { buildBioDailyRunId, storeBioDailyStatus } from '../bioDailyStatus.js';
+import { buildBioDailySourceEnv } from '../bioDailyBudget.js';
 import { runIndependentBioTasks } from '../bioTaskIsolation.js';
 import {
     DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
@@ -230,7 +231,7 @@ async function resolveScheduledFoloCookie(env, logPrefix = '[Scheduled]') {
 async function fetchAndCacheScheduledData(env, dateStr, logPrefix = '[Scheduled]', options = {}) {
     console.log(`${logPrefix} Fetching data...`);
     const foloCookie = await resolveScheduledFoloCookie(env, logPrefix);
-    const allUnifiedData = await fetchAllData(env, foloCookie);
+    const allUnifiedData = await fetchAllData(options.sourceEnv || env, foloCookie);
     const categories = Object.keys(dataSources);
     let dedupeKeys = null;
     if (options.dedupeMode !== 'accepted-daily') {
@@ -547,7 +548,10 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             env,
             dateStr,
             '[Scheduled][Daily]',
-            { dedupeMode: 'accepted-daily' }
+            {
+                dedupeMode: 'accepted-daily',
+                sourceEnv: buildBioDailySourceEnv(env),
+            }
         );
         const acceptedKeys = await loadRecentAcceptedDailyKeys(env, dateStr);
         const promptCandidates = [];

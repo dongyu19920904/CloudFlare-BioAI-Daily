@@ -131,10 +131,13 @@ async function discoverPageMedia(candidate, fetchImpl, timeoutMs) {
 export async function prepareDailyCandidatesMedia(candidates = [], env = {}, fetchImpl = fetch) {
     const maxMedia = Math.min(parsePositiveInteger(env.DAILY_MEDIA_MAX_PER_ISSUE, 4), 4);
     const discoveryCap = Math.min(parsePositiveInteger(env.DAILY_MEDIA_DISCOVERY_CAP, 4), 6);
+    const probeCap = Math.min(parsePositiveInteger(env.DAILY_MEDIA_PROBE_CAP, 4), 8);
+    const probesPerCandidate = Math.min(parsePositiveInteger(env.DAILY_MEDIA_PROBES_PER_CANDIDATE, 2), 3);
     const timeoutMs = Math.min(parsePositiveInteger(env.DAILY_MEDIA_FETCH_TIMEOUT_MS, 4500), 10000);
     const used = new Set();
     let discoveredPages = 0;
     let acceptedCount = 0;
+    let probeAttempts = 0;
     const prepared = [];
 
     for (const candidate of candidates) {
@@ -145,9 +148,13 @@ export async function prepareDailyCandidatesMedia(candidates = [], env = {}, fet
         }
 
         const media = [];
+        let candidateProbeAttempts = 0;
         for (const mediaUrl of mediaCandidates) {
             const normalized = normalizeDailyMediaUrl(mediaUrl, candidate.url);
             if (!normalized || used.has(normalized) || acceptedCount >= maxMedia) continue;
+            if (probeAttempts >= probeCap || candidateProbeAttempts >= probesPerCandidate) break;
+            probeAttempts += 1;
+            candidateProbeAttempts += 1;
             if (!await probeImage(normalized, fetchImpl, timeoutMs)) continue;
             used.add(normalized);
             acceptedCount += 1;

@@ -50,3 +50,28 @@ test('keeps only reachable supported images and treats failures as non-blocking'
   assert.equal(prepared[0].mediaUrl, 'https://cdn.example/good.jpg');
   assert.equal(prepared[0].hasMedia, true);
 });
+
+test('enforces a global image probe budget', async () => {
+  let probeCount = 0;
+  const fetchImpl = async () => {
+    probeCount += 1;
+    return new Response('', { status: 404, headers: { 'content-type': 'text/html' } });
+  };
+  const candidates = Array.from({ length: 4 }, (_, index) => ({
+    title: `Candidate ${index}`,
+    url: `https://example.org/${index}`,
+    mediaCandidates: [
+      `https://images.example.org/${index}-a.jpg`,
+      `https://images.example.org/${index}-b.jpg`,
+    ],
+  }));
+
+  const prepared = await prepareDailyCandidatesMedia(candidates, {
+    DAILY_MEDIA_PROBE_CAP: '2',
+    DAILY_MEDIA_PROBES_PER_CANDIDATE: '2',
+  }, fetchImpl);
+
+  assert.equal(probeCount, 4, 'two failed URL probes may each use HEAD and GET');
+  assert.equal(prepared.length, 4);
+  assert.equal(prepared.some((candidate) => candidate.hasMedia), false);
+});
