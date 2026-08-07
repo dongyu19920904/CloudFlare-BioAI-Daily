@@ -106,6 +106,10 @@ function buildDailyCandidatePromptText(candidate) {
         `Title: ${candidate.title || 'N/A'}`,
         `Published: ${candidate.publishedDate || 'N/A'}`,
         `Source name: ${candidate.source || 'N/A'}`,
+        candidate?.details?.journal ? `Journal: ${candidate.details.journal}` : '',
+        Array.isArray(candidate?.details?.publicationTypes) && candidate.details.publicationTypes.length
+            ? `Publication types: ${candidate.details.publicationTypes.join(', ')}`
+            : '',
         `Url: ${identity.canonicalUrl || candidate.url || 'N/A'}`,
         candidate.description ? `Description: ${truncatePromptText(candidate.description, 500)}` : '',
         candidate.contentText ? `Content: ${candidate.contentText}` : '',

@@ -1,5 +1,6 @@
 import {
     buildAllowedSourceUrls,
+    inferDailyEvidence,
     normalizeCanonicalUrl,
     resolveDailyPrimarySource,
 } from './bioDailyEvidence.js';
@@ -156,6 +157,15 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
                 return primaryUrl && sourceLinks.some((link) => normalizeCanonicalUrl(link) === primaryUrl);
             });
             if (!hasPrimaryLink) errors.push(`${label}生物医学研究必须链接论文、注册平台或机构原文`);
+            const primaryResearchCandidates = researchCandidates.filter((candidate) => {
+                const primaryUrl = resolveDailyPrimarySource(candidate);
+                return primaryUrl && sourceLinks.some((link) => normalizeCanonicalUrl(link) === primaryUrl);
+            });
+            const primaryEvidence = primaryResearchCandidates.map((candidate) => inferDailyEvidence(candidate));
+            if (primaryEvidence.some((evidence) => evidence.studyType === '动物研究')
+                && !/\b(?:mouse|mice|murine|animal)\b|小鼠|动物(?:实验|模型|体内)/i.test(card.body)) {
+                errors.push(`${label}一手论文包含动物研究，正文必须明确物种或动物体内边界，不能写成仅体外或素材未报告`);
+            }
         }
     });
 
@@ -219,7 +229,28 @@ export function shouldAdoptBioDailyRepair(initialValidation, repairedValidation)
 
 export function buildBioDailyRepairSystemPrompt(validationErrors, candidates = []) {
     const allowed = [...buildAllowedSourceUrls(candidates)].join('\n');
-    return `你是 AI 生命延续学日报的定向修订编辑。只修复下列校验错误，保留已经正确的事实、数字和栏目结构。\n\n校验错误：\n- ${validationErrors.join('\n- ')}\n\n允许使用的来源 URL（不得新增）：\n${allowed}\n\n每条只保留“一句话结论、发生了什么、为什么重要、证据说明、目前不能得出、来源”六个阅读字段。证据说明必须在一个紧凑段落中写明证据等级、研究类型、对象/样本、发表状态、利益关系和距离应用。必须输出完整修订后的 Markdown，不解释修订过程。不得补写素材没有提供的样本量、疗效或医学结论；信息缺失时明确写“素材未报告”，证据保持“初步”。`;
+    const evidenceFacts = candidates.map((candidate, index) => {
+        const evidence = inferDailyEvidence(candidate);
+        const source = resolveDailyPrimarySource(candidate) || normalizeCanonicalUrl(candidate?.url);
+        const journal = candidate?.details?.journal || '';
+        const publicationTypes = Array.isArray(candidate?.details?.publicationTypes)
+            ? candidate.details.publicationTypes.join(', ')
+            : '';
+        const factualText = String(candidate?.contentText || candidate?.description || '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 900);
+        return [
+            `${index + 1}. ${candidate?.title || '未命名候选'}`,
+            `一手来源：${source || '无'}`,
+            journal ? `期刊：${journal}` : '',
+            publicationTypes ? `发表类型：${publicationTypes}` : '',
+            `检测到的研究类型：${evidence.studyType}`,
+            `检测到的对象/样本：${evidence.population}`,
+            factualText ? `原始素材摘要：${factualText}` : '',
+        ].filter(Boolean).join('\n');
+    }).join('\n\n');
+    return `你是 AI 生命延续学日报的定向修订编辑。只修复下列校验错误，保留已经正确的事实、数字和栏目结构。\n\n校验错误：\n- ${validationErrors.join('\n- ')}\n\n候选的一手证据摘要（事实修订必须以此为准）：\n${evidenceFacts}\n\n允许使用的来源 URL（不得新增）：\n${allowed}\n\n每条只保留“一句话结论、发生了什么、为什么重要、证据说明、目前不能得出、来源”六个阅读字段。证据说明必须在一个紧凑段落中写明证据等级、研究类型、对象/样本、发表状态、利益关系和距离应用。必须输出完整修订后的 Markdown，不解释修订过程。不得补写素材没有提供的样本量、疗效或医学结论；信息缺失时明确写“素材未报告”，证据保持“初步”。`;
 }
 
 export function assembleBioDailyMarkdown(body, summary) {

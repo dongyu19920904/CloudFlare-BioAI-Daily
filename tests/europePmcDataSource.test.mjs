@@ -23,6 +23,7 @@ test('Europe PMC uses the official API and keeps canonical primary-record metada
                     firstPublicationDate: new Date().toISOString().slice(0, 10),
                     authorString: 'Example A',
                     journalTitle: 'Example Journal',
+                    journalInfo: { journal: { title: 'Nested Journal' } },
                     source: 'MED',
                     pubTypeList: { pubType: ['Journal Article'] },
                 }],
@@ -44,7 +45,24 @@ test('Europe PMC uses the official API and keeps canonical primary-record metada
     assert.equal(items.length, 1, 'duplicate DOI records from multiple queries are collapsed');
     assert.equal(items[0].url, 'https://doi.org/10.1000/test.doi');
     assert.equal(items[0].details.publicationStatus, 'journal record');
+    assert.equal(items[0].details.journal, 'Example Journal');
     assert.deepEqual(items[0].details.publicationTypes, ['Journal Article']);
+});
+
+test('Europe PMC keeps nested journal metadata when journalTitle is absent', () => {
+    const items = EuropePmcDataSource.transform({ items: [{
+        id: 'NATURE1',
+        doi: '10.1000/nature.test',
+        articleUrl: 'https://doi.org/10.1000/nature.test',
+        title: 'Aged mouse study',
+        abstractText: 'In vivo work in aged mice.',
+        publishedAt: '2026-08-01',
+        source: 'MED',
+        journalInfo: { journal: { title: 'Nature', medlineAbbreviation: 'Nature' } },
+        pubTypeList: { pubType: ['Journal Article'] },
+    }] }, 'paper');
+
+    assert.equal(items[0].details.journal, 'Nature');
 });
 
 test('one Europe PMC query failure does not discard successful query results', async (t) => {

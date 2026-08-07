@@ -90,7 +90,7 @@ export const EuropePmcDataSource = {
                     doi: item.doi || '',
                     pmid: item.pmid || '',
                     pmcid: item.pmcid || '',
-                    journal: item.journalTitle || '',
+                    journal: item.journalTitle || item?.journalInfo?.journal?.title || item?.journalInfo?.journal?.medlineAbbreviation || '',
                     publicationTypes: types,
                     publicationStatus: isPreprint ? 'preprint' : 'journal record',
                     sourceDatabase: item.source || '',

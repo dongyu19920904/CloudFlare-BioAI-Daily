@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildBioDailyRepairSystemPrompt,
   sanitizeBioDailyMedia,
   validateBioDailyMarkdown,
 } from '../src/bioDailyPublication.js';
@@ -60,4 +61,27 @@ test('does not accept a discovery article as the sole source for biomedical rese
   const result = validateBioDailyMarkdown(invalid, discoveryCandidates);
   assert.equal(result.passed, false);
   assert.ok(result.errors.some((error) => /必须链接论文、注册平台或机构原文/.test(error)), result.errors.join('\n'));
+});
+
+test('requires animal boundaries when the linked primary paper contains aged mice', () => {
+  const animalCandidates = [
+    {
+      ...candidates[0],
+      contentText: 'In vivo, inhibition reduced inflammation and improved healthspan in aged mice.',
+      details: {
+        content_html: 'In vivo, inhibition reduced inflammation and improved healthspan in aged mice.',
+        publicationStatus: 'journal record',
+        journal: 'Nature',
+        publicationTypes: ['Journal Article'],
+      },
+    },
+    ...candidates.slice(1),
+  ];
+  const result = validateBioDailyMarkdown(validMarkdown, animalCandidates);
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.some((error) => /包含动物研究/.test(error)), result.errors.join('\n'));
+
+  const repairPrompt = buildBioDailyRepairSystemPrompt(result.errors, animalCandidates);
+  assert.match(repairPrompt, /期刊：Nature/);
+  assert.match(repairPrompt, /aged mice/);
 });
