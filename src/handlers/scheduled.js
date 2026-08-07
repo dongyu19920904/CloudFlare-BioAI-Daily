@@ -17,10 +17,12 @@ import {
 } from '../bioDailyEvidence.js';
 import {
     assembleBioDailyMarkdown,
+    buildBioDailySummaryFallback,
     buildBioDailyRepairSystemPrompt,
     sanitizeBioDailyMedia,
     shouldAdoptBioDailyRepair,
     summarizeBioDailyEvidence,
+    validateBioDailySummary,
     validateBioDailyMarkdown,
 } from '../bioDailyPublication.js';
 import { extractDailyMediaCandidates, prepareDailyCandidatesMedia } from '../bioDailyMedia.js';
@@ -714,6 +716,13 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         );
         outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
         outputOfCall3 = normalizeSummaryLines(outputOfCall3);
+        const summaryValidation = validateBioDailySummary(outputOfCall3, validation.itemCount);
+        let summaryFallbackUsed = false;
+        if (!summaryValidation.passed) {
+            summaryFallbackUsed = true;
+            console.warn(`[Scheduled][Daily] Summary validation failed; using deterministic fallback: ${summaryValidation.errors.join(' | ')}`);
+            outputOfCall3 = buildBioDailySummaryFallback(validation.cards, outputOfCall2);
+        }
         const dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, outputOfCall3);
         const evidenceSummary = summarizeBioDailyEvidence(outputOfCall2);
 
@@ -735,6 +744,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                 runId,
                 selectedCount: selectedContentItems.length,
                 repairAttempted,
+                summaryFallbackUsed,
                 sourceAudit,
                 validation,
                 preview: dailySummaryMarkdownContent,
@@ -789,6 +799,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             selectedCount: selectedContentItems.length,
             itemCount: validation.itemCount,
             repairAttempted,
+            summaryFallbackUsed,
         };
 
     } catch (error) {

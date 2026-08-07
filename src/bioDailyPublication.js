@@ -248,6 +248,53 @@ export function shouldAdoptBioDailyRepair(initialValidation, repairedValidation)
     return repairedValidation.warnings.length < initialValidation.warnings.length;
 }
 
+function normalizedSummaryLines(summary) {
+    return String(summary || '')
+        .split(/\r?\n/)
+        .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, '').trim())
+        .filter(Boolean);
+}
+
+export function validateBioDailySummary(summary, itemCount) {
+    const lines = normalizedSummaryLines(summary);
+    const errors = [];
+    if (lines.length !== 3) errors.push(`首屏摘要必须正好 3 行，当前为 ${lines.length} 行`);
+    if (lines.some((line) => [...line].length > 70)) errors.push('首屏摘要单行过长');
+    if (lines.some((line) => /(?:关注|预计|有望|即将|将进入|试验注册|ClinicalTrials|\bADNI\b)/i.test(line))) {
+        errors.push('首屏摘要不得引入未来试验、注册、外部队列或预测性关注点');
+    }
+    const numeralMap = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8 };
+    for (const line of lines) {
+        const countMatch = line.match(/([1-8一二三四五六七八])\s*项(?:信号|内容)?/);
+        if (!countMatch) continue;
+        const statedCount = Number(countMatch[1]) || numeralMap[countMatch[1]];
+        if (Number.isFinite(Number(itemCount)) && statedCount !== Number(itemCount)) {
+            errors.push(`首屏摘要信号数量为 ${statedCount}，正文实际为 ${itemCount}`);
+        }
+    }
+    return { passed: errors.length === 0, errors: [...new Set(errors)], lines };
+}
+
+function truncateSummaryLine(value, maxChars = 48) {
+    const chars = [...String(value || '').trim()];
+    return chars.length <= maxChars ? chars.join('') : `${chars.slice(0, maxChars - 1).join('')}…`;
+}
+
+export function buildBioDailySummaryFallback(cards = [], body = '') {
+    const itemCount = cards.length;
+    const firstTitle = cards[0]?.title || '今日最重要研究信号';
+    const hasAnimal = /小鼠|动物(?:实验|模型)|\bin vivo\b/i.test(body);
+    const hasPreprint = /预印本|preprint|arXiv/i.test(body);
+    const limitations = hasAnimal && hasPreprint
+        ? '动物结果不能外推人体，预印本与方法仍需独立验证。'
+        : '现有结果仍处研究与验证阶段，不能用于个人医疗决策。';
+    return [
+        truncateSummaryLine(`今日重点：${firstTitle}`),
+        truncateSummaryLine(`本期共 ${itemCount} 项信号，证据等级与研究边界见各条说明。`),
+        truncateSummaryLine(`距离应用：${limitations}`),
+    ].join('\n');
+}
+
 export function buildBioDailyRepairSystemPrompt(validationErrors, candidates = []) {
     const allowed = [...buildAllowedSourceUrls(candidates)].join('\n');
     const evidenceFacts = candidates.map((candidate, index) => {

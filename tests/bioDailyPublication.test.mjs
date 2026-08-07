@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildBioDailySummaryFallback,
   buildBioDailyRepairSystemPrompt,
   sanitizeBioDailyMedia,
+  validateBioDailySummary,
   validateBioDailyMarkdown,
 } from '../src/bioDailyPublication.js';
 
@@ -75,6 +77,25 @@ test('blocks metric relabeling and unsupported MRI hardware inferences', () => {
   assert.equal(result.passed, false);
   assert.ok(result.errors.some((error) => /F1 不能改写为准确率/.test(error)), result.errors.join('\n'));
   assert.ok(result.errors.some((error) => /设备替代/.test(error)), result.errors.join('\n'));
+});
+
+test('summary validation blocks mismatched counts and unsupported future milestones', () => {
+  const invalid = '今日重点：动物机制研究。\n五项信号均为初步证据。\n关注药物将进入人体试验注册。';
+  const result = validateBioDailySummary(invalid, 6);
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.some((error) => /正文实际为 6/.test(error)), result.errors.join('\n'));
+  assert.ok(result.errors.some((error) => /预测性关注点/.test(error)), result.errors.join('\n'));
+});
+
+test('deterministic summary fallback uses the validated card count and evidence limits', () => {
+  const summary = buildBioDailySummaryFallback(
+    Array.from({ length: 6 }, (_, index) => ({ title: `研究信号 ${index + 1}` })),
+    '这是一项小鼠动物实验，也包含 arXiv 预印本。',
+  );
+  const result = validateBioDailySummary(summary, 6);
+  assert.equal(result.passed, true, result.errors.join('\n'));
+  assert.match(summary, /本期共 6 项信号/);
+  assert.match(summary, /动物结果不能外推人体/);
 });
 
 test('does not accept a discovery article as the sole source for biomedical research', () => {
