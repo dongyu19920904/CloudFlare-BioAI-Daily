@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildAnthropicHeaders,
+  callChatAPI,
   normalizeAnthropicMessagesUrl,
   resolveAnthropicConfig,
 } from "../src/chatapi.js";
@@ -72,4 +73,44 @@ test("Anthropic proxy headers preserve x-api-key and Bearer compatibility", () =
   assert.equal(headers["x-api-key"], "unit-test-placeholder");
   assert.equal(headers["anthropic-version"], "2023-06-01");
   assert.equal(headers.Authorization, "Bearer unit-test-placeholder");
+});
+
+test("a primary Anthropic network failure reaches the configured backup route", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    const value = String(url);
+    calls.push(value);
+    if (value.includes("primary.example")) {
+      throw new TypeError("fetch failed");
+    }
+    return new Response(JSON.stringify({
+      content: [{ type: "text", text: "backup ok" }],
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    const result = await callChatAPI({
+      USE_MODEL_PLATFORM: "ANTHROPIC",
+      ANTHROPIC_API_BASE_URL: "https://primary.example",
+      ANTHROPIC_BACKUP_API_BASE_URL: "https://backup.example",
+      ANTHROPIC_API_KEY: "primary-placeholder",
+      ANTHROPIC_BACKUP_API_KEY: "backup-placeholder",
+      DEFAULT_ANTHROPIC_MODEL: "primary-model",
+      DEFAULT_ANTHROPIC_BACKUP_MODEL: "backup-model",
+      ANTHROPIC_RETRY_MAX: "0",
+      ANTHROPIC_REQUEST_TIMEOUT_MS: "1000",
+      ANTHROPIC_MAX_TOKENS: "256",
+    }, "hello");
+
+    assert.equal(result, "backup ok");
+    assert.equal(calls.length, 2);
+    assert.match(calls[0], /primary\.example/);
+    assert.match(calls[1], /backup\.example/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

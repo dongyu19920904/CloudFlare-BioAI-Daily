@@ -759,9 +759,6 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
 
     } catch (error) {
         console.error(`[Scheduled][Daily] Error:`, error);
-        const debugStack = dryRun
-            ? String(error?.stack || '').split('\n').slice(0, 8).join('\n')
-            : '';
         await recordStatus({
             state: publicationStarted ? 'partial' : 'failed',
             phase: publicationStarted ? 'publishing' : 'generation',
@@ -774,7 +771,6 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             date: dateStr,
             runId,
             error: error.message,
-            ...(debugStack ? { debugStack } : {}),
         };
     }
 }
