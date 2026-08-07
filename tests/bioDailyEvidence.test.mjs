@@ -11,7 +11,7 @@ import {
   resolveDailyPrimarySource,
 } from '../src/bioDailyEvidence.js';
 
-test('enriches a discovery item with the matching DOI primary record', () => {
+test('prefers a matching DOI primary record and keeps discovery metadata', () => {
   const discovery = {
     title: 'Report about a senescence target',
     url: 'https://news.example/senescence-target',
@@ -33,12 +33,14 @@ test('enriches a discovery item with the matching DOI primary record', () => {
     },
   };
 
-  const [enriched] = enrichDailyCandidatesWithPrimaryEvidence([discovery, paper]);
-  assert.equal(enriched.primaryUrl, paper.url);
-  assert.equal(enriched.details.journal, 'Nature');
-  assert.match(enriched.contentText, /Primary evidence abstract:.*aged mice/);
-  assert.equal(inferDailyEvidence(enriched).studyType, '动物研究');
-  assert.match(inferDailyEvidence(enriched).population, /小鼠/);
+  const enriched = enrichDailyCandidatesWithPrimaryEvidence([discovery, paper]);
+  assert.equal(enriched.length, 1);
+  assert.equal(enriched[0].sourceType, 'paper');
+  assert.equal(enriched[0].url, paper.url);
+  assert.equal(enriched[0].details.journal, 'Nature');
+  assert.equal(enriched[0].details.discoveryUrl, discovery.url);
+  assert.equal(inferDailyEvidence(enriched[0]).studyType, '动物研究');
+  assert.match(inferDailyEvidence(enriched[0]).population, /小鼠/);
 });
 
 test('normalizes discovery, DOI, trial and GitHub URLs to canonical identities', () => {

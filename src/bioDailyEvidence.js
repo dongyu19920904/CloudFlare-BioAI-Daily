@@ -30,6 +30,7 @@ function getCandidateText(candidate) {
     return [
         candidate?.title,
         candidate?.description,
+        candidate?.contentText,
         candidate?.text,
         candidate?.url,
         candidate?.details?.content_html,
@@ -275,53 +276,50 @@ function primaryIdentityKeys(candidate) {
 }
 
 /**
- * Attach a matching first-hand paper record to a discovery candidate before
- * editorial selection. The source type remains unchanged so source/pool caps
- * still work, while evidence classification and repair use the primary record.
+ * Prefer a matching first-hand paper record before editorial selection. A
+ * secondary item with the same DOI/arXiv/trial identity is removed, while its
+ * discovery URL and media candidates remain attached to the primary record.
  */
 export function enrichDailyCandidatesWithPrimaryEvidence(candidates = []) {
     const primaryByIdentity = new Map();
+    const discoveryByIdentity = new Map();
     for (const candidate of candidates) {
-        if (candidate?.sourceType !== 'paper') continue;
         for (const key of primaryIdentityKeys(candidate)) {
-            if (!primaryByIdentity.has(key)) primaryByIdentity.set(key, candidate);
+            if (candidate?.sourceType === 'paper') {
+                if (!primaryByIdentity.has(key)) primaryByIdentity.set(key, candidate);
+            } else {
+                const discoveries = discoveryByIdentity.get(key) || [];
+                discoveries.push(candidate);
+                discoveryByIdentity.set(key, discoveries);
+            }
         }
     }
 
-    return candidates.map((candidate) => {
-        if (candidate?.sourceType === 'paper') return candidate;
-        const primary = primaryIdentityKeys(candidate)
-            .map((key) => primaryByIdentity.get(key))
-            .find(Boolean);
-        if (!primary) return candidate;
+    return candidates.flatMap((candidate) => {
+        const identityKeys = primaryIdentityKeys(candidate);
+        if (candidate?.sourceType !== 'paper') {
+            return identityKeys.some((key) => primaryByIdentity.has(key)) ? [] : [candidate];
+        }
 
-        const primaryUrl = resolveDailyPrimarySource(primary) || normalizeCanonicalUrl(primary.url);
-        const primaryContent = String(primary.contentText || primary.description || '').replace(/\s+/g, ' ').trim();
-        return {
+        const relatedDiscoveries = identityKeys
+            .flatMap((key) => discoveryByIdentity.get(key) || [])
+            .filter((item, index, items) => items.indexOf(item) === index);
+        if (relatedDiscoveries.length === 0) return [candidate];
+
+        const discoveryUrl = relatedDiscoveries
+            .map((item) => normalizeCanonicalUrl(item?.details?.discoveryUrl || item?.url))
+            .find(Boolean);
+        return [{
             ...candidate,
-            primaryUrl,
-            contentText: [
-                candidate.contentText,
-                primaryContent ? `Primary evidence abstract: ${primaryContent}` : '',
-            ].filter(Boolean).join('\n'),
             mediaCandidates: [...new Set([
                 ...(candidate.mediaCandidates || []),
-                ...(primary.mediaCandidates || []),
+                ...relatedDiscoveries.flatMap((item) => item.mediaCandidates || []),
             ])],
             details: {
                 ...(candidate.details || {}),
-                discoveryUrl: candidate?.details?.discoveryUrl || normalizeCanonicalUrl(candidate.url),
-                journal: primary?.details?.journal || candidate?.details?.journal || '',
-                publicationTypes: primary?.details?.publicationTypes || candidate?.details?.publicationTypes || [],
-                publicationStatus: primary?.details?.publicationStatus || candidate?.details?.publicationStatus || '',
-                sourceDatabase: primary?.details?.sourceDatabase || candidate?.details?.sourceDatabase || '',
-                primaryEvidence: {
-                    title: primary.title || '',
-                    source: primary.source || '',
-                    contentText: primaryContent,
-                },
+                discoveryUrl: candidate?.details?.discoveryUrl || discoveryUrl || '',
             },
-        };
+        }];
     });
 }
 
