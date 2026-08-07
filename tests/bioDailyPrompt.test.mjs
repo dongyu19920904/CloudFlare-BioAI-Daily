@@ -17,4 +17,5 @@ test('ordinary daily prompt uses the compact reader contract while retaining evi
   assert.match(prompt, /不生成.*爱窝啦链接/);
   assert.match(prompt, /不生成趋势概率、“继续观察”/);
   assert.doesNotMatch(prompt, /^## 继续观察/m);
+  assert.match(prompt, /F1、AUC、灵敏度、特异度.*不能改写成“准确率”/);
 });

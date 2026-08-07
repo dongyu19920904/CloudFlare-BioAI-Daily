@@ -66,6 +66,17 @@ test('blocks the optional follow-up module until prediction entities are source-
   assert.ok(result.errors.some((error) => /继续观察/.test(error)), result.errors.join('\n'));
 });
 
+test('blocks metric relabeling and unsupported MRI hardware inferences', () => {
+  const invalid = validMarkdown.replace(
+    '这是一项需要继续验证的研究信号。',
+    '诊断准确率达到 F1 65.6，普通 MRI 设备可替代高端设备。',
+  );
+  const result = validateBioDailyMarkdown(invalid, candidates);
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.some((error) => /F1 不能改写为准确率/.test(error)), result.errors.join('\n'));
+  assert.ok(result.errors.some((error) => /设备替代/.test(error)), result.errors.join('\n'));
+});
+
 test('does not accept a discovery article as the sole source for biomedical research', () => {
   const discoveryUrl = 'https://news.example/aging-clock-report';
   const discoveryCandidates = [

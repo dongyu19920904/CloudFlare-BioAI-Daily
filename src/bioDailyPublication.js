@@ -115,6 +115,12 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
     const content = String(markdown || '').trim();
     const cards = extractSignalCards(content);
     const allowedUrls = buildAllowedSourceUrls(candidates);
+    const candidateCorpus = candidates.map((candidate) => [
+        candidate?.title,
+        candidate?.description,
+        candidate?.contentText,
+        candidate?.details?.content_html,
+    ].filter(Boolean).join(' ')).join('\n');
 
     if (!/^##\s+\*{0,2}今日结论\*{0,2}/m.test(content)) errors.push('缺少“今日结论”二级标题');
     if (!/^##\s+\*{0,2}三分钟速读\*{0,2}/m.test(content)) errors.push('缺少“三分钟速读”二级标题');
@@ -175,6 +181,14 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
 
     if (/https?:\/\/(?:www\.)?aivora\.cn/i.test(content)) {
         errors.push('普通日报默认不得插入爱窝啦商品或首页链接');
+    }
+    if (/(?:准确率[^。；\n]{0,40}\bF1\b|\bF1\b[^。；\n]{0,40}准确率)/i.test(content)) {
+        errors.push('F1 不能改写为准确率，必须保留指标原名并说明这是分类性能');
+    }
+    for (const unsupportedInference of ['普通 MRI 设备', '高端设备', '顶级设备']) {
+        if (content.includes(unsupportedInference) && !candidateCorpus.includes(unsupportedInference)) {
+            errors.push(`候选未支持“${unsupportedInference}”相关的设备替代或可及性推断`);
+        }
     }
     const positiveClaimText = content
         .split(/\r?\n/)
