@@ -51,6 +51,15 @@ test('drops unapproved media and deterministically adds useful alt and source ca
   assert.doesNotMatch(sanitized, /bad\.example/);
 });
 
+test('accepts separate object and sample-size labels as equivalent evidence detail', () => {
+  const equivalent = validMarkdown.replaceAll(
+    '对象/样本：素材未报告完整样本信息',
+    '对象：人体数据；样本量：素材未报告完整样本信息',
+  );
+  const result = validateBioDailyMarkdown(equivalent, candidates);
+  assert.equal(result.passed, true, result.errors.join('\n'));
+});
+
 test('does not accept a discovery article as the sole source for biomedical research', () => {
   const discoveryUrl = 'https://news.example/aging-clock-report';
   const discoveryCandidates = [

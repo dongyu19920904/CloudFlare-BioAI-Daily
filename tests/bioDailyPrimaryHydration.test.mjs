@@ -26,6 +26,7 @@ test('hydrates a selected DOI discovery item from the Europe PMC primary record'
         title: 'Secondary report',
         url: 'https://news.example/report',
         sourceType: 'news',
+        pool: 'research',
         description: 'Original paper DOI 10.1038/example.2026',
         contentText: 'Secondary summary.',
         source: 'Example News',
@@ -42,11 +43,59 @@ test('hydrates a selected DOI discovery item from the Europe PMC primary record'
     assert.match(inferDailyEvidence(candidate).population, /小鼠/);
 });
 
+test('reserves the bounded DOI lookup budget for research news candidates', async () => {
+    const requested = [];
+    const fetchImpl = async (url) => {
+        requested.push(String(url));
+        const doi = new URL(url).searchParams.get('query').replace(/^DOI:/, '');
+        return new Response(JSON.stringify({
+            resultList: {
+                result: [{
+                    doi,
+                    title: `Primary record ${doi}`,
+                    abstractText: 'A primary research abstract with human cohort observations.',
+                    source: 'MED',
+                    pubTypeList: { pubType: ['Journal Article'] },
+                }],
+            },
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+    };
+    const hydrated = await hydrateDailyPrimaryEvidence([
+        {
+            title: 'Industry launch with DOI in the description',
+            url: 'https://industry.example/tool',
+            sourceType: 'news',
+            pool: 'industry',
+            description: 'Background DOI 10.1000/industry',
+        },
+        {
+            title: 'Research discovery one',
+            url: 'https://news.example/one',
+            sourceType: 'news',
+            pool: 'research',
+            description: 'Original paper DOI 10.1000/research-one',
+        },
+        {
+            title: 'Research discovery two',
+            url: 'https://news.example/two',
+            sourceType: 'news',
+            pool: 'research',
+            description: 'Original paper DOI 10.1000/research-two',
+        },
+    ], { DAILY_PRIMARY_HYDRATION_CAP: '2' }, fetchImpl);
+
+    assert.equal(requested.length, 2);
+    assert.equal(hydrated[0].sourceType, 'news');
+    assert.equal(hydrated[1].sourceType, 'paper');
+    assert.equal(hydrated[2].sourceType, 'paper');
+});
+
 test('DOI hydration failures preserve the selected candidate and stay non-blocking', async () => {
     const original = {
         title: 'Secondary report',
         url: 'https://news.example/report',
         sourceType: 'news',
+        pool: 'research',
         description: 'DOI 10.1000/missing',
     };
     const originalWarn = console.warn;

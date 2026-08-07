@@ -37,21 +37,28 @@ async function fetchPrimaryRecordByDoi(doi, fetchImpl) {
 
 export async function hydrateDailyPrimaryEvidence(candidates = [], env = {}, fetchImpl = fetch) {
     const lookupCap = Math.min(positiveInteger(env.DAILY_PRIMARY_HYDRATION_CAP, 2), 3);
-    let lookups = 0;
+    const lookupIndexes = new Set(candidates
+        .map((candidate, index) => ({ candidate, index, identity: buildDailyCandidateIdentity(candidate) }))
+        .filter(({ candidate, identity }) => candidate?.sourceType === 'news'
+            && (!candidate?.pool || candidate.pool === 'research')
+            && Boolean(identity.doi))
+        .slice(0, lookupCap)
+        .map(({ index }) => index));
     const hydrated = [];
 
-    for (const candidate of candidates) {
+    for (let index = 0; index < candidates.length; index += 1) {
+        const candidate = candidates[index];
         const identity = buildDailyCandidateIdentity(candidate);
-        if (candidate?.sourceType === 'paper' || !identity.doi || lookups >= lookupCap) {
+        if (!lookupIndexes.has(index)) {
             hydrated.push(candidate);
             continue;
         }
 
-        lookups += 1;
         try {
             const record = await fetchPrimaryRecordByDoi(identity.doi, fetchImpl);
             const abstract = truncateText(record?.abstractText);
             if (!record || !abstract) {
+                console.warn(`[BioDaily] Primary DOI hydration returned no abstract for ${identity.doi}.`);
                 hydrated.push(candidate);
                 continue;
             }
@@ -87,6 +94,7 @@ export async function hydrateDailyPrimaryEvidence(candidates = [], env = {}, fet
                     },
                 },
             });
+            console.log(`[BioDaily] Hydrated selected DOI ${identity.doi} from Europe PMC.`);
         } catch (error) {
             console.warn(`[BioDaily] Primary DOI hydration failed for ${identity.doi}: ${error.message}`);
             hydrated.push(candidate);

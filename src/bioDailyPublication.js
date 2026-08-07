@@ -138,7 +138,11 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
             errors.push(`${label}证据说明必须以“高/中/初步证据”开头并解释依据`);
         }
         for (const detail of ['研究类型', '对象/样本', '发表状态', '利益关系', '距离应用']) {
-            if (!card.body.includes(detail)) errors.push(`${label}证据说明缺少：${detail}`);
+            const hasDetail = detail === '对象/样本'
+                ? /对象(?:\/样本)?\s*[：:].{0,160}(?:样本量|样本信息|未在素材中明确报告)/s.test(card.body)
+                    || card.body.includes('对象/样本')
+                : card.body.includes(detail);
+            if (!hasDetail) errors.push(`${label}证据说明缺少：${detail}`);
         }
         if (!/\*{0,2}(?:目前不能得出|不能得出什么结论)\*{0,2}\s*[：:].{12,}/s.test(card.body)) {
             errors.push(`${label}必须明确说明目前不能得出的结论`);

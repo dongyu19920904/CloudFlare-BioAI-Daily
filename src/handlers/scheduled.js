@@ -13,6 +13,7 @@ import {
     buildDailyEvidencePromptHint,
     enrichDailyCandidatesWithPrimaryEvidence,
     getDailyCandidateDedupeKeys,
+    resolveDailyPrimarySource,
 } from '../bioDailyEvidence.js';
 import {
     assembleBioDailyMarkdown,
@@ -118,6 +119,19 @@ function buildDailyCandidatePromptText(candidate) {
         buildDailyEvidencePromptHint(candidate),
         ...mediaHints,
     ].filter(Boolean).join('\n');
+}
+
+function buildDailySourceAudit(candidates = []) {
+    return candidates.map((candidate) => ({
+        title: candidate?.title || '',
+        sourceType: candidate?.sourceType || '',
+        pool: candidate?.pool || '',
+        doi: candidate?.details?.doi || buildDailyCandidateIdentity(candidate).doi || '',
+        journal: candidate?.details?.journal || '',
+        primaryHydrated: Boolean(candidate?.details?.primaryEvidence),
+        primaryUrl: resolveDailyPrimarySource(candidate) || '',
+        discoveryUrl: candidate?.details?.discoveryUrl || '',
+    }));
 }
 
 function normalizeDedupeUrl(url) {
@@ -613,6 +627,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             ...candidate,
             text: buildDailyCandidatePromptText(candidate),
         }));
+        const sourceAudit = buildDailySourceAudit(selectedCandidates);
         const selectedContentItems = selectedCandidates.map((candidate) => candidate.text);
         const selectedStats = selectedCandidates.reduce((acc, candidate) => {
             const key = `${candidate.sourceType}:${candidate.pool || 'unclassified'}`;
@@ -685,6 +700,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                 runId,
                 reason: 'validation_failed',
                 repairAttempted,
+                sourceAudit,
                 validation,
             };
         }
@@ -718,6 +734,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                 date: dateStr,
                 runId,
                 selectedCount: selectedContentItems.length,
+                sourceAudit,
                 validation,
                 preview: dailySummaryMarkdownContent,
             };
