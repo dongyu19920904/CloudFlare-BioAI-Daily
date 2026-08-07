@@ -60,6 +60,12 @@ test('accepts separate object and sample-size labels as equivalent evidence deta
   assert.equal(result.passed, true, result.errors.join('\n'));
 });
 
+test('blocks the optional follow-up module until prediction entities are source-verifiable', () => {
+  const result = validateBioDailyMarkdown(`${validMarkdown}\n\n## 继续观察\n\n建议去候选之外的数据集复现。`, candidates);
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.some((error) => /继续观察/.test(error)), result.errors.join('\n'));
+});
+
 test('does not accept a discovery article as the sole source for biomedical research', () => {
   const discoveryUrl = 'https://news.example/aging-clock-report';
   const discoveryCandidates = [

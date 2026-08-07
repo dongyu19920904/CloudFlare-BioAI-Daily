@@ -187,6 +187,9 @@ export function validateBioDailyMarkdown(markdown, candidates = [], options = {}
     if (/##\s+.*(?:趋势预测|相关问题|FAQ)/i.test(content)) {
         warnings.push('预测或 FAQ 不是普通日报必选模块，建议删除无充分依据的内容');
     }
+    if (/^##\s+\*{0,2}继续观察\*{0,2}\s*$/im.test(content)) {
+        errors.push('“继续观察”容易引入候选之外的预测性事实，本轮普通日报必须省略');
+    }
 
     const imageMatches = [...content.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)/g)];
     const mediaMap = buildAllowedMediaMap(candidates);
