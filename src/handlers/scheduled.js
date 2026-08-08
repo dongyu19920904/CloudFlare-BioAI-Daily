@@ -1,35 +1,15 @@
-import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, convertPlaceholdersToMarkdownImages, setFetchDate, replaceIncorrectDomainLinks, normalizeDailyBody } from '../helpers.js';
+import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, convertPlaceholdersToMarkdownImages, setFetchDate, hasMedia, replaceIncorrectDomainLinks, normalizeDailyBody } from '../helpers.js';
 import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
-import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationPromptStepZero.js";
+import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationPromptStepZero";
 import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
-import { buildDailyContentWithFrontMatter, getYearMonth, buildMonthDirectoryIndex } from '../contentUtils.js';
-import { resolveDailyMinimumItemCount, resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
-import {
-    buildDailyCandidateIdentity,
-    buildDailyEvidencePromptHint,
-    enrichDailyCandidatesWithPrimaryEvidence,
-    getDailyCandidateDedupeKeys,
-    resolveDailyPrimarySource,
-} from '../bioDailyEvidence.js';
-import {
-    assembleBioDailyMarkdown,
-    buildBioDailySummaryFallback,
-    buildBioDailyRepairSystemPrompt,
-    sanitizeBioDailyMedia,
-    shouldAdoptBioDailyRepair,
-    summarizeBioDailyEvidence,
-    validateBioDailySummary,
-    validateBioDailyMarkdown,
-} from '../bioDailyPublication.js';
-import { extractDailyMediaCandidates, prepareDailyCandidatesMedia } from '../bioDailyMedia.js';
-import { hydrateDailyPrimaryEvidence } from '../bioDailyPrimaryHydration.js';
-import { buildBioDailyRunId, storeBioDailyStatus } from '../bioDailyStatus.js';
-import { buildBioDailySourceEnv } from '../bioDailyBudget.js';
-import { runIndependentBioTasks } from '../bioTaskIsolation.js';
+import { insertFoot } from '../foot.js';
+import { insertAd, insertMidAd } from '../ad.js';
+import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
+import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import {
     DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
     DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION,
@@ -102,38 +82,23 @@ function parsePositiveInteger(value, defaultValue) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
-function buildDailyCandidatePromptText(candidate) {
-    const identity = buildDailyCandidateIdentity(candidate);
-    const mediaHints = (candidate.media || [])
-        .map((media) => `[可用图片: ${media.alt} ${media.url}；图注来源：${media.source}]`);
-    return [
-        `Type: ${candidate.sourceType || 'unknown'}`,
-        `Title: ${candidate.title || 'N/A'}`,
-        `Published: ${candidate.publishedDate || 'N/A'}`,
-        `Source name: ${candidate.source || 'N/A'}`,
-        candidate?.details?.journal ? `Journal: ${candidate.details.journal}` : '',
-        Array.isArray(candidate?.details?.publicationTypes) && candidate.details.publicationTypes.length
-            ? `Publication types: ${candidate.details.publicationTypes.join(', ')}`
-            : '',
-        `Url: ${identity.canonicalUrl || candidate.url || 'N/A'}`,
-        candidate.description ? `Description: ${truncatePromptText(candidate.description, 500)}` : '',
-        candidate.contentText ? `Content: ${candidate.contentText}` : '',
-        buildDailyEvidencePromptHint(candidate),
-        ...mediaHints,
-    ].filter(Boolean).join('\n');
+function extractFirstMediaUrl(item) {
+    const explicitImage = item?.details?.imageUrl || item?.imageUrl;
+    if (explicitImage) return explicitImage;
+
+    const contentHtml = String(item?.details?.content_html || '');
+    const imageMatch = contentHtml.match(/<img\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
+    if (imageMatch) return imageMatch[1];
+    const videoMatch = contentHtml.match(/<video\b[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
+    if (videoMatch) return videoMatch[1];
+    return '';
 }
 
-function buildDailySourceAudit(candidates = []) {
-    return candidates.map((candidate) => ({
-        title: candidate?.title || '',
-        sourceType: candidate?.sourceType || '',
-        pool: candidate?.pool || '',
-        doi: candidate?.details?.doi || buildDailyCandidateIdentity(candidate).doi || '',
-        journal: candidate?.details?.journal || '',
-        primaryHydrated: Boolean(candidate?.details?.primaryEvidence),
-        primaryUrl: resolveDailyPrimarySource(candidate) || '',
-        discoveryUrl: candidate?.details?.discoveryUrl || '',
-    }));
+function buildMediaPromptHint(item) {
+    const mediaUrl = extractFirstMediaUrl(item);
+    if (!/^https?:\/\//i.test(mediaUrl)) return '';
+    const title = String(item?.title || '相关图片').replace(/\s+/g, ' ').trim();
+    return `[图片: ${title} ${mediaUrl}]`;
 }
 
 function normalizeDedupeUrl(url) {
@@ -250,17 +215,14 @@ async function resolveScheduledFoloCookie(env, logPrefix = '[Scheduled]') {
     return foloCookie;
 }
 
-async function fetchAndCacheScheduledData(env, dateStr, logPrefix = '[Scheduled]', options = {}) {
+async function fetchAndCacheScheduledData(env, dateStr, logPrefix = '[Scheduled]') {
     console.log(`${logPrefix} Fetching data...`);
     const foloCookie = await resolveScheduledFoloCookie(env, logPrefix);
-    const allUnifiedData = await fetchAllData(options.sourceEnv || env, foloCookie);
+    const allUnifiedData = await fetchAllData(env, foloCookie);
     const categories = Object.keys(dataSources);
-    let dedupeKeys = null;
-    if (options.dedupeMode !== 'accepted-daily') {
-        const dedupeDays = parsePositiveInteger(env.DAILY_DEDUPE_DAYS, 7);
-        dedupeKeys = await buildRecentDedupeKeys(env, dateStr, categories, dedupeDays, logPrefix);
-        filterRecentDuplicates(allUnifiedData, dedupeKeys, logPrefix);
-    }
+    const dedupeDays = parsePositiveInteger(env.DAILY_DEDUPE_DAYS, 7);
+    const dedupeKeys = await buildRecentDedupeKeys(env, dateStr, categories, dedupeDays, logPrefix);
+    filterRecentDuplicates(allUnifiedData, dedupeKeys, logPrefix);
     const cacheData = snapshotDataForCache(allUnifiedData);
     const usedFallback = await backfillSparseCategoriesFromKv(env, dateStr, allUnifiedData, dedupeKeys);
     const fetchPromises = [];
@@ -274,28 +236,6 @@ async function fetchAndCacheScheduledData(env, dateStr, logPrefix = '[Scheduled]
     await Promise.all(fetchPromises);
     console.log(`${logPrefix} Data fetched and stored.${usedFallback ? ' Used recent KV fallback.' : ''}`);
     return allUnifiedData;
-}
-
-async function loadRecentAcceptedDailyKeys(env, dateStr) {
-    const accepted = new Set();
-    if (!env.DATA_KV) return accepted;
-    const lookbackDays = parsePositiveInteger(env.DAILY_DEDUPE_DAYS, 7);
-    for (let offset = 1; offset <= lookbackDays; offset += 1) {
-        const previousDate = shiftDate(dateStr, -offset);
-        try {
-            const keys = await getFromKV(env.DATA_KV, `bio-daily-accepted:${previousDate}`);
-            for (const key of keys || []) accepted.add(key);
-        } catch (error) {
-            console.warn(`[Scheduled][Daily] Failed to load accepted memory for ${previousDate}: ${error.message}`);
-        }
-    }
-    return accepted;
-}
-
-async function storeAcceptedDailyKeys(env, dateStr, selectedCandidates) {
-    if (!env.DATA_KV) return;
-    const keys = [...new Set(selectedCandidates.flatMap((candidate) => getDailyCandidateDedupeKeys(candidate)))];
-    await storeInKV(env.DATA_KV, `bio-daily-accepted:${dateStr}`, keys, 86400 * 14);
 }
 
 function truncatePromptText(text, maxChars = 700) {
@@ -534,12 +474,8 @@ export async function handleScheduledOpportunityBatch(event, env, ctx, specified
     console.log(`[Scheduled][OpportunityBatch] Starting shared opportunity automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
     try {
         const allUnifiedData = await fetchAndCacheScheduledData(env, dateStr, '[Scheduled][OpportunityBatch]');
-        const results = await runIndependentBioTasks({
-            opportunity: () => generateAndCommitOpportunity(env, dateStr, allUnifiedData),
-            projectOpportunity: () => generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData),
-        });
-        const opportunity = { date: dateStr, ...results.opportunity };
-        const projectOpportunity = { date: dateStr, ...results.projectOpportunity };
+        const opportunity = await generateAndCommitOpportunity(env, dateStr, allUnifiedData);
+        const projectOpportunity = await generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData);
         return { success: Boolean(opportunity.success || projectOpportunity.success), date: dateStr, opportunity, projectOpportunity };
     } catch (error) {
         console.error(`[Scheduled][OpportunityBatch] Error:`, error);
@@ -548,223 +484,147 @@ export async function handleScheduledOpportunityBatch(event, env, ctx, specified
 }
 
 export async function handleScheduledDaily(event, env, ctx, specifiedDate = null) {
+    // 如果指定了日期，使用指定日期；否则使用当前日期
     const dateStr = specifiedDate || getISODate();
-    const runId = buildBioDailyRunId(dateStr);
-    const dryRun = String(env.DAILY_DRY_RUN || '').toLowerCase() === 'true';
     setFetchDate(dateStr);
-    console.log(`[Scheduled][Daily] Starting ${dryRun ? 'dry-run' : 'publication'} for ${dateStr} (${runId}).`);
-
-    const recordStatus = async (status) => {
-        try {
-            await storeBioDailyStatus(env, dateStr, { runId, dryRun, ...status });
-        } catch (error) {
-            console.warn(`[Scheduled][Daily] Status write failed without blocking the task: ${error.message}`);
-        }
-    };
-
-    await recordStatus({ state: 'running', phase: 'fetching', progress: 5 });
-    let publicationStarted = false;
+    console.log(`[Scheduled] Starting daily automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
 
     try {
-        const allUnifiedData = await fetchAndCacheScheduledData(
-            env,
-            dateStr,
-            '[Scheduled][Daily]',
-            {
-                dedupeMode: 'accepted-daily',
-                sourceEnv: buildBioDailySourceEnv(env),
-            }
-        );
-        const acceptedKeys = await loadRecentAcceptedDailyKeys(env, dateStr);
+        // 1. Fetch Data
+        const allUnifiedData = await fetchAndCacheScheduledData(env, dateStr, '[Scheduled]');
+
+        // 2. Prepare Content Items
+        // Priority: items with images/videos first
         const promptCandidates = [];
         const sourceStats = {};
-
+        
         for (const sourceType in allUnifiedData) {
             const items = allUnifiedData[sourceType];
-            for (const item of items || []) {
-                const mediaCandidates = extractDailyMediaCandidates(item);
-                const itemHasMedia = mediaCandidates.length > 0;
-                const resolvedType = item.type || sourceType;
-                sourceStats[resolvedType] = sourceStats[resolvedType] || { total: 0, media: 0 };
-                sourceStats[resolvedType].total += 1;
-                if (itemHasMedia) sourceStats[resolvedType].media += 1;
-
-                const candidate = {
-                    key: item.url || `${resolvedType}:${item.title}`,
-                    sourceType: resolvedType,
-                    hasMedia: itemHasMedia,
-                    publishedDate: item.published_date,
-                    url: item.url,
-                    title: item.title,
-                    description: item.description || '',
-                    source: item.source || 'Unknown',
-                    details: item.details || {},
-                    mediaCandidates,
-                };
-                const contentText = truncatePromptText(
-                    stripHtml(item?.details?.content_html || item?.description || ''),
-                    1400
-                );
-                candidate.contentText = contentText;
-                candidate.text = buildDailyCandidatePromptText(candidate);
-                promptCandidates.push(candidate);
+            if (items && items.length > 0) {
+                for (const item of items) {
+                    const mediaPromptHint = buildMediaPromptHint(item);
+                    const itemHasMedia = Boolean(mediaPromptHint || (item.details?.content_html && hasMedia(item.details.content_html)));
+                    sourceStats[item.type || sourceType] = sourceStats[item.type || sourceType] || { total: 0, media: 0 };
+                    sourceStats[item.type || sourceType].total += 1;
+                    if (itemHasMedia) sourceStats[item.type || sourceType].media += 1;
+                    let itemText = "";
+                    switch (item.type) {
+                        case 'news':
+                            itemText = `News Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nContent Summary: ${stripHtml(item.details.content_html)}`;
+                            break;
+                        case 'project':
+                            itemText = `Project Name: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
+                            break;
+                        case 'paper':
+                            itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
+                            break;
+                        case 'socialMedia':
+                            itemText = `socialMedia Post by ${item.authors}：Published: ${item.published_date}\nUrl: ${item.url}\nContent: ${stripHtml(item.details.content_html)}`;
+                            break;
+                        default:
+                            itemText = `Type: ${item.type}\nTitle: ${item.title || 'N/A'}\nDescription: ${item.description || 'N/A'}\nURL: ${item.url || 'N/A'}`;
+                            if (item.published_date) itemText += `\nPublished: ${item.published_date}`;
+                            if (item.source) itemText += `\nSource: ${item.source}`;
+                            if (item.details && item.details.content_html) itemText += `\nContent: ${stripHtml(item.details.content_html)}`;
+                            break;
+                    }
+                    if (itemText) {
+                        if (mediaPromptHint) {
+                            itemText += `\n${mediaPromptHint}`;
+                        }
+                        promptCandidates.push({
+                            key: item.url || `${item.type || sourceType}:${item.title}`,
+                            text: itemText,
+                            sourceType: item.type || sourceType,
+                            hasMedia: Boolean(itemHasMedia),
+                            publishedDate: item.published_date,
+                            url: item.url,
+                            title: item.title,
+                        });
+                    }
+                }
             }
         }
-
-        const enrichedPromptCandidates = enrichDailyCandidatesWithPrimaryEvidence(promptCandidates)
-            .map((candidate) => ({
-                ...candidate,
-                text: buildDailyCandidatePromptText(candidate),
-            }));
-        const minimumItems = resolveDailyMinimumItemCount(env);
-        let selectedCandidates = selectDailyPromptCandidates(
-            enrichedPromptCandidates,
+        
+        const selectedCandidates = selectDailyPromptCandidates(
+            promptCandidates,
             env,
-            resolveDailyPromptItemCap(env, Boolean(specifiedDate)),
-            { acceptedKeys }
+            resolveDailyPromptItemCap(env, Boolean(specifiedDate))
         );
-        selectedCandidates = await hydrateDailyPrimaryEvidence(selectedCandidates, env);
-        selectedCandidates = await prepareDailyCandidatesMedia(selectedCandidates, env);
-        selectedCandidates = selectedCandidates.map((candidate) => ({
-            ...candidate,
-            text: buildDailyCandidatePromptText(candidate),
-        }));
-        const sourceAudit = buildDailySourceAudit(selectedCandidates);
         const selectedContentItems = selectedCandidates.map((candidate) => candidate.text);
+        
+        if (promptCandidates.some((candidate) => candidate.hasMedia)) {
+            const mediaCount = promptCandidates.filter((candidate) => candidate.hasMedia).length;
+            console.log(`[Scheduled] Found ${mediaCount} items with images/videos, ${promptCandidates.length - mediaCount} items without.`);
+        }
         const selectedStats = selectedCandidates.reduce((acc, candidate) => {
-            const key = `${candidate.sourceType}:${candidate.pool || 'unclassified'}`;
-            acc[key] = (acc[key] || 0) + 1;
+            acc[candidate.sourceType] = (acc[candidate.sourceType] || 0) + 1;
             return acc;
         }, {});
-        console.log(`[Scheduled][Daily] Source stats: ${JSON.stringify(sourceStats)}.`);
-        console.log(`[Scheduled][Daily] Selected ${selectedContentItems.length} candidates: ${JSON.stringify(selectedStats)}.`);
+        console.log(`[Scheduled] Source stats before selection: ${JSON.stringify(sourceStats)}.`);
+        console.log(`[Scheduled] Selected ${selectedContentItems.length} prompt items for daily generation: ${JSON.stringify(selectedStats)}.`);
 
-        if (selectedContentItems.length < minimumItems) {
-            const reason = `insufficient_qualified_items:${selectedContentItems.length}/${minimumItems}`;
-            await recordStatus({ state: 'not-published', phase: 'selection', progress: 100, reason });
-            return { success: false, published: false, date: dateStr, runId, reason };
+        if (selectedContentItems.length === 0) {
+            console.log(`[Scheduled] No items found. Skipping generation.`);
+            return { success: false, date: dateStr, reason: 'no_items' };
         }
 
-        await recordStatus({ state: 'running', phase: 'generating', progress: 35, selectedCount: selectedContentItems.length });
+        // 3. Generate Content (Call 2)
+        console.log(`[Scheduled] Generating content...`);
+        let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr);
+        let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n';
+        
         let outputOfCall2 = await generateScheduledMarkdownWithFallback(
             env,
-            `报告日期：${dateStr}\n\n候选素材：\n\n${selectedContentItems.join('\n\n------\n\n')}`,
-            getSystemPromptSummarizationStepOne(dateStr),
+            fullPromptForCall2_User,
+            fullPromptForCall2_System,
             'DailyBody'
         );
         outputOfCall2 = removeMarkdownCodeBlock(outputOfCall2);
         outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
-        outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aibioo.cn');
+        // 替换错误的域名链接
+        outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
-        outputOfCall2 = sanitizeBioDailyMedia(outputOfCall2, selectedCandidates);
 
-        let validation = validateBioDailyMarkdown(outputOfCall2, selectedCandidates, {
-            minItems: minimumItems,
-            maxItems: 8,
-        });
-        let repairAttempted = false;
-        if (!validation.passed) {
-            repairAttempted = true;
-            console.warn(`[Scheduled][Daily] Validation failed; attempting one targeted repair: ${validation.errors.join(' | ')}`);
-            const repaired = await generateScheduledMarkdownWithFallback(
-                env,
-                `请修订以下草稿：\n\n${outputOfCall2}`,
-                buildBioDailyRepairSystemPrompt(validation.errors, selectedCandidates),
-                'DailyRepair'
-            );
-            const repairedBody = sanitizeBioDailyMedia(
-                normalizeDailyBody(convertPlaceholdersToMarkdownImages(removeMarkdownCodeBlock(repaired))),
-                selectedCandidates
-            );
-            const repairedValidation = validateBioDailyMarkdown(repairedBody, selectedCandidates, {
-                minItems: minimumItems,
-                maxItems: 8,
-            });
-            if (shouldAdoptBioDailyRepair(validation, repairedValidation)) {
-                outputOfCall2 = repairedBody;
-                validation = repairedValidation;
-            }
-        }
-
-        if (!validation.passed) {
-            await recordStatus({
-                state: 'not-published',
-                phase: 'validation',
-                progress: 100,
-                selectedCount: selectedContentItems.length,
-                repairAttempted,
-                validationErrors: validation.errors,
-            });
-            return {
-                success: false,
-                published: false,
-                date: dateStr,
-                runId,
-                reason: 'validation_failed',
-                repairAttempted,
-                sourceAudit,
-                validation,
-            };
-        }
-
-        await recordStatus({ state: 'running', phase: 'summarizing', progress: 65, validationPassed: true });
+        // 4. Generate Summary (Call 3)
+        console.log(`[Scheduled] Generating summary...`);
+        let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
+        let fullPromptForCall3_User = outputOfCall2;
+        
         let outputOfCall3 = await generateScheduledMarkdownWithFallback(
             env,
-            outputOfCall2,
-            getSystemPromptSummarizationStepThree(),
+            fullPromptForCall3_User,
+            fullPromptForCall3_System,
             'DailySummary'
         );
         outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
         outputOfCall3 = normalizeSummaryLines(outputOfCall3);
-        const summaryValidation = validateBioDailySummary(outputOfCall3, validation.itemCount);
-        let summaryFallbackUsed = false;
-        if (!summaryValidation.passed) {
-            summaryFallbackUsed = true;
-            console.warn(`[Scheduled][Daily] Summary validation failed; using deterministic fallback: ${summaryValidation.errors.join(' | ')}`);
-            outputOfCall3 = buildBioDailySummaryFallback(validation.cards, outputOfCall2);
-        }
-        const dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, outputOfCall3);
-        const evidenceSummary = summarizeBioDailyEvidence(outputOfCall2);
 
-        if (dryRun) {
-            await recordStatus({
-                state: 'dry-run',
-                phase: 'complete',
-                progress: 100,
-                selectedCount: selectedContentItems.length,
-                itemCount: validation.itemCount,
-                validationPassed: true,
-                repairAttempted,
-            });
-            return {
-                success: true,
-                published: false,
-                dryRun: true,
-                date: dateStr,
-                runId,
-                selectedCount: selectedContentItems.length,
-                repairAttempted,
-                summaryFallbackUsed,
-                sourceAudit,
-                validation,
-                preview: dailySummaryMarkdownContent,
-            };
-        }
+        // 5. Assemble Markdown
+        const contentWithMidAd = insertMidAd(outputOfCall2);
+        let dailySummaryMarkdownContent = `## **今日摘要**\n\n\`\`\`\n${outputOfCall3}\n\`\`\`\n\n`;
+        dailySummaryMarkdownContent += '\n\n## ⚡ 快速导航\n\n';
+        dailySummaryMarkdownContent += '- [📰 今日 AI 资讯](#今日ai资讯) - 最新动态速览\n\n';
+        dailySummaryMarkdownContent += `\n\n${contentWithMidAd}`;
+        
+        if (env.INSERT_AD=='true') dailySummaryMarkdownContent += insertAd() +`\n`;
+        if (env.INSERT_FOOT=='true') dailySummaryMarkdownContent += insertFoot() +`\n\n`;
 
-        await recordStatus({ state: 'running', phase: 'publishing', progress: 80, validationPassed: true });
-        publicationStarted = true;
+        // 6. Commit to GitHub
+        console.log(`[Scheduled] Committing to GitHub...`);
         const yearMonth = getYearMonth(dateStr);
         const dailyFilePath = `daily/${dateStr}.md`;
         const dailyPagePath = `content/cn/${yearMonth}/${dateStr}.md`;
         const monthDirectoryIndexPath = `content/cn/${yearMonth}/_index.md`;
+        const homePath = 'content/cn/_index.md';
 
         const dailyPageTitle = `${env.DAILY_TITLE} ${formatDateToChinese(dateStr)}`;
-        const dailyPageContent = buildDailyContentWithFrontMatter(dateStr, dailySummaryMarkdownContent, {
-            title: dailyPageTitle,
-            evidenceSummary,
-        });
+        const dailyPageContent = buildDailyContentWithFrontMatter(dateStr, dailySummaryMarkdownContent, { title: dailyPageTitle });
 
-        // Publish the canonical date page before updating pointers or blog input.
+        const existingDailySha = await getGitHubFileSha(env, dailyFilePath);
+        const dailyCommitMessage = `${existingDailySha ? 'Update' : 'Create'} daily summary for ${dateStr} (Scheduled)`;
+        await createOrUpdateGitHubFile(env, dailyFilePath, dailySummaryMarkdownContent, dailyCommitMessage, existingDailySha);
+
         const existingDailyPageSha = await getGitHubFileSha(env, dailyPagePath);
         const dailyPageCommitMessage = `${existingDailyPageSha ? 'Update' : 'Create'} daily page for ${dateStr} (Scheduled)`;
         await createOrUpdateGitHubFile(env, dailyPagePath, dailyPageContent, dailyPageCommitMessage, existingDailyPageSha);
@@ -775,48 +635,24 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         const monthIndexCommitMessage = `${existingMonthIndexSha ? 'Update' : 'Create'} month directory index for ${yearMonth} (Scheduled)`;
         await createOrUpdateGitHubFile(env, monthDirectoryIndexPath, monthDirectoryIndexContent, monthIndexCommitMessage, existingMonthIndexSha);
 
-        const existingDailySha = await getGitHubFileSha(env, dailyFilePath);
-        const dailyCommitMessage = `${existingDailySha ? 'Update' : 'Create'} daily summary for ${dateStr} (Scheduled)`;
-        await createOrUpdateGitHubFile(env, dailyFilePath, dailySummaryMarkdownContent, dailyCommitMessage, existingDailySha);
+        let existingHomeContent = '';
+        try {
+            existingHomeContent = await getGitHubFileContent(env, homePath);
+        } catch (error) {
+            console.warn(`[Scheduled] Home page not found, will create a new one.`);
+        }
+        const homeTitle = dailyPageTitle;
+        const homeContent = updateHomeIndexContent(existingHomeContent, dailySummaryMarkdownContent, dateStr, { title: homeTitle });
+        const existingHomeSha = await getGitHubFileSha(env, homePath);
+        const homeCommitMessage = `${existingHomeSha ? 'Update' : 'Create'} home page for ${dateStr} (Scheduled)`;
+        await createOrUpdateGitHubFile(env, homePath, homeContent, homeCommitMessage, existingHomeSha);
 
-        await storeAcceptedDailyKeys(env, dateStr, selectedCandidates);
-        await recordStatus({
-            state: 'published',
-            phase: 'complete',
-            progress: 100,
-            selectedCount: selectedContentItems.length,
-            itemCount: validation.itemCount,
-            validationPassed: true,
-            repairAttempted,
-            paths: { dailyFilePath, dailyPagePath, monthDirectoryIndexPath },
-        });
-        console.log(`[Scheduled][Daily] Published successfully (${runId}).`);
-        return {
-            success: true,
-            published: true,
-            date: dateStr,
-            runId,
-            selectedCount: selectedContentItems.length,
-            itemCount: validation.itemCount,
-            repairAttempted,
-            summaryFallbackUsed,
-        };
+        console.log(`[Scheduled] Success!`);
+        return { success: true, date: dateStr, selectedCount: selectedContentItems.length };
 
     } catch (error) {
-        console.error(`[Scheduled][Daily] Error:`, error);
-        await recordStatus({
-            state: publicationStarted ? 'partial' : 'failed',
-            phase: publicationStarted ? 'publishing' : 'generation',
-            progress: 100,
-            error: error.message,
-        });
-        return {
-            success: false,
-            published: false,
-            date: dateStr,
-            runId,
-            error: error.message,
-        };
+        console.error(`[Scheduled] Error:`, error);
+        return { success: false, date: dateStr, error: error.message };
     }
 }
 

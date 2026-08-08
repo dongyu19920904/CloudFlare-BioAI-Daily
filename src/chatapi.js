@@ -1524,8 +1524,7 @@ async function fetchWithTimeout(resource, options = {}, timeout = 180000) {
     if (error.name === 'AbortError') {
       throw new Error('Request timed out');
     }
-    // Re-throw non-timeout network errors so the caller can use its backup route.
-    throw error;
+    // 鍏朵粬缃戠粶閿欒绛?    throw error;
   } finally {
     // 娓呴櫎璁℃椂鍣紝闃叉鍐呭瓨娉勬紡
     clearTimeout(id);

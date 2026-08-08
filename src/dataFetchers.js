@@ -9,7 +9,6 @@ import XiaohuDataSource from './dataSources/xiaohu.js';
 import GithubTrendingDataSource from './dataSources/github-trending.js';
 import PapersDataSource from './dataSources/papers.js';
 import HuggingfacePapersDataSource from './dataSources/huggingface-papers.js';
-import EuropePmcDataSource from './dataSources/europepmc.js';
 import TwitterDataSource from './dataSources/twitter.js';
 import RedditDataSource from './dataSources/reddit.js';
 import {
@@ -25,7 +24,7 @@ export const dataSources = {
     // news 下支持多个可选 Folo feed/list 源：只要在环境变量中配置对应 *_FEED_ID 或 LIST_ID 即可自动生效
     news: { name: '新闻', sources: [LongevityNewsRssDataSource, NewsAggregatorDataSource, FoloMultiFeedsDataSource, AibaseDataSource, JiqizhixinDataSource, QbitDataSource, XinzhiyuanDataSource, XiaohuDataSource] },
     project: { name: '项目', sources: [GithubTrendingDataSource] },
-    paper: { name: '论文', sources: [EuropePmcDataSource, PapersCoolDataSource, PapersDataSource, HuggingfacePapersDataSource] },
+    paper: { name: '论文', sources: [PapersCoolDataSource, PapersDataSource, HuggingfacePapersDataSource] },
     socialMedia: { name: '社交平台', sources: [LongevitySocialRssDataSource, TwitterDataSource, RedditDataSource] },
     // Add new data sources here as arrays, e.g.,
     // newType: { name: '新类型', sources: [NewTypeDataSource1, NewTypeDataSource2] },
@@ -58,8 +57,18 @@ export async function fetchAndTransformDataForType(sourceType, env, foloCookie) 
         }
     }
 
-    // Sort by date. Media is useful only after a candidate passes relevance and evidence checks.
+    // Sort by published_date in descending order for each type
+    // Priority: items with images/videos first, then by date
     allUnifiedDataForType.sort((a, b) => {
+        // Check if items have media (images or videos)
+        const aHasMedia = a.details?.content_html && /<img[^>]+>|<video[^>]+>/i.test(a.details.content_html);
+        const bHasMedia = b.details?.content_html && /<img[^>]+>|<video[^>]+>/i.test(b.details.content_html);
+        
+        // Items with media come first
+        if (aHasMedia && !bHasMedia) return -1;
+        if (!aHasMedia && bHasMedia) return 1;
+        
+        // If both have or both don't have media, sort by date
         const dateA = new Date(a.published_date);
         const dateB = new Date(b.published_date);
         return dateB.getTime() - dateA.getTime();
