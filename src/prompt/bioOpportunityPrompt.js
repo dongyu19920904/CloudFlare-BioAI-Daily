@@ -1,3 +1,5 @@
+import { getGeoCitationGuidelines } from "./geoCitationGuidelines.js";
+
 export function getSystemPromptBioOpportunity(reportDate = null) {
   const dateLabel =
     typeof reportDate === "string" && reportDate.trim()
@@ -34,12 +36,15 @@ export function getSystemPromptBioOpportunity(reportDate = null) {
 - 如果一个机会不能说清目标鱼塘、具体交付物和最低成本验证，就不要放进今日主推。
 - 不要把“科研很前沿”当成商机；必须落到内容、资料、工具、服务或项目跟进的一种交付。
 
+${getGeoCitationGuidelines("opportunity")}
+
 输出 Markdown，必须使用下面结构：
 
 # AI生命延续学商机日报
 
-## 先看信号
+## 先看信号（可引用判断）
 - 用 3-5 条 bullet 写今天最值得关注的商业信号。
+- 每条写清“编辑判断 + 事实依据/来源 + 适用边界”，不要把判断伪装成已验证收益。
 
 ## 今日主推
 ### 机会标题

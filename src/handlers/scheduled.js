@@ -10,6 +10,7 @@ import { insertFoot } from '../foot.js';
 import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
+import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
 import {
     DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
     DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION,
@@ -283,7 +284,7 @@ function buildOpportunityPromptInput(allUnifiedData, sourceOrder, caps) {
     };
 }
 
-async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt) {
+async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt, section) {
     let output = '';
     try {
         for await (const chunk of callChatAPIStream(env, userPrompt, systemPrompt)) {
@@ -301,7 +302,7 @@ async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt) {
     output = removeMarkdownCodeBlock(output);
     output = convertPlaceholdersToMarkdownImages(output);
     output = replaceIncorrectDomainLinks(output, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aibioo.cn');
-    return output.trim();
+    return assertSafeGeoMarkdown(output.trim(), section);
 }
 
 async function generateScheduledMarkdownWithFallback(env, userPrompt, systemPrompt, label) {
@@ -394,7 +395,8 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
     const markdownContent = await generateBioOpportunityMarkdown(
         env,
         `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
-        getSystemPromptBioOpportunity(dateStr)
+        getSystemPromptBioOpportunity(dateStr),
+        'opportunity'
     );
     const titleBase = env.OPPORTUNITY_TITLE || 'AI生命延续学商机日报';
     const paths = await commitBioSectionOutputs(env, dateStr, 'opportunity', markdownContent, {
@@ -428,7 +430,8 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
     const markdownContent = await generateBioOpportunityMarkdown(
         env,
         `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
-        getSystemPromptBioProjectOpportunity(dateStr)
+        getSystemPromptBioProjectOpportunity(dateStr),
+        'project-opportunity'
     );
     const titleBase = env.PROJECT_OPPORTUNITY_TITLE || 'AI生命延续学资讯商机项目';
     const paths = await commitBioSectionOutputs(env, dateStr, 'project-opportunity', markdownContent, {
@@ -609,6 +612,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         
         if (env.INSERT_AD=='true') dailySummaryMarkdownContent += insertAd() +`\n`;
         if (env.INSERT_FOOT=='true') dailySummaryMarkdownContent += insertFoot() +`\n\n`;
+        assertSafeGeoMarkdown(dailySummaryMarkdownContent, 'daily');
 
         // 6. Commit to GitHub
         console.log(`[Scheduled] Committing to GitHub...`);

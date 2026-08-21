@@ -62,6 +62,8 @@ title: ${title}
 weight: ${computeWeight(dateStr)}
 breadcrumbs: false
 comments: true
+date: ${dateStr}T00:00:00+08:00
+lastmod: ${dateStr}T00:00:00+08:00
 description: "${description}"
 ---
 

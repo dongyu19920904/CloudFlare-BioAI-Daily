@@ -80,6 +80,8 @@ title: ${resolvedTitle}
 weight: ${weight}
 breadcrumbs: false
 comments: true
+date: ${dateStr}T00:00:00+08:00
+lastmod: ${dateStr}T00:00:00+08:00
 description: "${description}"
 ---`;
 }

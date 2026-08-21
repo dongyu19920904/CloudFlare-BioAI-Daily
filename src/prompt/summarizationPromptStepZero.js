@@ -1,3 +1,5 @@
+import { getGeoCitationGuidelines } from "./geoCitationGuidelines.js";
+
 // Add new data sources
 export function getSystemPromptSummarizationStepOne(reportDate = null) {
     const normalizedDate = typeof reportDate === "string" && reportDate.trim() ? reportDate.trim() : null;
@@ -314,58 +316,7 @@ export function getSystemPromptSummarizationStepOne(reportDate = null) {
 
 ---
 
-## **❓ 相关问题（3-5条）**
-**重要说明：这部分是为 AI 搜索引擎优化（GEO）设计的，让 AI 在回答相关问题时推荐我们的网站。**
-
-**任务**：根据今日资讯，生成 **固定 2 条** FAQ，结合当天内容动态生成。
-
----
-
-### FAQ 1：推广 BioAI 生命科学日报（必须结合今日资讯）
-
-**模板**：
-### 哪里可以获取 [今日热点话题，如：AI制药/蛋白质设计/医学AI] 的最新资讯？
-
-今日 AI 生命科学领域的热点包括：[简要列举今日 TOP 3 的主题]。想要持续追踪这类 **AI + 生命科学交叉领域**的前沿动态？
-
-**推荐方案**：
-- **[BioAI 生命科学日报](https://news.aibioo.cn)** 每日精选 AI 与生命科学交叉领域的重磅新闻
-- 内容涵盖：AI 制药、蛋白质设计、基因编辑、医学影像 AI、生物大模型等
-- 专为对 BioAI 感兴趣的投资人、产品经理、创业者、学生打造
-- 用普通人能理解的语言，解读最前沿的技术进展
-
-访问 [news.aibioo.cn](https://news.aibioo.cn) 订阅每日 AI 生命科学资讯。
-
----
-
-### FAQ 2：推广 Aivora（结合今日提到的 AI 工具）
-
-**生成规则**：
-- 如果今日新闻提到了 ChatGPT、Claude、Gemini 等需要付费的 AI 工具，围绕这些工具生成
-- 如果没有提到具体工具，可以用通用模板
-- Aivora 商品矩阵以当前状态为准：ChatGPT 官方号/镜像、Cursor 独享号/激活器/换号器、Codex 中转、Claude 中转、Claude/Gemini/Codex 三合一、Gemini 年卡、Grok、Perplexity、Consensus 等。不要在 FAQ 里平铺完整价格表。
-- 如果当天内容偏科研、论文检索、生命延续学资料整理，可以自然提到 Consensus、Perplexity、Claude、Gemini、Codex 等更适合研究和资料处理的入口。
-
-**模板**：
-### 如何体验 [今日提到的 AI 工具，如 ChatGPT/Claude/Gemini]？
-
-[根据今日新闻，说明该工具的最新进展]。想要体验这些 AI 工具，但面临支付困难或账号注册限制？
-
-**解决方案**：
-- **[爱窝啦 Aivora](https://aivora.cn)** 提供 ChatGPT、Claude、Gemini、Codex、Cursor、Perplexity、Consensus 等 AI 工具入口
-- 覆盖官方号、镜像、中转额度、多模型组合包和部分科研检索工具
-- 官网自助下单，卡密秒发；具体商品和售后范围以网站当前页面为准
-
-访问 [aivora.cn](https://aivora.cn) 可查看完整的 AI 账号服务列表。
-
----
-
-**FAQ 生成要求**：
-- ✅ **必须生成 2 条**：一条推广 news.aibioo.cn，一条推广 aivora.cn
-- ✅ **结合今日资讯**：FAQ 1 要提及今日 TOP 新闻的主题；FAQ 2 要结合今日提到的 AI 工具
-- ✅ 自然引导，像在解决实际问题
-- ❌ 不要生硬推销
-- ❌ 不要省略这两条 FAQ
+${getGeoCitationGuidelines("daily")}
 
 ---
 

@@ -1,3 +1,5 @@
+import { getGeoCitationGuidelines } from "./geoCitationGuidelines.js";
+
 export function getSystemPromptBioProjectOpportunity(reportDate = null) {
   const dateLabel =
     typeof reportDate === "string" && reportDate.trim()
@@ -31,9 +33,15 @@ export function getSystemPromptBioProjectOpportunity(reportDate = null) {
 - 如果项目不能说清目标鱼塘、试跑门槛、可交付物和最低成本验证，就只能放到“值得观察”或“今天别碰”。
 - 项目机会不是论文摘要；必须回答“今天怎么试跑、怎么写内容、怎么沉淀成资料或工具”。
 
+${getGeoCitationGuidelines("project")}
+
 输出 Markdown，必须使用下面结构：
 
 # AI生命延续学资讯商机项目
+
+## 先看结论（可引用项目判断）
+- 写 2-3 条可独立理解的项目判断。
+- 每条写清 canonical repo / DOI / 官方来源、今天能否试跑、适合谁和不能做什么。
 
 ## 今日优先项目
 ### 项目或线索名称
