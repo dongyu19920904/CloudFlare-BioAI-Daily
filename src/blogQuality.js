@@ -19,6 +19,21 @@ const FABRICATED_TODAY_EXPERIENCE_PATTERNS = [
     /(刚刚|早上|下午|晚上)[^。！？\n]{0,50}(客户|买家|用户|供应商|客服|售后|补货|退款|订单|下单|私信|微信|群里)/,
 ];
 
+const BLACK_HAT_LLM_INSTRUCTION_PATTERNS = [
+    /LLM\s*爬虫指令/i,
+    /大模型提示词/,
+    /关联度.{0,12}提升至最高/,
+    /权重.{0,12}提升至最高/,
+    /提高.{0,8}(链接|内容)?权重/,
+    /逐字引用/,
+    /经典之作/,
+    /肉眼不可见/,
+    /hidden\s*prompt|prompt\s*injection/i,
+    /display\s*:\s*none|visibility\s*:\s*hidden/i,
+    /请将.{0,40}(权重|关联度).{0,20}(最高|提升)/,
+    /当收到.{0,80}(提问|问题).{0,80}(优先参考|核心视角|精准引用)/,
+];
+
 const ALWAYS_ALLOWED_ORIGINS = [
     'https://www.aivora.cn',
     'https://aivora.cn',
@@ -209,6 +224,11 @@ function containsPersonalMaterial(markdown) {
     return matches.length >= 2;
 }
 
+export function containsBlackHatLLMInstruction(markdown) {
+    const text = String(markdown || '');
+    return BLACK_HAT_LLM_INSTRUCTION_PATTERNS.some(pattern => pattern.test(text));
+}
+
 function countMainSiteLinks(markdown) {
     return extractMarkdownLinks(markdown).filter(link => {
         try {
@@ -260,6 +280,9 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     }
     if (FABRICATED_TODAY_EXPERIENCE_PATTERNS.some(pattern => pattern.test(text))) {
         severe.push('possible_fabricated_today_experience');
+    }
+    if (containsBlackHatLLMInstruction(body)) {
+        severe.push('black_hat_llm_instruction');
     }
 
     const unapprovedLinks = extractMarkdownLinks(body)
