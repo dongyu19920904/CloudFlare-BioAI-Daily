@@ -30,6 +30,24 @@ test("Anthropic Messages URLs are normalized exactly once", () => {
   }
 });
 
+test("RunToken base URL resolves to its Anthropic Messages endpoint", () => {
+  const config = resolveAnthropicConfig({
+    ANTHROPIC_API_BASE_URL: "https://www.runtoken.ai",
+    ANTHROPIC_BACKUP_API_BASE_URL: "https://www.runtoken.ai",
+    DEFAULT_ANTHROPIC_MODEL: "claude-sonnet-5",
+    DEFAULT_ANTHROPIC_BACKUP_MODEL: "claude-opus-4-8",
+  });
+
+  assert.equal(
+    config.primary.messagesUrl,
+    "https://www.runtoken.ai/v1/messages"
+  );
+  assert.equal(
+    config.backup.messagesUrl,
+    "https://www.runtoken.ai/v1/messages"
+  );
+});
+
 test("new Anthropic endpoint variables take precedence with legacy fallbacks", () => {
   const current = resolveAnthropicConfig({
     ANTHROPIC_API_BASE_URL: "https://primary.example/new/",
