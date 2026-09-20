@@ -11,6 +11,7 @@ import { handleWriteRssData } from './handlers/writeRssData.js';
 import { handleUpdateAllMonthIndexes } from './handlers/updateAllMonthIndexes.js';
 import { handleVisitorStats } from './handlers/visitorStats.js';
 import { handleAgingClockPlan } from './handlers/agingClockPlan.js';
+import { handleModelConnectionProbe } from './modelConnectionProbe.js';
 import { dataSources } from './dataFetchers.js';
 import { handleLogin, isAuthenticated, handleLogout } from './auth.js';
 import {
@@ -69,6 +70,9 @@ export default {
         const path = url.pathname;
         if (path === '/api/project-lab/aging-clock-plan') {
             return await handleAgingClockPlan(request, env);
+        }
+        if (path === '/testModelConnection') {
+            return await handleModelConnectionProbe(request, env);
         }
 
         // Check essential environment variables
