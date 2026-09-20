@@ -80,8 +80,6 @@ test("deployment config uses the enterprise endpoint for both Claude routes", ()
   for (const setting of [
     "ANTHROPIC_API_BASE_URL",
     "ANTHROPIC_BACKUP_API_BASE_URL",
-    "ANTHROPIC_API_URL",
-    "ANTHROPIC_BASE_URL",
   ]) {
     assert.match(
       config,
@@ -93,4 +91,6 @@ test("deployment config uses the enterprise endpoint for both Claude routes", ()
     config,
     /^DEFAULT_ANTHROPIC_BACKUP_MODEL = "claude-opus-4-8"$/m
   );
+  assert.doesNotMatch(config, /^ANTHROPIC_API_URL\s*=/m);
+  assert.doesNotMatch(config, /^ANTHROPIC_BASE_URL\s*=/m);
 });

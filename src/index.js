@@ -1,4 +1,5 @@
 // src/index.js
+import { withWorkerConfigDefaults } from './workerConfig.js';
 import { handleWriteData } from './handlers/writeData.js';
 import { handleGetContent } from './handlers/getContent.js';
 import { handleGetContentHtml } from './handlers/getContentHtml.js';
@@ -51,7 +52,8 @@ async function runScheduledMode(mode, event, env, ctx, specifiedDate = null) {
 }
 
 export default {
-    async scheduled(event, env, ctx) {
+    async scheduled(event, rawEnv, ctx) {
+        const env = withWorkerConfigDefaults(rawEnv);
         const mode = resolveScheduledModeFromCron(event.cron, env);
         // Route scheduled crons to the correct task.
         if (mode === 'blog') {
@@ -61,7 +63,8 @@ export default {
         }
         await runScheduledMode(mode, event, env, ctx);
     },
-    async fetch(request, env, ctx) {
+    async fetch(request, rawEnv, ctx) {
+        const env = withWorkerConfigDefaults(rawEnv);
         const url = new URL(request.url);
         const path = url.pathname;
         if (path === '/api/project-lab/aging-clock-plan') {
