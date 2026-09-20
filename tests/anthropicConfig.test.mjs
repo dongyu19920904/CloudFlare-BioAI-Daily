@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -72,4 +73,24 @@ test("Anthropic proxy headers preserve x-api-key and Bearer compatibility", () =
   assert.equal(headers["x-api-key"], "unit-test-placeholder");
   assert.equal(headers["anthropic-version"], "2023-06-01");
   assert.equal(headers.Authorization, "Bearer unit-test-placeholder");
+});
+
+test("deployment config uses the enterprise endpoint for both Claude routes", () => {
+  const config = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  for (const setting of [
+    "ANTHROPIC_API_BASE_URL",
+    "ANTHROPIC_BACKUP_API_BASE_URL",
+    "ANTHROPIC_API_URL",
+    "ANTHROPIC_BASE_URL",
+  ]) {
+    assert.match(
+      config,
+      new RegExp(`^${setting} = "https://www\\.runtoken\\.ai"$`, "m")
+    );
+  }
+  assert.match(config, /^DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"$/m);
+  assert.match(
+    config,
+    /^DEFAULT_ANTHROPIC_BACKUP_MODEL = "claude-opus-4-8"$/m
+  );
 });
