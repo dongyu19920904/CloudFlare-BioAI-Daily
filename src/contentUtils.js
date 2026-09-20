@@ -1,4 +1,11 @@
-const DEFAULT_DAILY_DESCRIPTION = '每日聚焦 AI + 长寿、延寿、衰老、生物年龄和健康科技前沿，同时记录 ChatGPT、Claude、Cursor、Codex、Gemini、Consensus 等工具如何辅助研究、内容和项目验证。由爱窝啦提供 AI 工具入口支持。';
+import { escapeYamlString } from './utils/frontmatter.js';
+import {
+    buildReportDescription,
+    extractFirstReportImage,
+    stripLeadingReportHeading,
+} from './utils/reportMetadata.js';
+
+const DEFAULT_DAILY_DESCRIPTION = '每日聚焦 AI + 长寿、延寿、衰老、生物年龄和健康科技前沿，同时记录相关论文、项目、工具与平台进展。';
 
 // 辅助函数：获取月日
 function getMonthDay(dateStr) {
@@ -11,11 +18,6 @@ function computeWeight(dateStr) {
     if (!Number.isFinite(day)) return 0;
     const weight = 32 - day;
     return weight > 0 ? weight : 0;
-}
-
-// 辅助函数：去除 Front Matter
-function stripFrontMatter(content) {
-    return String(content || '').replace(/^---\s*\r?\n[\s\S]*?\r?\n---\s*\r?\n/, '');
 }
 
 export function getYearMonth(dateStr) {
@@ -70,23 +72,31 @@ sidebar:
 }
 
 export function buildDailyFrontMatter(dateStr, options = {}) {
-    const { description = DEFAULT_DAILY_DESCRIPTION, title } = options;
+    const { description = DEFAULT_DAILY_DESCRIPTION, title, image = '' } = options;
     const monthDay = getMonthDay(dateStr);
     const weight = computeWeight(dateStr);
     const resolvedTitle = title === undefined ? `${monthDay}-日报-AI资讯日报` : title;
     return `---
-linkTitle: ${monthDay}-日报
-title: ${resolvedTitle}
+linkTitle: ${escapeYamlString(`${monthDay}-日报`)}
+title: ${escapeYamlString(resolvedTitle)}
 weight: ${weight}
 breadcrumbs: false
 comments: true
-description: "${description}"
+description: ${escapeYamlString(description)}
+${image ? `images:\n  - ${escapeYamlString(image)}\n` : ''}
 ---`;
 }
 
 export function buildDailyContentWithFrontMatter(dateStr, content, options = {}) {
-    const body = stripFrontMatter(content).trimStart();
-    return `${buildDailyFrontMatter(dateStr, options)}\n\n${body}`;
+    const description = options.description || buildReportDescription(content, {
+        dateStr,
+        label: 'AI生命延续学日报',
+        fallback: DEFAULT_DAILY_DESCRIPTION,
+        suffix: '聚焦来源、证据阶段和实际应用距离。',
+    });
+    const image = options.image || extractFirstReportImage(content);
+    const body = stripLeadingReportHeading(content);
+    return `${buildDailyFrontMatter(dateStr, { ...options, description, image })}\n\n${body}`;
 }
 
 function buildDefaultHomeFrontMatter(dateStr, options = {}) {
@@ -98,11 +108,11 @@ function buildDefaultHomeFrontMatter(dateStr, options = {}) {
     const nextPath = `/${getYearMonth(dateStr)}/${dateStr}`;
     const resolvedTitle = title === undefined ? linkTitle : title;
     return `---
-linkTitle: ${linkTitle}
-title: ${resolvedTitle}
+linkTitle: ${escapeYamlString(linkTitle)}
+title: ${escapeYamlString(resolvedTitle)}
 breadcrumbs: false
 next: ${nextPath}
-description: "${description}"
+description: ${escapeYamlString(description)}
 cascade:
   type: docs
 ---
@@ -110,11 +120,13 @@ cascade:
 }
 
 export function updateHomeIndexContent(existingContent, dailyContent, dateStr, options = {}) {
-    const {
-        description = DEFAULT_DAILY_DESCRIPTION,
-        title,
-        linkTitle
-    } = options;
+    const description = options.description || buildReportDescription(dailyContent, {
+        dateStr,
+        label: 'AI生命延续学日报',
+        fallback: DEFAULT_DAILY_DESCRIPTION,
+        suffix: '聚焦来源、证据阶段和实际应用距离。',
+    });
+    const { title, linkTitle } = options;
     const nextPath = `/${getYearMonth(dateStr)}/${dateStr}`;
     const frontMatterRegex = /^---\s*\r?\n[\s\S]*?\r?\n---\s*\r?\n/;
     let frontMatter = '';
@@ -135,30 +147,36 @@ export function updateHomeIndexContent(existingContent, dailyContent, dateStr, o
         // Update title and linkTitle if provided
         if (title !== undefined) {
             if (/^title:\s*.*$/m.test(frontMatter)) {
-                frontMatter = frontMatter.replace(/^title:\s*.*$/m, `title: ${title}`);
+                frontMatter = frontMatter.replace(/^title:\s*.*$/m, `title: ${escapeYamlString(title)}`);
             } else {
                 // If title doesn't exist, append it (unlikely in valid Hugo front matter but good for safety)
-                frontMatter = frontMatter.replace(/^---\s*\r?\n/, (match) => `${match}title: ${title}\n`);
+                    frontMatter = frontMatter.replace(/^---\s*\r?\n/, (match) => `${match}title: ${escapeYamlString(title)}\n`);
             }
         }
 
         if (linkTitle !== undefined) {
             if (/^linkTitle:\s*.*$/m.test(frontMatter)) {
-                frontMatter = frontMatter.replace(/^linkTitle:\s*.*$/m, `linkTitle: ${linkTitle}`);
+                frontMatter = frontMatter.replace(/^linkTitle:\s*.*$/m, `linkTitle: ${escapeYamlString(linkTitle)}`);
             } else {
                 // If linkTitle doesn't exist, insert it after title or at the beginning
                 if (/^title:\s*.*$/m.test(frontMatter)) {
-                    frontMatter = frontMatter.replace(/^(title:\s*.*$)/m, `$1\nlinkTitle: ${linkTitle}`);
+                    frontMatter = frontMatter.replace(/^(title:\s*.*$)/m, `$1\nlinkTitle: ${escapeYamlString(linkTitle)}`);
                 } else {
-                    frontMatter = frontMatter.replace(/^---\s*\r?\n/, (match) => `${match}linkTitle: ${linkTitle}\n`);
+                    frontMatter = frontMatter.replace(/^---\s*\r?\n/, (match) => `${match}linkTitle: ${escapeYamlString(linkTitle)}\n`);
                 }
             }
+        }
+
+        if (/^description:\s*.*$/m.test(frontMatter)) {
+            frontMatter = frontMatter.replace(/^description:\s*.*$/m, `description: ${escapeYamlString(description)}`);
+        } else {
+            frontMatter = frontMatter.replace(/\r?\n---\s*\r?\n$/, `\ndescription: ${escapeYamlString(description)}\n---\n`);
         }
 
     } else {
         frontMatter = buildDefaultHomeFrontMatter(dateStr, { description, title, linkTitle });
     }
 
-    const body = stripFrontMatter(dailyContent).trimStart();
+    const body = stripLeadingReportHeading(dailyContent);
     return frontMatter.trimEnd() + '\n\n' + body;
 }

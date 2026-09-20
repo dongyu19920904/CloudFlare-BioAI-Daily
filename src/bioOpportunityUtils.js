@@ -1,4 +1,10 @@
 import { buildMonthDirectoryIndex, getYearMonth } from "./contentUtils.js";
+import { escapeYamlString } from "./utils/frontmatter.js";
+import {
+  buildReportDescription,
+  extractFirstReportImage,
+  stripLeadingReportHeading,
+} from "./utils/reportMetadata.js";
 
 const FRONT_MATTER_REGEX = /^---\s*\r?\n[\s\S]*?\r?\n---\s*\r?\n/;
 
@@ -17,10 +23,6 @@ function computeWeight(dateStr) {
   if (!Number.isFinite(day)) return 0;
   const weight = 32 - day;
   return weight > 0 ? weight : 0;
-}
-
-function stripFrontMatter(content) {
-  return String(content || "").replace(FRONT_MATTER_REGEX, "");
 }
 
 function replaceOrInsertFrontMatterLine(frontMatter, field, value) {
@@ -52,17 +54,31 @@ export function buildBioSectionPageContent(dateStr, content, options = {}) {
   const {
     title = `${getMonthDay(dateStr)}-${options.linkTitle || "商机"}`,
     linkTitle = getMonthDay(dateStr),
-    description = DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
+    description,
   } = options;
-  const body = stripFrontMatter(content).trimStart();
+  const isProject = options.section === "project-opportunity" || /项目/u.test(title);
+  const fallback = isProject
+    ? DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION
+    : DEFAULT_BIO_OPPORTUNITY_DESCRIPTION;
+  const resolvedDescription = description || buildReportDescription(content, {
+    dateStr,
+    label: isProject ? "AI生命延续学资讯商机项目" : "AI生命延续学商机日报",
+    fallback,
+    suffix: isProject
+      ? "包含试跑入口、复用资产、维护成本与风险边界。"
+      : "包含目标人群、今日最小动作、成功指标与风险边界。",
+  });
+  const image = options.image || extractFirstReportImage(content);
+  const body = stripLeadingReportHeading(content);
 
   return `---
-linkTitle: ${linkTitle}
-title: ${title}
+linkTitle: ${escapeYamlString(linkTitle)}
+title: ${escapeYamlString(title)}
 weight: ${computeWeight(dateStr)}
 breadcrumbs: false
 comments: true
-description: "${description}"
+description: ${escapeYamlString(resolvedDescription)}
+${image ? `images:\n  - ${escapeYamlString(image)}\n` : ""}
 ---
 
 ${body}`;
@@ -72,18 +88,18 @@ function buildBioSectionHomeFrontMatter(dateStr, options = {}) {
   const {
     title = "AI生命延续学商机",
     linkTitle = title,
-    description = DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
+    description,
     sectionPrefix = "/opportunity",
     nextPath,
   } = options;
   const resolvedNextPath = nextPath || `${sectionPrefix}/${getYearMonth(dateStr)}/${dateStr}/`;
 
   return `---
-linkTitle: ${linkTitle}
-title: ${title}
+linkTitle: ${escapeYamlString(linkTitle)}
+title: ${escapeYamlString(title)}
 breadcrumbs: false
 next: ${resolvedNextPath}
-description: "${description}"
+description: ${escapeYamlString(description)}
 cascade:
   type: docs
 ---
@@ -94,29 +110,38 @@ export function updateBioSectionHomeIndexContent(existingContent, sectionContent
   const {
     title = "AI生命延续学商机",
     linkTitle = title,
-    description = DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
+    description,
     sectionPrefix = "/opportunity",
     nextPath,
   } = options;
+  const isProject = sectionPrefix.includes("project-opportunity");
+  const resolvedDescription = description || buildReportDescription(sectionContent, {
+    dateStr,
+    label: isProject ? "AI生命延续学资讯商机项目" : "AI生命延续学商机日报",
+    fallback: isProject ? DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION : DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
+    suffix: isProject
+      ? "包含试跑入口、复用资产、维护成本与风险边界。"
+      : "包含目标人群、今日最小动作、成功指标与风险边界。",
+  });
   const resolvedNextPath = nextPath || `${sectionPrefix}/${getYearMonth(dateStr)}/${dateStr}/`;
   let frontMatter = "";
 
   if (existingContent && FRONT_MATTER_REGEX.test(existingContent)) {
     frontMatter = existingContent.match(FRONT_MATTER_REGEX)[0];
     frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "next", resolvedNextPath);
-    frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "title", title);
-    frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "linkTitle", linkTitle);
-    frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "description", `"${description}"`);
+    frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "title", escapeYamlString(title));
+    frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "linkTitle", escapeYamlString(linkTitle));
+    frontMatter = replaceOrInsertFrontMatterLine(frontMatter, "description", escapeYamlString(resolvedDescription));
   } else {
     frontMatter = buildBioSectionHomeFrontMatter(dateStr, {
       title,
       linkTitle,
-      description,
+      description: resolvedDescription,
       sectionPrefix,
       nextPath: resolvedNextPath,
     });
   }
 
-  const body = stripFrontMatter(sectionContent).trimStart();
+  const body = stripLeadingReportHeading(sectionContent);
   return `${frontMatter.trimEnd()}\n\n${body}`;
 }

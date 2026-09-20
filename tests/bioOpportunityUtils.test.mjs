@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildBioSectionPageContent,
   buildBioSectionMonthIndexContent,
   buildBioSectionPaths,
   updateBioSectionHomeIndexContent,
@@ -40,4 +41,24 @@ test("buildBioSectionMonthIndexContent builds a sidebar-open month index", () =>
 
   assert.match(monthIndex, /^title: 2026-06$/m);
   assert.match(monthIndex, /^  open: true$/m);
+});
+
+test("buildBioSectionPageContent creates unique metadata and removes duplicate H1", () => {
+  const markdown = `# AI生命延续学商机日报
+
+### 生物年龄报告解读服务
+
+![报告示例](https://example.com/report.png)
+
+今天验证一份低风险交付。`;
+  const page = buildBioSectionPageContent("2026-09-20", markdown, {
+    section: "opportunity",
+    title: "AI生命延续学商机日报 2026年9月20日",
+    linkTitle: "09-20-商机",
+  });
+
+  assert.match(page, /description: '2026-09-20 AI生命延续学商机日报：生物年龄报告解读服务/);
+  assert.match(page, /images:\n  - 'https:\/\/example\.com\/report\.png'/);
+  assert.doesNotMatch(page.split("---")[2], /^\s*#\s/m);
+  assert.match(page, /^title: 'AI生命延续学商机日报 2026年9月20日'$/m);
 });

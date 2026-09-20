@@ -11,8 +11,6 @@ import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import {
-    DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
-    DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION,
     buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
     buildBioSectionPaths,
@@ -245,6 +243,7 @@ function truncatePromptText(text, maxChars = 700) {
 }
 
 function formatOpportunityPromptItem(item, sourceType) {
+    const effectiveSourceType = item?.type || sourceType;
     const contentText = truncatePromptText(stripHtml(item?.details?.content_html || ''), 700);
     const details = [];
     if (item?.details?.totalStars !== undefined && item?.details?.totalStars !== null) {
@@ -255,7 +254,7 @@ function formatOpportunityPromptItem(item, sourceType) {
     }
 
     return [
-        `Type: ${sourceType}`,
+        `Type: ${effectiveSourceType}`,
         `Title: ${item?.title || 'N/A'}`,
         `Published: ${item?.published_date || 'N/A'}`,
         `Source: ${item?.source || 'N/A'}`,
@@ -327,6 +326,7 @@ async function commitBioSectionOutputs(env, dateStr, section, markdownContent, o
         title: options.pageTitle,
         linkTitle: options.pageLinkTitle,
         description: options.description,
+        section,
     });
 
     const existingPageSha = await getGitHubFileSha(env, paths.pagePath);
@@ -402,7 +402,6 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
         pageLinkTitle: `${dateStr.slice(5)}-商机`,
         homeTitle: titleBase,
         homeLinkTitle: '商机日报',
-        description: DEFAULT_BIO_OPPORTUNITY_DESCRIPTION,
     });
 
     return { success: true, date: dateStr, selectedCount: selectedItems.length, paths };
@@ -436,7 +435,6 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
         pageLinkTitle: `${dateStr.slice(5)}-项目`,
         homeTitle: titleBase,
         homeLinkTitle: '项目商机',
-        description: DEFAULT_BIO_PROJECT_OPPORTUNITY_DESCRIPTION,
     });
 
     return { success: true, date: dateStr, selectedCount: selectedItems.length, paths };

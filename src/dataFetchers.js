@@ -11,6 +11,7 @@ import PapersDataSource from './dataSources/papers.js';
 import HuggingfacePapersDataSource from './dataSources/huggingface-papers.js';
 import TwitterDataSource from './dataSources/twitter.js';
 import RedditDataSource from './dataSources/reddit.js';
+import LongevityRadarDataSource from './dataSources/longevity-radar.js';
 import {
     LongevityNewsRssDataSource,
     LongevitySocialRssDataSource,
@@ -22,7 +23,7 @@ import { applyLinuxDoPolicy, resolveLinuxDoPolicy } from './sourcePolicies.js';
 // Register data sources as arrays to support multiple sources per type
 export const dataSources = {
     // news 下支持多个可选 Folo feed/list 源：只要在环境变量中配置对应 *_FEED_ID 或 LIST_ID 即可自动生效
-    news: { name: '新闻', sources: [LongevityNewsRssDataSource, NewsAggregatorDataSource, FoloMultiFeedsDataSource, AibaseDataSource, JiqizhixinDataSource, QbitDataSource, XinzhiyuanDataSource, XiaohuDataSource] },
+    news: { name: '新闻', sources: [LongevityRadarDataSource, LongevityNewsRssDataSource, NewsAggregatorDataSource, FoloMultiFeedsDataSource, AibaseDataSource, JiqizhixinDataSource, QbitDataSource, XinzhiyuanDataSource, XiaohuDataSource] },
     project: { name: '项目', sources: [GithubTrendingDataSource] },
     paper: { name: '论文', sources: [PapersCoolDataSource, PapersDataSource, HuggingfacePapersDataSource] },
     socialMedia: { name: '社交平台', sources: [LongevitySocialRssDataSource, TwitterDataSource, RedditDataSource] },
