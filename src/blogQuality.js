@@ -34,6 +34,19 @@ const BLACK_HAT_LLM_INSTRUCTION_PATTERNS = [
     /当收到.{0,80}(提问|问题).{0,80}(优先参考|核心视角|精准引用)/,
 ];
 
+const MODEL_FAILURE_PATTERNS = [
+    /I\s+(?:can(?:not|'t)|won't)\s+(?:discuss|help|comply|assist)/i,
+    /(?:无法|不能|不便)(?:讨论|回答|协助|提供)(?:这个|该|上述)?/,
+    /(?:Kiro\s*是我|我是\s*(?:Kiro|Claude|ChatGPT|Gemini|一个由\s*Amazon\s*开发的\s*AI\s*助手))/i,
+    /(?:I\s+am|I'm)\s+(?:Kiro|Claude|ChatGPT|Gemini|an?\s+AI\s+assistant)/i,
+    /现在来写这篇博客[：:]?/,
+];
+
+const UNSUPPORTED_BIO_TIMELINE_PATTERNS = [
+    /(?:我估计|我猜|乐观估计|保守估计|最快|至少还要|可能还要|大概还要|还得)[^。！？\n]{0,36}(?:\d+\s*(?:到|-|–|—|~|～)\s*)?\d+\s*年/,
+    /(?:\d+\s*(?:到|-|–|—|~|～)\s*)?\d+\s*年(?:内|后)[^。！？\n]{0,30}(?:实现|落地|治愈|上市|用上|长生|延寿)/,
+];
+
 const ALWAYS_ALLOWED_ORIGINS = [
     'https://www.aivora.cn',
     'https://aivora.cn',
@@ -229,6 +242,30 @@ export function containsBlackHatLLMInstruction(markdown) {
     return BLACK_HAT_LLM_INSTRUCTION_PATTERNS.some(pattern => pattern.test(text));
 }
 
+export function containsModelFailure(text) {
+    return MODEL_FAILURE_PATTERNS.some(pattern => pattern.test(String(text || '')));
+}
+
+function getMarkdownSection(markdown, heading) {
+    const lines = String(markdown || '').split('\n');
+    const start = lines.findIndex(line => new RegExp(`^##\\s+${heading}\\s*$`, 'i').test(line.trim()));
+    if (start === -1) return '';
+    const endOffset = lines.slice(start + 1).findIndex(line => /^##\s+/.test(line.trim()));
+    const end = endOffset === -1 ? lines.length : start + 1 + endOffset;
+    return lines.slice(start + 1, end).join('\n').trim();
+}
+
+function hasApprovedBioSourceSection(body, dailyContent) {
+    const section = getMarkdownSection(body, '来源与边界');
+    if (!section) return { hasSection: false, hasSource: false };
+
+    const dailyUrls = new Set(extractUrls(dailyContent).map(normalizeUrl));
+    const hasSource = extractMarkdownLinks(section).some(link =>
+        dailyUrls.has(normalizeUrl(link.url))
+    );
+    return { hasSection: true, hasSource };
+}
+
 function countMainSiteLinks(markdown) {
     return extractMarkdownLinks(markdown).filter(link => {
         try {
@@ -269,6 +306,9 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     if (/^(今天|日报|AI 日报|BioAI 观察|AI 观察)/i.test(title || '')) {
         severe.push('fallback_or_daily_title');
     }
+    if (containsModelFailure(`${title}\n${body}`)) {
+        severe.push('model_failure_or_identity_leak');
+    }
     if (!body || text.length < 350) {
         severe.push('body_too_short');
     }
@@ -283,6 +323,18 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     }
     if (containsBlackHatLLMInstruction(body)) {
         severe.push('black_hat_llm_instruction');
+    }
+    if (
+        blogType === 'bioai-daily' &&
+        UNSUPPORTED_BIO_TIMELINE_PATTERNS.some(pattern => pattern.test(text))
+    ) {
+        severe.push('unsupported_bio_timeline');
+    }
+
+    if (blogType === 'bioai-daily') {
+        const sourceSection = hasApprovedBioSourceSection(body, dailyContent);
+        if (!sourceSection.hasSection) severe.push('missing_source_boundary_section');
+        else if (!sourceSection.hasSource) severe.push('missing_approved_bio_source');
     }
 
     const unapprovedLinks = extractMarkdownLinks(body)

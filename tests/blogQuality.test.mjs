@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
     containsBlackHatLLMInstruction,
+    containsModelFailure,
     deriveBlogDescription,
     normalizeGeneratedMarkdown,
     qualifyDailyForPersonalBlog,
@@ -120,4 +121,65 @@ Cursor 和 Claude 的变化会影响账号店的解释成本。用户不是在�
 
     assert.equal(result.ok, false);
     assert.ok(result.severe.includes('black_hat_llm_instruction'));
+});
+
+test('validation blocks refusal text and model identity leakage', () => {
+    assert.equal(containsModelFailure("I can't discuss that."), true);
+    assert.equal(containsModelFailure('Kiro 是我，一个由 Amazon 开发的 AI 助手。'), true);
+
+    const result = validateBlogDraft({
+        title: 'Kiro 是我，一个 AI 助手',
+        body: '我无法讨论这个问题。'.repeat(80),
+        dailyContent: aiDaily,
+        blogType: 'ai-daily',
+    });
+
+    assert.ok(result.severe.includes('model_failure_or_identity_leak'));
+});
+
+test('BioAI drafts require an approved source section and reject invented timelines', () => {
+    const bioDaily = `
+# BioAI 日报
+
+一项衰老生物标志物研究讨论了机器学习与健康寿命评估，内容涉及临床数据、蛋白和脑健康。
+
+来源：[原始论文](https://example.com/longevity-paper)
+
+这些信息只用于研究线索发现，需要回到论文核验研究设计和边界。
+`;
+    const base = `
+我关注 AI 生命延续学，也在把 BioAI 日报中的研究线索整理成普通人能理解的项目记录。很多论文我只能先看摘要，因此更需要明确区分研究事实、个人判断和商业想象。这个过程和爱窝啦账号店的经营不同，但同样需要稳定的信息工作流。
+
+## 研究意味着什么
+
+衰老生物标志物可以帮助描述人群差异，但一项研究不能直接证明普通人已经能据此延长寿命。我的判断只能停留在项目观察，不能替代临床证据。
+`;
+
+    const missing = validateBlogDraft({
+        title: '衰老指标离普通人还有多远',
+        body: base.repeat(2),
+        dailyContent: bioDaily,
+        blogType: 'bioai-daily',
+        allowedUrls: ['https://example.com/longevity-paper'],
+    });
+    assert.ok(missing.severe.includes('missing_source_boundary_section'));
+
+    const unsupported = validateBlogDraft({
+        title: '衰老指标离普通人还有多远',
+        body: `${base.repeat(2)}\n我估计 5 年内就能实现长生。\n\n## 来源与边界\n\n- [原始论文](https://example.com/longevity-paper)`,
+        dailyContent: bioDaily,
+        blogType: 'bioai-daily',
+        allowedUrls: ['https://example.com/longevity-paper'],
+    });
+    assert.ok(unsupported.severe.includes('unsupported_bio_timeline'));
+
+    const valid = validateBlogDraft({
+        title: '衰老指标离普通人还有多远',
+        body: `${base.repeat(2)}\n## 来源与边界\n\n- [原始论文](https://example.com/longevity-paper)：研究结论需按论文设计核验。`,
+        dailyContent: bioDaily,
+        blogType: 'bioai-daily',
+        allowedUrls: ['https://example.com/longevity-paper'],
+    });
+    assert.equal(valid.severe.includes('missing_approved_bio_source'), false);
+    assert.equal(valid.severe.includes('unsupported_bio_timeline'), false);
 });
