@@ -1,4 +1,5 @@
 // src/index.js
+import { withWorkerConfigDefaults } from './workerConfig.js';
 import { handleWriteData } from './handlers/writeData.js';
 import { handleGetContent } from './handlers/getContent.js';
 import { handleGetContentHtml } from './handlers/getContentHtml.js';
@@ -10,6 +11,7 @@ import { handleWriteRssData } from './handlers/writeRssData.js';
 import { handleUpdateAllMonthIndexes } from './handlers/updateAllMonthIndexes.js';
 import { handleVisitorStats } from './handlers/visitorStats.js';
 import { handleAgingClockPlan } from './handlers/agingClockPlan.js';
+import { handleModelConnectionProbe } from './modelConnectionProbe.js';
 import { dataSources } from './dataFetchers.js';
 import { handleLogin, isAuthenticated, handleLogout } from './auth.js';
 import {
@@ -51,7 +53,8 @@ async function runScheduledMode(mode, event, env, ctx, specifiedDate = null) {
 }
 
 export default {
-    async scheduled(event, env, ctx) {
+    async scheduled(event, rawEnv, ctx) {
+        const env = withWorkerConfigDefaults(rawEnv);
         const mode = resolveScheduledModeFromCron(event.cron, env);
         // Route scheduled crons to the correct task.
         if (mode === 'blog') {
@@ -61,11 +64,15 @@ export default {
         }
         await runScheduledMode(mode, event, env, ctx);
     },
-    async fetch(request, env, ctx) {
+    async fetch(request, rawEnv, ctx) {
+        const env = withWorkerConfigDefaults(rawEnv);
         const url = new URL(request.url);
         const path = url.pathname;
         if (path === '/api/project-lab/aging-clock-plan') {
             return await handleAgingClockPlan(request, env);
+        }
+        if (path === '/testModelConnection') {
+            return await handleModelConnectionProbe(request, env);
         }
 
         // Check essential environment variables
@@ -234,10 +241,18 @@ export default {
             const fakeEvent = { scheduledTime: Date.now(), cron: '0 16 * * *' };
             const fakeCtx = { waitUntil: (p) => p };
             try {
-                await handleScheduledBlog(fakeEvent, env, fakeCtx, specifiedDate);
-                return new Response(JSON.stringify({ success: true, message: 'Blog task done', date: specifiedDate || 'today' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                const result = await handleScheduledBlog(fakeEvent, env, fakeCtx, specifiedDate);
+                return new Response(JSON.stringify({
+                    success: result.success,
+                    message: result.success ? 'Blog task done' : 'Blog task failed',
+                    date: specifiedDate || 'today',
+                    result,
+                }), {
+                    status: result.success ? 200 : 500,
+                    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+                });
             } catch (error) {
-                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+                return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
             }
         }
 

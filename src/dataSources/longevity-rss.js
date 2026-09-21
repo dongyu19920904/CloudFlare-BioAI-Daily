@@ -136,6 +136,11 @@ function extractImageUrl(html) {
     return imageMatch ? decodeXmlEntities(imageMatch[1]) : '';
 }
 
+function extractFirstLink(html) {
+    const match = String(html || '').match(/<a\b[^>]*href=["']([^"']+)["'][^>]*>/i);
+    return match ? decodeXmlEntities(match[1]) : '';
+}
+
 function splitList(value) {
     return String(value || '')
         .split(/[|,\n]/)
@@ -190,6 +195,46 @@ function itemMatchesPapersCoolTopic(item, env) {
     return (hasAi && hasBio) || hasStrong;
 }
 
+function splitSuperTechFansItem(item, feedName, feedUrl, env) {
+    if (!/supertechfans\.com\/cn\/post\/\d{4}-\d{2}-\d{2}-HackerNews/i.test(item.url || '')) {
+        return [];
+    }
+
+    const sectionPattern = /<h2\b[^>]*id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/h2>([\s\S]*?)(?=<hr>|<h2\b|$)/gi;
+    const maxStories = parsePositiveInteger(env.SUPERTECHFANS_MAX_STORIES_PER_ITEM, 12);
+    const items = [];
+    let match;
+
+    while ((match = sectionPattern.exec(item.summary || '')) !== null && items.length < maxStories) {
+        const anchor = decodeXmlEntities(match[1]);
+        const rawHeading = stripHtml(decodeXmlEntities(match[2]))
+            .replace(/\s*#\s*$/, '')
+            .trim();
+        if (!/^\d+\.\s+/.test(rawHeading)) continue;
+        const heading = rawHeading.replace(/^\d+\.\s*/, '').trim();
+        const sectionHtml = decodeXmlEntities(match[3]);
+        const summary = stripHtml(sectionHtml).slice(0, 1500);
+        const url = extractFirstLink(sectionHtml) || item.url;
+        const splitItem = {
+            id: `${item.url}#${anchor}`,
+            url,
+            title: heading,
+            summary,
+            date_published: item.date_published,
+            authors: item.authors,
+            source: feedName,
+            feedUrl,
+            imageUrl: extractImageUrl(sectionHtml),
+        };
+
+        if (heading && summary && itemMatchesPapersCoolTopic(splitItem, env)) {
+            items.push(splitItem);
+        }
+    }
+
+    return items;
+}
+
 function parseFeedItems(xml, feedName, feedUrl, sourceKind, env) {
     const input = String(xml || '');
     const isAtom = /<feed\b/i.test(input);
@@ -225,6 +270,15 @@ function parseFeedItems(xml, feedName, feedUrl, sourceKind, env) {
             feedUrl,
             imageUrl,
         };
+
+        const superTechFansItems = splitSuperTechFansItem(item, feedName, feedUrl, env);
+        if (superTechFansItems.length > 0) {
+            items.push(...superTechFansItems);
+            continue;
+        }
+        if (/supertechfans\.com\/cn\/post\/\d{4}-\d{2}-\d{2}-HackerNews/i.test(link)) {
+            continue;
+        }
 
         if (sourceKind === 'papers-cool' && !itemMatchesPapersCoolTopic(item, env)) {
             continue;
