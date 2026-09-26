@@ -26,14 +26,28 @@ test("does not fetch arbitrary URLs supplied by model-generated text", async () 
 });
 
 test("discovers a DOI from a Lifespan article but keeps medical claims unverified", async () => {
+  const requested = [];
   const result = await discoverPrimarySourceCandidates({ source_urls: ["https://lifespan.io/creatine-protects-lean-mass-even-without-exercise/"] }, async (url) => {
+    requested.push(url);
     if (url.includes("api.crossref.org")) {
       return new Response(JSON.stringify({ message: { DOI: "10.1080/15502783.2026.2716273", title: ["Effects of creatine supplementation with and without exercise and diet intervention"], type: "journal-article" } }), { status: 200, headers: { "content-type": "application/json" } });
     }
-    return new Response('<a href="https://doi.org/10.1080/15502783.2026.2716273">Original paper</a>', { status: 200, headers: { "content-type": "text/html" } });
+    return new Response(JSON.stringify([{ link: "https://lifespan.io/creatine-protects-lean-mass-even-without-exercise/", content: { rendered: '<a href="https://doi.org/10.1080/15502783.2026.2716273">Original paper</a>' } }]), { status: 200, headers: { "content-type": "application/json" } });
   });
   assert.equal(result[0]?.doi, "10.1080/15502783.2026.2716273");
   assert.equal(result[0]?.relationship_verified, false);
+  assert.match(requested[0], /^https:\/\/lifespan\.io\/wp-json\/wp\/v2\/posts\?/);
+  assert.equal(requested.length, 2);
+});
+
+test("rejects a WordPress response for a different article", async () => {
+  let requests = 0;
+  const result = await discoverPrimarySourceCandidates({ source_urls: ["https://lifespan.io/creatine-protects-lean-mass-even-without-exercise/"] }, async () => {
+    requests += 1;
+    return new Response(JSON.stringify([{ link: "https://lifespan.io/other/", content: { rendered: "10.1080/15502783.2026.2716273" } }]), { status: 200, headers: { "content-type": "application/json" } });
+  });
+  assert.deepEqual(result, []);
+  assert.equal(requests, 1);
 });
 
 test("does not accept a DOI when registry metadata does not match", async () => {
