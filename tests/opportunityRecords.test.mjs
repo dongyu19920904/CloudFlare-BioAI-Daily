@@ -75,6 +75,28 @@ test("project opportunities use their own heading and distinguish an honest empt
   assert.equal(empty.extraction_status, "no_qualifying_project");
 });
 
+test("project sidecar screens a repository and queues input verification without claiming it runs", async () => {
+  const markdown = "## 今日优先项目\n### 可试跑开源工具\n- **证据来源**:[仓库](https://github.com/example/tool)\n- **可交付物**:试跑笔记\n";
+  let saved;
+  const github = { getSha: async () => null, getContent: async () => "", write: async (_env, _path, content) => { saved = JSON.parse(content); } };
+  const fetcher = async () => new Response(JSON.stringify({ full_name: "example/tool", private: false, license: { spdx_id: "MIT" } }), { status: 200, headers: { "content-type": "application/json" } });
+  await commitOpportunityRecords({}, "2026-09-26", "project-opportunity", markdown, github, fetcher);
+  assert.equal(saved.opportunities[0].state, "needs_input_check");
+  assert.equal(saved.opportunities[0].repository_metadata.run_verified, false);
+  assert.deepEqual(saved.tasks.map((item) => item.kind), ["inspect_repository", "validate_demand"]);
+});
+
+test("repository without a recognized license cannot enter automatic development", async () => {
+  const markdown = "## 今日优先项目\n### 无许可证工具\n- **证据来源**:[仓库](https://github.com/example/tool)\n";
+  let saved;
+  const github = { getSha: async () => null, getContent: async () => "", write: async (_env, _path, content) => { saved = JSON.parse(content); } };
+  const fetcher = async () => new Response(JSON.stringify({ full_name: "example/tool", private: false, archived: false, disabled: false, license: null }), { status: 200, headers: { "content-type": "application/json" } });
+  await commitOpportunityRecords({}, "2026-09-26", "project-opportunity", markdown, github, fetcher);
+  assert.equal(saved.opportunities[0].state, "blocked_license_unknown");
+  assert.equal(saved.tasks[0].status, "blocked_license_unknown");
+  assert.ok(saved.tasks.every((item) => item.kind !== "deliver_project"));
+});
+
 test("sidecar writer is idempotent and keeps report publication separate", async () => {
   let stored = "";
   const writes = [];

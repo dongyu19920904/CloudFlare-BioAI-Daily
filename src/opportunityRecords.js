@@ -2,6 +2,8 @@ const NEXT_HEADING = /^##\s+/m;
 const ITEM_HEADING = /^###\s+(.+)$/gm;
 const URL_PATTERN = /https?:\/\/[^\s)<>\]"']+/g;
 import { discoverPrimarySourceCandidates } from "./primarySourceDiscovery.js";
+import { buildOpportunityTasks } from "./opportunityRouting.js";
+import { screenRepository } from "./repositoryScreening.js";
 
 function normalizeText(value) {
   return String(value || "").normalize("NFKC").trim().replace(/\s+/g, " ");
@@ -99,7 +101,8 @@ export function extractOpportunityRecords(markdown, { date, section = "opportuni
     const riskFlags = [];
     if (/治疗|诊断|逆转|延长寿命|痴呆|医疗|患者|轻咨询/.test(`${title} ${body}`)) riskFlags.push("health_claim_review");
     if (/\d+(?:\.\d+)?\s*元|阅读量|点赞|付费|收入/.test(body)) riskFlags.push("commercial_hypothesis");
-    const state = sourceUrls.length ? "needs_primary_source" : "missing_source";
+    const hasRepository = sourceUrls.some((value) => /^https:\/\/github\.com\/[^/]+\/[^/]+/i.test(value));
+    const state = !sourceUrls.length ? "missing_source" : hasRepository ? "needs_repository_check" : "needs_primary_source";
     records.push({
       schema_version: 1,
       opportunity_id: opportunityId,
@@ -109,7 +112,7 @@ export function extractOpportunityRecords(markdown, { date, section = "opportuni
       source_urls: sourceUrls,
       source_verified: false,
       state,
-      state_reason: sourceUrls.length ? "已提取报道链接；尚未核验一手论文、试验或项目来源" : "缺少可解析的来源链接",
+      state_reason: !sourceUrls.length ? "缺少可解析的来源链接" : hasRepository ? "已提取仓库链接；尚未核验许可证、数据和可运行性" : "已提取报道链接；尚未核验一手论文、试验或项目来源",
       target_user: buyer || null,
       demand_claim: demandClaim || null,
       demand_verified: false,
@@ -162,6 +165,22 @@ export async function commitOpportunityRecords(env, date, section, markdown, git
   } catch { /* A damaged previous sidecar does not block self-healing. */ }
   const deadline = Date.now() + 20_000;
   for (const record of document.opportunities) {
+    if (record.state === "needs_repository_check") {
+      record.repository_metadata = await screenRepository(record, fetcher);
+      if (record.repository_metadata) {
+        if (record.repository_metadata.archived || record.repository_metadata.disabled) {
+          record.state = "blocked_repository_inactive";
+          record.state_reason = "仓库已归档或停用；自动项目改造已暂停";
+        } else if (!record.repository_metadata.license_spdx) {
+          record.state = "blocked_license_unknown";
+          record.state_reason = "未识别明确的代码许可证；自动项目改造已暂停";
+        } else {
+          record.state = "needs_input_check";
+          record.state_reason = "已找到仓库元数据和许可证标识；数据入口、授权义务与核心功能仍需受控验证";
+        }
+      }
+      continue;
+    }
     const discovered = await discoverPrimarySourceCandidates(record, fetcher, deadline);
     const retained = (previous.get(record.opportunity_id)?.primary_source_candidates || [])
       .filter((item) => record.source_urls.includes(item.discovered_from));
@@ -171,6 +190,7 @@ export async function commitOpportunityRecords(env, date, section, markdown, git
       record.state_reason = "已自动找到可核查的论文 DOI；DOI 存在不等于报道关系或医学结论得到验证";
     }
   }
+  document.tasks = buildOpportunityTasks(document.opportunities);
   const content = `${JSON.stringify(document, null, 2)}\n`;
   if (existingSha && existingContent === content) {
     return { filePath, count: document.opportunities.length, changed: false };
