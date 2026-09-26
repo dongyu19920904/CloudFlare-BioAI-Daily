@@ -41,12 +41,12 @@ LOGIN_USERNAME = "qqee1133"
 
 DAILY_CRON_SCHEDULE = "20 11 * * *"
 OPPORTUNITY_CRON_SCHEDULE = "30 11 * * *"
-PROJECT_OPPORTUNITY_CRON_SCHEDULE = "30 11 * * *"
+PROJECT_OPPORTUNITY_CRON_SCHEDULE = "45 11 * * *"
 DAILY_TITLE = "AI生命延续学日报"
 DAILY_TITLE_MIN = " AI生命延续学日报 "
 OPPORTUNITY_TITLE = "AI生命延续学商机日报"
 PROJECT_OPPORTUNITY_TITLE = "AI生命延续学资讯商机项目"
-PROJECT_OPPORTUNITY_SHARED_WITH_OPPORTUNITY_CRON = "true"
+PROJECT_OPPORTUNITY_SHARED_WITH_OPPORTUNITY_CRON = "false"
 PODCAST_TITLE = "AI生命延续学播报"
 PODCAST_BEGIN = "欢迎收听 AI生命延续学日报，每天为你精选 AI 与长寿、延寿、衰老研究领域最值得关注的动态"
 PODCAST_END = "感谢收听，我们下期再见"
@@ -58,5 +58,6 @@ INSERT_APP_URL = "<h3>[查看最新 AI生命延续学日报](https://news.aibioo
 crons = [
   "20 11 * * *",
   "30 11 * * *",
+  "45 11 * * *",
   "30 12 * * *"
 ]
