@@ -25,6 +25,17 @@ test("does not fetch arbitrary URLs supplied by model-generated text", async () 
   assert.equal(calls, 0);
 });
 
+test("discovers a DOI from a Lifespan article but keeps medical claims unverified", async () => {
+  const result = await discoverPrimarySourceCandidates({ source_urls: ["https://lifespan.io/creatine-protects-lean-mass-even-without-exercise/"] }, async (url) => {
+    if (url.includes("api.crossref.org")) {
+      return new Response(JSON.stringify({ message: { DOI: "10.1080/15502783.2026.2716273", title: ["Effects of creatine supplementation with and without exercise and diet intervention"], type: "journal-article" } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response('<a href="https://doi.org/10.1080/15502783.2026.2716273">Original paper</a>', { status: 200, headers: { "content-type": "text/html" } });
+  });
+  assert.equal(result[0]?.doi, "10.1080/15502783.2026.2716273");
+  assert.equal(result[0]?.relationship_verified, false);
+});
+
 test("does not accept a DOI when registry metadata does not match", async () => {
   const result = await discoverPrimarySourceCandidates({ source_urls: ["https://medicalxpress.com/news/example.html"] }, async (url) => {
     if (url.includes("api.crossref.org")) return new Response(JSON.stringify({ message: { DOI: "10.1002/other", title: ["Other paper"] } }), { status: 200 });
