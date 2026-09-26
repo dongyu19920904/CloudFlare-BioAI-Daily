@@ -1,4 +1,3 @@
-const SECTION_HEADING = /^##\s+今日主推\s*$/m;
 const NEXT_HEADING = /^##\s+/m;
 const ITEM_HEADING = /^###\s+(.+)$/gm;
 const URL_PATTERN = /https?:\/\/[^\s)<>\]"']+/g;
@@ -46,8 +45,9 @@ function extractUrls(value) {
   return [...new Set((value.match(URL_PATTERN) || []).map(canonicalUrl).filter(Boolean))];
 }
 
-function findMainSection(markdown) {
-  const match = SECTION_HEADING.exec(markdown);
+function findMainSection(markdown, section) {
+  const heading = section === "project-opportunity" ? "今日优先项目" : "今日主推";
+  const match = new RegExp(`^##\\s+${heading}\\s*$`, "m").exec(markdown);
   if (!match) return "";
   const remaining = markdown.slice(match.index + match[0].length);
   const next = NEXT_HEADING.exec(remaining);
@@ -81,7 +81,7 @@ export function extractOpportunityRecords(markdown, { date, section = "opportuni
   if (!["opportunity", "project-opportunity"].includes(section)) {
     throw new Error("Unsupported opportunity section");
   }
-  const main = findMainSection(String(markdown || ""));
+  const main = findMainSection(String(markdown || ""), section);
   const seen = new Set();
   const records = [];
   for (const { title, body } of sectionsFromMain(main)) {
@@ -127,13 +127,16 @@ export function extractOpportunityRecords(markdown, { date, section = "opportuni
 }
 
 export function buildOpportunityRecordsDocument(markdown, options) {
+  const opportunities = extractOpportunityRecords(markdown, options);
+  const intentionalEmpty = options.section === "project-opportunity" && /今日无符合筛选标准的项目|今日无项目通过验证|今日无项目可试跑/.test(markdown);
   return {
     schema_version: 1,
     report_date: options.date,
     report_section: options.section,
     source_page: `/${options.section}/${options.date.slice(0, 7)}/${options.date}/`,
     extraction_note: "机器提取不等于科学或商业核验；所有主推需继续查一手来源与真实需求。",
-    opportunities: extractOpportunityRecords(markdown, options),
+    extraction_status: opportunities.length ? "candidates_extracted" : intentionalEmpty ? "no_qualifying_project" : "no_main_items",
+    opportunities,
   };
 }
 
@@ -146,17 +149,30 @@ export function buildOpportunityRecordsPath(date, section) {
 /** An idempotent GitHub sidecar write; injected I/O keeps tests offline. */
 export async function commitOpportunityRecords(env, date, section, markdown, github, fetcher = fetch) {
   const document = buildOpportunityRecordsDocument(markdown, { date, section });
+  const filePath = buildOpportunityRecordsPath(date, section);
+  const existingSha = await github.getSha(env, filePath);
+  let existingContent = "";
+  if (existingSha) existingContent = await github.getContent(env, filePath);
+  let previous = new Map();
+  try {
+    const parsed = JSON.parse(existingContent);
+    if (parsed.report_date === date && parsed.report_section === section && Array.isArray(parsed.opportunities)) {
+      previous = new Map(parsed.opportunities.map((item) => [item.opportunity_id, item]));
+    }
+  } catch { /* A damaged previous sidecar does not block self-healing. */ }
+  const deadline = Date.now() + 20_000;
   for (const record of document.opportunities) {
-    record.primary_source_candidates = await discoverPrimarySourceCandidates(record, fetcher);
+    const discovered = await discoverPrimarySourceCandidates(record, fetcher, deadline);
+    const retained = (previous.get(record.opportunity_id)?.primary_source_candidates || [])
+      .filter((item) => record.source_urls.includes(item.discovered_from));
+    record.primary_source_candidates = [...new Map([...retained, ...discovered].map((item) => [item.doi, item])).values()];
     if (record.primary_source_candidates.length) {
       record.state = "needs_claim_check";
       record.state_reason = "已自动找到可核查的论文 DOI；DOI 存在不等于报道关系或医学结论得到验证";
     }
   }
-  const filePath = buildOpportunityRecordsPath(date, section);
   const content = `${JSON.stringify(document, null, 2)}\n`;
-  const existingSha = await github.getSha(env, filePath);
-  if (existingSha && await github.getContent(env, filePath) === content) {
+  if (existingSha && existingContent === content) {
     return { filePath, count: document.opportunities.length, changed: false };
   }
   await github.write(

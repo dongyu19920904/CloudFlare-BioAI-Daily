@@ -10,9 +10,11 @@ function doiCandidates(html) {
   return [...new Set(candidates)].slice(0, 3);
 }
 
-async function fetchBounded(fetcher, url, accept, requiredType, maxBytes) {
+async function fetchBounded(fetcher, url, accept, requiredType, maxBytes, deadline) {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) return null;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), Math.min(TIMEOUT_MS, remaining));
   try {
     const response = await fetcher(url, {
       signal: controller.signal,
@@ -46,9 +48,10 @@ async function fetchBounded(fetcher, url, accept, requiredType, maxBytes) {
 }
 
 /** Locate DOI candidates, never verify a medical claim from metadata alone. */
-export async function discoverPrimarySourceCandidates(record, fetcher = fetch) {
+export async function discoverPrimarySourceCandidates(record, fetcher = fetch, deadline = Date.now() + 20_000) {
   const found = [];
   for (const source of (record.source_urls || []).slice(0, 2)) {
+    if (Date.now() >= deadline) break;
     let url;
     try {
       url = new URL(source);
@@ -57,11 +60,12 @@ export async function discoverPrimarySourceCandidates(record, fetcher = fetch) {
     }
     if (url.protocol !== "https:" || !ALLOWED_NEWS_HOSTS.has(url.hostname) || url.port || url.username || url.password) continue;
     try {
-      const html = await fetchBounded(fetcher, url.toString(), "text/html", "text/html", MAX_HTML_BYTES);
+      const html = await fetchBounded(fetcher, url.toString(), "text/html", "text/html", MAX_HTML_BYTES, deadline);
       if (!html) continue;
       for (const doi of doiCandidates(html)) {
+        if (Date.now() >= deadline) break;
         const apiUrl = `https://api.crossref.org/works/${encodeURIComponent(doi)}`;
-        const metadataText = await fetchBounded(fetcher, apiUrl, "application/json", "application/json", MAX_JSON_BYTES);
+        const metadataText = await fetchBounded(fetcher, apiUrl, "application/json", "application/json", MAX_JSON_BYTES, deadline);
         if (!metadataText) continue;
         const metadata = JSON.parse(metadataText);
         const work = metadata?.message;
