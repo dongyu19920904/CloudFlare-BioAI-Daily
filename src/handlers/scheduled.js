@@ -6,6 +6,7 @@ import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationProm
 import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
+import { generateWithSourceGate } from "../opportunitySourceGate.js";
 import { insertFoot } from '../foot.js';
 import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
@@ -393,11 +394,10 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
         return { success: false, date: dateStr, reason: 'no_items' };
     }
 
-    const markdownContent = await generateBioOpportunityMarkdown(
-        env,
+    const markdownContent = await generateWithSourceGate(
+        (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioOpportunity(dateStr), 'opportunity'),
         `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
-        getSystemPromptBioOpportunity(dateStr),
-        'opportunity'
+        { date: dateStr, section: 'opportunity' }
     );
     const records = await commitOpportunityRecords(env, dateStr, 'opportunity', markdownContent, {
         getSha: getGitHubFileSha,
@@ -432,11 +432,10 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
         return { success: false, date: dateStr, reason: 'no_items' };
     }
 
-    const markdownContent = await generateBioOpportunityMarkdown(
-        env,
+    const markdownContent = await generateWithSourceGate(
+        (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioProjectOpportunity(dateStr), 'project-opportunity'),
         `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
-        getSystemPromptBioProjectOpportunity(dateStr),
-        'project-opportunity'
+        { date: dateStr, section: 'project-opportunity' }
     );
     const records = await commitOpportunityRecords(env, dateStr, 'project-opportunity', markdownContent, {
         getSha: getGitHubFileSha,
