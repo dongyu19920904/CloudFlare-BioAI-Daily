@@ -47,6 +47,22 @@ async function fetchBounded(fetcher, url, accept, requiredType, maxBytes, deadli
   }
 }
 
+async function articleText(fetcher, url, deadline) {
+  if (url.hostname !== "lifespan.io") {
+    return fetchBounded(fetcher, url.toString(), "text/html", "text/html", MAX_HTML_BYTES, deadline);
+  }
+  // The public article HTML is often >900 KB. Fetch only its own bounded
+  // WordPress content, never a model-supplied or cross-host API endpoint.
+  if (!/^\/[a-z0-9-]{1,150}\/$/.test(url.pathname)) return null;
+  const slug = url.pathname.slice(1, -1);
+  const api = `https://lifespan.io/wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}&_fields=id,title,content,link`;
+  const raw = await fetchBounded(fetcher, api, "application/json", "application/json", MAX_JSON_BYTES, deadline);
+  if (!raw) return null;
+  const posts = JSON.parse(raw);
+  if (!Array.isArray(posts) || posts.length !== 1 || posts[0]?.link !== `https://lifespan.io/${slug}/` || typeof posts[0]?.content?.rendered !== "string") return null;
+  return posts[0].content.rendered;
+}
+
 /** Locate DOI candidates, never verify a medical claim from metadata alone. */
 export async function discoverPrimarySourceCandidates(record, fetcher = fetch, deadline = Date.now() + 20_000) {
   const found = [];
@@ -60,7 +76,7 @@ export async function discoverPrimarySourceCandidates(record, fetcher = fetch, d
     }
     if (url.protocol !== "https:" || !ALLOWED_NEWS_HOSTS.has(url.hostname) || url.port || url.username || url.password) continue;
     try {
-      const html = await fetchBounded(fetcher, url.toString(), "text/html", "text/html", MAX_HTML_BYTES, deadline);
+      const html = await articleText(fetcher, url, deadline);
       if (!html) continue;
       for (const doi of doiCandidates(html)) {
         if (Date.now() >= deadline) break;
