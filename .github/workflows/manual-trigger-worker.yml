@@ -66,9 +66,9 @@ jobs:
               ;;
           esac
 
-          URL="${WORKER_BASE_URL%/}/${PATH_PART}?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
+          URL="${WORKER_BASE_URL%/}/${PATH_PART}?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&mode=${MODE}&sync=1"
           if [[ "$ASYNC_FLAG" == "true" || "$ASYNC_FLAG" == "1" ]]; then
-            URL="${WORKER_BASE_URL%/}/${PATH_PART}?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&async=1"
+            URL="${WORKER_BASE_URL%/}/${PATH_PART}?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&mode=${MODE}&async=1"
           fi
 
           echo "Mode: $MODE"

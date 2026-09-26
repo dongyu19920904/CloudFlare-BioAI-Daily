@@ -29,6 +29,16 @@ test("resolveScheduledModeFromCron can route a separate project-opportunity cron
   );
 });
 
+test("deployed free-tier schedule splits both opportunity sections into separate invocations", () => {
+  const deployed = {
+    ...env,
+    PROJECT_OPPORTUNITY_CRON_SCHEDULE: "45 11 * * *",
+    PROJECT_OPPORTUNITY_SHARED_WITH_OPPORTUNITY_CRON: "false",
+  };
+  assert.equal(resolveScheduledModeFromCron("30 11 * * *", deployed), "opportunity");
+  assert.equal(resolveScheduledModeFromCron("45 11 * * *", deployed), "project-opportunity");
+});
+
 test("resolveScheduledModeFromCron routes the same-day blog cron after daily generation", () => {
   assert.equal(resolveScheduledModeFromCron("30 12 * * *", env), "blog");
 });
