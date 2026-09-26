@@ -1,4 +1,4 @@
-const ALLOWED_NEWS_HOSTS = new Set(["medicalxpress.com", "www.news-medical.net"]);
+const ALLOWED_NEWS_HOSTS = new Set(["medicalxpress.com", "www.news-medical.net", "lifespan.io"]);
 const DOI_REGEX = /10\.\d{4,9}\/[a-z0-9._;()/:+-]+/gi;
 const MAX_HTML_BYTES = 350_000;
 const MAX_JSON_BYTES = 250_000;
