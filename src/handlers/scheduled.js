@@ -18,6 +18,7 @@ import {
     updateBioSectionHomeIndexContent,
 } from '../bioOpportunityUtils.js';
 import { createOrUpdateGitHubFile, getGitHubFileContent, getGitHubFileSha } from '../github.js';
+import { commitOpportunityRecords } from '../opportunityRecords.js';
 
 function normalizeSummaryLines(summaryText) {
     if (!summaryText) return '';
@@ -398,6 +399,11 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
         getSystemPromptBioOpportunity(dateStr),
         'opportunity'
     );
+    const records = await commitOpportunityRecords(env, dateStr, 'opportunity', markdownContent, {
+        getSha: getGitHubFileSha,
+        getContent: getGitHubFileContent,
+        write: createOrUpdateGitHubFile,
+    });
     const titleBase = env.OPPORTUNITY_TITLE || 'AI生命延续学商机日报';
     const paths = await commitBioSectionOutputs(env, dateStr, 'opportunity', markdownContent, {
         pageTitle: `${titleBase} ${formatDateToChinese(dateStr)}`,
@@ -406,7 +412,7 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
         homeLinkTitle: '商机日报',
     });
 
-    return { success: true, date: dateStr, selectedCount: selectedItems.length, paths };
+    return { success: true, date: dateStr, selectedCount: selectedItems.length, paths, records };
 }
 
 async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData) {
@@ -432,6 +438,11 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
         getSystemPromptBioProjectOpportunity(dateStr),
         'project-opportunity'
     );
+    const records = await commitOpportunityRecords(env, dateStr, 'project-opportunity', markdownContent, {
+        getSha: getGitHubFileSha,
+        getContent: getGitHubFileContent,
+        write: createOrUpdateGitHubFile,
+    });
     const titleBase = env.PROJECT_OPPORTUNITY_TITLE || 'AI生命延续学资讯商机项目';
     const paths = await commitBioSectionOutputs(env, dateStr, 'project-opportunity', markdownContent, {
         pageTitle: `${titleBase} ${formatDateToChinese(dateStr)}`,
@@ -440,7 +451,7 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
         homeLinkTitle: '项目商机',
     });
 
-    return { success: true, date: dateStr, selectedCount: selectedItems.length, paths };
+    return { success: true, date: dateStr, selectedCount: selectedItems.length, paths, records };
 }
 
 export async function handleScheduledOpportunity(event, env, ctx, specifiedDate = null, preloadedData = null) {
