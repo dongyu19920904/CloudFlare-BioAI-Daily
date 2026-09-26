@@ -23,7 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEFAULT_WORKER_BASE_URL: https://cloudflare-bioai-daily.sabrinamisan090.workers.dev
-      DEFAULT_TRIGGER_SECRET: test-secret-key-change-me
     steps:
       - name: Trigger worker endpoint
         shell: bash
@@ -46,7 +45,10 @@ jobs:
           fi
 
           WORKER_BASE_URL="${WORKER_BASE_URL:-$DEFAULT_WORKER_BASE_URL}"
-          TRIGGER_SECRET="${TRIGGER_SECRET:-$DEFAULT_TRIGGER_SECRET}"
+          if [[ -z "${TRIGGER_SECRET:-}" ]]; then
+            echo "TEST_TRIGGER_SECRET is not configured" >&2
+            exit 1
+          fi
           MODE="${INPUT_MODE:-opportunity-batch}"
           ASYNC_FLAG="${INPUT_ASYNC:-false}"
 

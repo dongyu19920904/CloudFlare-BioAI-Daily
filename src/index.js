@@ -128,8 +128,8 @@ export default {
             // Batch update all month directory _index.md files to fix sorting
             // Protected by simple secret key check
             const secretKey = url.searchParams.get('key');
-            const expectedKey = env.TEST_TRIGGER_SECRET || 'test-secret-key-change-me';
-            if (secretKey !== expectedKey) {
+            const expectedKey = env.TEST_TRIGGER_SECRET;
+            if (!expectedKey || secretKey !== expectedKey) {
                 return new Response(JSON.stringify({
                     error: 'Unauthorized. Please provide correct secret key.'
                 }), {
@@ -147,8 +147,8 @@ export default {
             // Test endpoint for triggering scheduled task with date parameter
             // Protected by simple secret key check
             const secretKey = url.searchParams.get('key');
-            const expectedKey = env.TEST_TRIGGER_SECRET || 'test-secret-key-change-me';
-            if (secretKey !== expectedKey) {
+            const expectedKey = env.TEST_TRIGGER_SECRET;
+            if (!expectedKey || secretKey !== expectedKey) {
                 return new Response(JSON.stringify({
                     error: 'Unauthorized. Please provide correct secret key.'
                 }), {
@@ -221,8 +221,8 @@ export default {
         } else if (path === '/testTriggerBlog' && request.method === 'GET') {
             // Test endpoint for triggering blog generation task
             const secretKey = url.searchParams.get('key');
-            const expectedKey = env.TEST_TRIGGER_SECRET || 'test-secret-key-change-me';
-            if (secretKey !== expectedKey) {
+            const expectedKey = env.TEST_TRIGGER_SECRET;
+            if (!expectedKey || secretKey !== expectedKey) {
                 return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
             }
             const dateParam = url.searchParams.get('date');

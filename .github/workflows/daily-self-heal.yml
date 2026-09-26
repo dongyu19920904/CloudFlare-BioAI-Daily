@@ -21,7 +21,6 @@ jobs:
       FRONTEND_OWNER: dongyu19920904
       FRONTEND_REPO: BioAI-Daily-Web
       DEFAULT_WORKER_BASE_URL: https://cloudflare-bioai-daily.sabrinamisan090.workers.dev
-      DEFAULT_TRIGGER_SECRET: test-secret-key-change-me
 
     steps:
       - name: Check missing daily modules and auto-heal
@@ -47,15 +46,21 @@ jobs:
 
           YEAR_MONTH="${TARGET_DATE:0:7}"
           WORKER_BASE_URL="${WORKER_BASE_URL:-$DEFAULT_WORKER_BASE_URL}"
-          TRIGGER_SECRET="${TRIGGER_SECRET:-$DEFAULT_TRIGGER_SECRET}"
+          if [[ -z "${TRIGGER_SECRET:-}" ]]; then
+            echo "TEST_TRIGGER_SECRET is not configured" >&2
+            exit 1
+          fi
 
           DAILY_RAW_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/daily/${TARGET_DATE}.md"
           DAILY_PAGE_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/content/cn/${YEAR_MONTH}/${TARGET_DATE}.md"
           OPPORTUNITY_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/content/cn/opportunity/${YEAR_MONTH}/${TARGET_DATE}.md"
           PROJECT_OPPORTUNITY_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/content/cn/project-opportunity/${YEAR_MONTH}/${TARGET_DATE}.md"
+          OPPORTUNITY_RECORD_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/static/data/opportunities/opportunity/${TARGET_DATE}.json"
+          PROJECT_RECORD_URL="https://raw.githubusercontent.com/${FRONTEND_OWNER}/${FRONTEND_REPO}/main/static/data/opportunities/project-opportunity/${TARGET_DATE}.json"
 
           DAILY_TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduled?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
-          OPPORTUNITY_BATCH_TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduledOpportunity?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
+          OPPORTUNITY_TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduledOpportunity?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&mode=opportunity&sync=1"
+          PROJECT_OPPORTUNITY_TRIGGER_URL="${WORKER_BASE_URL}/testTriggerScheduledProjectOpportunity?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&sync=1"
 
           echo "target_date=$TARGET_DATE" >> "$GITHUB_OUTPUT"
           echo "daily_raw_url=$DAILY_RAW_URL" >> "$GITHUB_OUTPUT"
@@ -127,42 +132,25 @@ jobs:
             fi
           fi
 
-          need_opportunity_batch="false"
-          if ! probe_url "$OPPORTUNITY_URL"; then
+          if ! probe_url "$OPPORTUNITY_URL" || ! probe_url "$OPPORTUNITY_RECORD_URL"; then
             opportunity_status="missing"
-            need_opportunity_batch="true"
-          fi
-          if ! probe_url "$PROJECT_OPPORTUNITY_URL"; then
-            project_opportunity_status="missing"
-            need_opportunity_batch="true"
-          fi
-
-          if [[ "$need_opportunity_batch" == "true" ]]; then
-            if trigger_worker "opportunity-batch" "$OPPORTUNITY_BATCH_TRIGGER_URL"; then
-              if wait_for_url "opportunity page" "$OPPORTUNITY_URL"; then
-                if [[ "$opportunity_status" == "missing" ]]; then
-                  opportunity_status="self_healed"
-                fi
-              else
-                opportunity_status="failed"
-                overall_status="failed"
-              fi
-
-              if wait_for_url "project opportunity page" "$PROJECT_OPPORTUNITY_URL"; then
-                if [[ "$project_opportunity_status" == "missing" ]]; then
-                  project_opportunity_status="self_healed"
-                fi
-              else
-                project_opportunity_status="failed"
-                overall_status="failed"
-              fi
+            if trigger_worker "opportunity" "$OPPORTUNITY_TRIGGER_URL" &&
+              wait_for_url "opportunity page" "$OPPORTUNITY_URL" &&
+              wait_for_url "opportunity records" "$OPPORTUNITY_RECORD_URL"; then
+              opportunity_status="self_healed"
             else
-              if [[ "$opportunity_status" == "missing" ]]; then
-                opportunity_status="failed"
-              fi
-              if [[ "$project_opportunity_status" == "missing" ]]; then
-                project_opportunity_status="failed"
-              fi
+              opportunity_status="failed"
+              overall_status="failed"
+            fi
+          fi
+          if ! probe_url "$PROJECT_OPPORTUNITY_URL" || ! probe_url "$PROJECT_RECORD_URL"; then
+            project_opportunity_status="missing"
+            if trigger_worker "project-opportunity" "$PROJECT_OPPORTUNITY_TRIGGER_URL" &&
+              wait_for_url "project opportunity page" "$PROJECT_OPPORTUNITY_URL" &&
+              wait_for_url "project opportunity records" "$PROJECT_RECORD_URL"; then
+              project_opportunity_status="self_healed"
+            else
+              project_opportunity_status="failed"
               overall_status="failed"
             fi
           fi

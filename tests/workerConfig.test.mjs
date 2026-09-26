@@ -42,3 +42,11 @@ test("wrangler config stays below the free Worker binding limit", () => {
   // Leave room for KV, rate limiting, and the existing Worker secrets.
   assert.ok(variableCount <= 45, `too many wrangler vars: ${variableCount}`);
 });
+
+test("free Worker keeps its three existing cron slots and uses GitHub guard for the fourth job", () => {
+  const config = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const crons = config.match(/\[triggers\]([\s\S]*?)\]/)?.[1].match(/"[0-9* ]+"/g) || [];
+  assert.equal(crons.length, 3);
+  assert.match(config, /PROJECT_OPPORTUNITY_SHARED_WITH_OPPORTUNITY_CRON = "false"/);
+  assert.match(config, /PROJECT_OPPORTUNITY_CRON_SCHEDULE = "45 11 \* \* \*"/);
+});
