@@ -40,6 +40,27 @@ test("no-project day does not bypass the health self-assessment gate", () => {
   assert.equal(gate.unsafe_health_self_assessment, true);
 });
 
+test("unsafe suggestions on an empty project day are discarded without another paid call", async () => {
+  let calls = 0;
+  const result = await generateWithSourceGate(async () => {
+    calls += 1;
+    return "## 今日优先项目\n**今日无符合筛选标准的项目**\n## 小机会\n免疫衰老自测清单";
+  }, "素材 URL: https://example.org/mouse-study", { ...options, section: "project-opportunity" });
+  assert.equal(calls, 1);
+  assert.match(result, /原草稿已丢弃/);
+  assert.doesNotMatch(result, /免疫衰老自测清单/);
+  assert.equal(assessOpportunitySourceGate(result, { ...options, section: "project-opportunity" }).publishable, true);
+});
+
+test("a risky named project is still blocked, not converted into an empty report", async () => {
+  let calls = 0;
+  await assert.rejects(generateWithSourceGate(async () => {
+    calls += 1;
+    return "## 今日优先项目\n### 风险项目\n- 证据来源：https://example.org/mouse-study\n- 可交付物：免疫衰老自测清单";
+  }, "素材 URL: https://example.org/mouse-study", { ...options, section: "project-opportunity" }), /Opportunity publication gate blocked/);
+  assert.equal(calls, 2);
+});
+
 test("model-invented source links are rejected even when well formed", () => {
   const gate = assessOpportunitySourceGate(sourced, { ...options, allowedSourceUrls: "素材 URL: https://example.org/other" });
   assert.equal(gate.publishable, false);

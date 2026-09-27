@@ -19,6 +19,9 @@ test("bio opportunity prompt applies the business-material decision kernel", () 
   assert.match(prompt, /复购或升级路径/);
   assert.match(prompt, /合规边界/);
   assert.match(prompt, /不能写“能治、能逆转、能保证效果”/);
+  assert.match(prompt, /2400 个汉字以内/);
+  assert.match(prompt, /只保留 1 个有来源的今日主推/);
+  assert.match(prompt, /不要建议读者依据研究报道制作面向个人的健康自测/);
 });
 
 test("bio project opportunity prompt focuses projects on runnable assets", () => {
@@ -36,4 +39,7 @@ test("bio project opportunity prompt focuses projects on runnable assets", () =>
   assert.match(prompt, /二次开发路径/);
   assert.match(prompt, /不要只看 stars/);
   assert.match(prompt, /今天怎么试跑、怎么写内容、怎么沉淀成资料或工具/);
+  assert.match(prompt, /2400 个汉字以内/);
+  assert.match(prompt, /只保留 1 个有来源的今日优先项目/);
+  assert.match(prompt, /不要把动物或早期研究变成面向个人的健康自测/);
 });
