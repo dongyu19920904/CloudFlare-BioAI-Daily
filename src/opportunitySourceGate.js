@@ -34,11 +34,34 @@ export function assessOpportunitySourceGate(markdown, { date, section, allowedSo
   };
 }
 
+function safeNoProjectReport(date) {
+  return [
+    "## 先看结论（可引用项目判断）",
+    `- ${date} 的自动筛选未形成可核查的优先项目；这不代表该领域没有项目，也不是需求或收益判断。`,
+    "## 今日优先项目",
+    "**今日无符合筛选标准的项目**",
+    "本次生成草稿未通过安全与来源门禁，原草稿已丢弃；今天不据此推荐项目、个人健康判断工具或付费服务。",
+    "## 今日动作",
+    "- 今天先试跑：暂无推荐；等待可核查的项目来源。",
+    "- 今天先写：只记录筛选未通过，不把研究线索包装为已验证产品。",
+  ].join("\n");
+}
+
+function safeEmptyProjectResult(gate, options) {
+  if (options.section !== "project-opportunity" || gate.extraction_status !== "no_qualifying_project") return null;
+  const fallback = safeNoProjectReport(options.date);
+  return assessOpportunitySourceGate(fallback, options).publishable ? fallback : null;
+}
+
 /** A bounded editorial retry. No page or sidecar writes happen before this passes. */
 export async function generateWithSourceGate(generate, prompt, options) {
   let markdown = await generate(prompt);
   let gate = assessOpportunitySourceGate(markdown, { ...options, allowedSourceUrls: prompt });
   if (gate.publishable) return markdown;
+  // An explicitly empty project day needs no second paid model call just to
+  // remove unsafe side suggestions. Publish a transparent, source-free status.
+  const earlyEmpty = safeEmptyProjectResult(gate, options);
+  if (earlyEmpty) return earlyEmpty;
   const correction = [
     prompt,
     "\n\n自动发布门禁：上次草稿未通过。",
@@ -49,6 +72,8 @@ export async function generateWithSourceGate(generate, prompt, options) {
   markdown = await generate(correction);
   gate = assessOpportunitySourceGate(markdown, { ...options, allowedSourceUrls: prompt });
   if (!gate.publishable) {
+    const empty = safeEmptyProjectResult(gate, options);
+    if (empty) return empty;
     throw new Error(`Opportunity publication gate blocked ${options.section}: ${gate.extraction_status}; ${gate.missing.length} main item(s) lack URLs; unsafe health self-assessment=${gate.unsafe_health_self_assessment}`);
   }
   return markdown;

@@ -2,8 +2,10 @@ name: Daily Self-Heal Guard (BioAI)
 
 on:
   schedule:
-    - cron: "45 11 * * *"
-    - cron: "20 12 * * *"
+    # Run once after the Worker's last scheduled section (12:30 UTC).
+    # Earlier/twice-daily guards retriggered paid model generation before the
+    # project section's own cron, then retried failures again the same day.
+    - cron: "45 13 * * *"
   workflow_dispatch:
     inputs:
       target_date:
