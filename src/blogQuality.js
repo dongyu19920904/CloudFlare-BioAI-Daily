@@ -246,6 +246,15 @@ export function containsModelFailure(text) {
     return MODEL_FAILURE_PATTERNS.some(pattern => pattern.test(String(text || '')));
 }
 
+export function containsPrivateFinancialDetail(text) {
+    const amount = /(?:\d[\d,.]*|[零〇一二两三四五六七八九十百千万亿]+)\s*(?:亿|万|千|元|块|美元|刀|人民币|[%％])/;
+    return String(text || '').split(/[。！？!?\n]/).some(sentence => {
+        const financial = /月入|日入|收入|营业额|销售额|利润|净利|毛利|成本|增速|资产/;
+        const personal = /我|自己|小店|账号店|店铺|爱窝啦|Aivora|yuyu|月入|日入/i;
+        return personal.test(sentence) && financial.test(sentence) && amount.test(sentence);
+    });
+}
+
 function getMarkdownSection(markdown, heading) {
     const lines = String(markdown || '').split('\n');
     const start = lines.findIndex(line => new RegExp(`^##\\s+${heading}\\s*$`, 'i').test(line.trim()));
@@ -308,6 +317,9 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     }
     if (containsModelFailure(`${title}\n${body}`)) {
         severe.push('model_failure_or_identity_leak');
+    }
+    if (containsPrivateFinancialDetail(`${title}\n${body}`)) {
+        severe.push('private_financial_detail');
     }
     if (!body || text.length < 350) {
         severe.push('body_too_short');

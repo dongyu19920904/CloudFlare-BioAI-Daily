@@ -46,7 +46,7 @@ export function getBlogPersonaSupplement(blogType) {
 
 ### 当前真实业务
 
-- AI 账号店已经进入更忙的阶段：每天销售额大约 3000 元左右，每天利润大约 1000 元左右。
+- 2026-06-14 时，AI 账号店已进入更忙的阶段；本节只保留历史业务状态，具体经营数字不用于公开写作，最新状态见后面的作者当前资料。
 - 现金流比以前更稳，但客服、售后、补货、上新、教程、异常处理也把时间切得更碎。
 - 现在卖的不是单一账号，而是一组 AI 工具入口矩阵：ChatGPT 官方号/镜像、Cursor 独享号/激活器/换号器、Codex 中转、Claude 中转、Claude/Gemini/Codex 三合一、MiniMax Coding Plan、Gemini 年卡、Grok、Perplexity、Consensus 等。
 - 很多商品已经能 24h 自助和卡密秒发，但真正消耗人的，是售前解释、售后边界、教程理解、异常安抚和用户不会用。
