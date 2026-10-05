@@ -154,7 +154,7 @@ test('useful later signals outrank opening roundups without extra model calls', 
 test('unsupported prompt habits are not mistaken for first-person judgments', () => {
     const dailyContent = 'Codex 与 Claude 工作流需要核对需求和结果。\n'.repeat(30);
     const base = '我更关心可检查的结果。将目标和限制写清楚，再核对输出，能避免理解偏差。'.repeat(12);
-    for (const anecdote of ['我最常加的一句话变成了先复述需求。', '我通常会在任务描述后面加一句。', '这个习惯来自反复踩坑。', '我曾经以为给 AI 一个指令就够了。', '现在每次让 AI 做事之前，我会加一句。', '我见过不少这样的场景。']) {
+    for (const anecdote of ['我最常加的一句话变成了先复述需求。', '我通常会在任务描述后面加一句。', '这个习惯来自反复踩坑。', '我曾经以为给 AI 一个指令就够了。', '现在每次让 AI 做事之前，我会加一句。', '我见过不少这样的场景。', '这个习惯我最近正在改。', '过去为了省时间，我习惯一股脑把需求丢进去。', '我见过有人连续生成五个文件。', '从我的使用经验看，这个习惯最大的收益是减少无效迭代。', '过去我会直接拿到输出，发现不对再改提示词。']) {
         assert.ok(validateBlogDraft({title:'先核对理解再开始执行',body:base+anecdote,dailyContent,blogType:'ai-daily'}).severe.includes('unsupported_author_tool_routine'));
     }
     assert.equal(validateBlogDraft({title:'先核对理解再开始执行',body:base+'我的建议是先核对目标。例如，模糊的优化要求可能对应不同做法。',dailyContent,blogType:'ai-daily'}).ok, true);
