@@ -103,5 +103,7 @@ test('authorized historical finances retain date, metric and thousand precision'
     assert.equal(containsUnapprovedFinancialDetail('今天我的日利润约1千元。'), true);
     assert.equal(containsUnapprovedFinancialDetail('2026-10-02，我记录的月收入约5万元。', '2026-10-01'), true);
     assert.equal(containsUnapprovedFinancialDetail('2026-10-02，我记录的月净利润约5万元。'), true);
+    assert.equal(containsUnapprovedFinancialDetail('经营 AI 账号店已经更忙。10 月 2 日记录的月收入约 5 万元。'), true);
+    assert.equal(containsUnapprovedFinancialDetail('我关注企业产品。行业报告称某公司收入增长30%。'), false);
     assert.doesNotMatch(getBlogAuthorKnowledge('2026-10-04'), /博客日夜切换修复得到确认/);
 });

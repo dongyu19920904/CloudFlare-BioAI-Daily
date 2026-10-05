@@ -307,7 +307,10 @@ export function buildCachedBlogSource(items, dateStr) {
             if (!/^https?:$/.test(url.protocol) || url.username || url.password || seen.has(url.href)) continue;
         } catch { continue; }
         seen.add(url.href);
-        selected.push(`## ${item.title}\n\n来源：[${item.source || item.title}](${url.href})\n原文发布时间：${item.published_date}\n\n${String(item.description).slice(0, 3500)}`);
+        const description = String(item.description);
+        const excerpt = description.slice(0, 5000);
+        const boundary = description.length > excerpt.length ? '\n\n[缓存摘录已截断，不能据此断言原文没有人体数据或其他证据。]' : '';
+        selected.push(`## ${item.title}\n\n来源：[${item.source || item.title}](${url.href})\n原文发布时间：${item.published_date}\n\n${excerpt}${boundary}`);
         if (selected.length === 4) break;
     }
     return selected.length ? `# ${dateStr} 已采集的生命科学原始来源\n\n以下是当天缓存中的公开来源，发布日期按每条原文标注，不代表当日新发生。\n\n${selected.join('\n\n')}` : '';

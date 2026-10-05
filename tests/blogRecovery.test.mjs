@@ -20,6 +20,9 @@ test('cached input preserves real publication dates and rejects missing/future/r
     assert.equal((source.match(/https:\/\/example.com\/research/g) || []).length, 1);
     assert.doesNotMatch(source, /future|no-date|refusal/);
     assert.equal(buildCachedBlogSource([], '2026-10-04'), '');
+    const excerpt = buildCachedBlogSource([{...item,description:'A'.repeat(6000)}], '2026-10-04');
+    assert.match(excerpt, /缓存摘录已截断/);
+    assert.doesNotMatch(excerpt, /A{5001}/);
 });
 
 test('published blogs skip source fetch and model calls without mutating shared environment', async t => {

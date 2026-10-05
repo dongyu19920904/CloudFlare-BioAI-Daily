@@ -256,10 +256,14 @@ export function containsModelFailure(text) {
 
 export function containsPrivateFinancialDetail(text) {
     const amount = /(?:\d[\d,.]*|[零〇一二两三四五六七八九十百千万亿]+)\s*(?:亿|万|千|元|块|美元|刀|人民币|[%％])/;
-    return String(text || '').split(/[。！？!?\n]/).some(sentence => {
+    return String(text || '').split(/\n\s*\n/).some(paragraph => {
         const financial = /月入|日入|收入|营业额|销售额|利润|净利|毛利|成本|增速|资产/;
         const personal = /我|自己|小店|账号店|店铺|爱窝啦|Aivora|yuyu|月入|日入/i;
-        return personal.test(sentence) && financial.test(sentence) && amount.test(sentence);
+        if (!personal.test(paragraph)) return false;
+        return paragraph.split(/[。！？!?\n]/).some(sentence => {
+            if (/行业报告|某公司|该公司|这家公司/.test(sentence) && !personal.test(sentence)) return false;
+            return financial.test(sentence) && amount.test(sentence);
+        });
     });
 }
 
