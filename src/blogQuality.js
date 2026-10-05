@@ -24,6 +24,7 @@ const UNSUPPORTED_AUTHOR_TOOL_ROUTINE_PATTERNS = [
     /从我的(?:使用|实测|体验|测试)经验/,
     /习惯[^。！？\n]{0,15}我(?:最近|正在)/,
     /过去[^。！？\n]{0,15}我(?:会|习惯)/,
+    /我的[^。！？\n]{0,8}(?:第一反应|习惯|使用经验|常用提示词|日常做法)/,
 ];
 
 const BLACK_HAT_LLM_INSTRUCTION_PATTERNS = [
@@ -391,8 +392,15 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     }
 
     if (blogType === 'bioai-daily') {
-        if (/生物利用度[^。！？\n]{0,90}(?<!不|不能|未必|不足以)(?:意味着|说明|证明)[^。！？\n]{0,50}(?:吞服|口服|服用)剂量[^。！？\n]{0,30}(?:进入|吸收)/.test(text)) {
+        if (/生物利用度[^。！？\n]{0,90}(?<!不|不能|未必|不足以)(?:意味着|说明|证明|也就是说|代表)[^。！？\n]{0,50}(?:(?:吞服|口服|服用)剂量|吞服的药物)[^。！？\n]{0,30}(?:进入|吸收)/.test(text)) {
             severe.push('unsupported_bioavailability_interpretation');
+        }
+        if (/(?:plasma exposure|血浆暴露量)/i.test(dailyContent || '') && (
+            /暴露量[^。！？\n]{0,20}(?:指的是|指)[^。！？\n]{0,40}总量/.test(text) ||
+            /暴露量[^。！？\n]{0,30}(?<!不|不能|未必)(?:意味着|说明)[^。！？\n]{0,50}到达作用部位/.test(text) ||
+            /暴露量[^。！？\n]{0,100}(?:允许|可以|能)(?:降低|减少)剂量[^。！？\n]{0,30}副作用/.test(text)
+        )) {
+            severe.push('unsupported_pharmacokinetic_inference');
         }
         if (/(?:plasma exposure|血浆暴露量)/i.test(dailyContent || '') &&
             !/(?:plasma concentration|血药浓度|血浆浓度)/i.test(dailyContent || '') &&

@@ -154,7 +154,7 @@ test('useful later signals outrank opening roundups without extra model calls', 
 test('unsupported prompt habits are not mistaken for first-person judgments', () => {
     const dailyContent = 'Codex 与 Claude 工作流需要核对需求和结果。\n'.repeat(30);
     const base = '我更关心可检查的结果。将目标和限制写清楚，再核对输出，能避免理解偏差。'.repeat(12);
-    for (const anecdote of ['我最常加的一句话变成了先复述需求。', '我通常会在任务描述后面加一句。', '这个习惯来自反复踩坑。', '我曾经以为给 AI 一个指令就够了。', '现在每次让 AI 做事之前，我会加一句。', '我见过不少这样的场景。', '这个习惯我最近正在改。', '过去为了省时间，我习惯一股脑把需求丢进去。', '我见过有人连续生成五个文件。', '从我的使用经验看，这个习惯最大的收益是减少无效迭代。', '过去我会直接拿到输出，发现不对再改提示词。']) {
+    for (const anecdote of ['我最常加的一句话变成了先复述需求。', '我通常会在任务描述后面加一句。', '这个习惯来自反复踩坑。', '我曾经以为给 AI 一个指令就够了。', '现在每次让 AI 做事之前，我会加一句。', '我见过不少这样的场景。', '这个习惯我最近正在改。', '过去为了省时间，我习惯一股脑把需求丢进去。', '我见过有人连续生成五个文件。', '从我的使用经验看，这个习惯最大的收益是减少无效迭代。', '过去我会直接拿到输出，发现不对再改提示词。', '遇到需求时，我的第一反应通常是让AI复述任务。']) {
         assert.ok(validateBlogDraft({title:'先核对理解再开始执行',body:base+anecdote,dailyContent,blogType:'ai-daily'}).severe.includes('unsupported_author_tool_routine'));
     }
     assert.equal(validateBlogDraft({title:'先核对理解再开始执行',body:base+'我的建议是先核对目标。例如，模糊的优化要求可能对应不同做法。',dailyContent,blogType:'ai-daily'}).ok, true);
@@ -212,10 +212,21 @@ test('reported bioavailability is not an unsupported swallowed-dose interpretati
     const dailyContent='AI药物研发的临床研究需要核对动物模型中的生物利用度，来源报告为75%到104%。'.repeat(25)+'\nhttps://example.com/study';
     const input={title:'药代数据不能代替人体证据',dailyContent,blogType:'bioai-daily'};
     assert.ok(validateBlogDraft({...input,body:body+'口服生物利用度75%到104%，意味着吞服剂量中的大部分能进入血液。'+reference}).severe.includes('unsupported_bioavailability_interpretation'));
+    assert.ok(validateBlogDraft({...input,body:body+'口服生物利用度75%到104%，也就是说吞服的药物大部分能进入血液循环。'+reference}).severe.includes('unsupported_bioavailability_interpretation'));
     assert.equal(validateBlogDraft({...input,body:body+'来源报告动物模型中的口服生物利用度为75%到104%，需结合实验方法解释，不能直接推断人体结果。'+reference}).ok,true);
     for(const negation of ['不意味着','不能说明','未必证明','不足以说明']){
         assert.equal(validateBlogDraft({...input,body:body+'生物利用度75%到104%，'+negation+'吞服剂量全都进入血液。'+reference}).severe.includes('unsupported_bioavailability_interpretation'),false);
     }
+});
+
+test('higher plasma exposure does not imply target delivery or less toxicity', () => {
+    const base='我更关心测量口径。实验室结果需要核对对象，不能代替人体安全性和临床效果。'.repeat(12);
+    const reference='\n\n## 参考资料\n\n- [研究](https://example.com/study)';
+    const input={title:'暴露量不能代替疗效与安全性',blogType:'bioai-daily',dailyContent:'AI药物研发的临床研究需要核对动物模型。'.repeat(20)+'At the same dose, at least 18-fold greater plasma exposure.\nhttps://example.com/study'};
+    for(const claim of ['血浆暴露量指的是药物进入血液后在体内循环的总量。','更高的暴露量意味着同样剂量下有更多药物到达作用部位，也可能允许降低剂量来减少副作用风险。']){
+        assert.ok(validateBlogDraft({...input,body:base+claim+reference}).severe.includes('unsupported_pharmacokinetic_inference'));
+    }
+    assert.equal(validateBlogDraft({...input,body:base+'血浆暴露量更高不意味着更多药物到达作用部位，临床效果仍需核验。'+reference}).ok,true);
 });
 
 test('plasma exposure does not become an unsupported concentration ratio', () => {

@@ -134,6 +134,7 @@ ${context.severe.map(item => `- ${item}`).join('\n')}
 - unsupported_tool_effectiveness_claim：删除未经测量的“大半/很大一部分失误被拦下、显著降低失误率”等效果幅度，改为有条件的用途；不能将模型失败一概归因于用户沟通，模型能力、环境和测试仍需核对。
 - unsupported_bioavailability_interpretation：保留来源报告的生物利用度和实验对象，但删除将超过 100% 的比值直接解释成吞服剂量进入血液比例的说法；不同给药途径、剂量与实验条件影响比较，未提供分析方法时不要补写机制。
 - unsupported_pharmacokinetic_metric：来源报告的是血浆暴露量（plasma exposure），不是某个时间点的血药浓度。修正对应指标名称，保留原数字、比较对象和实验范围，不添加来源未给出的测量方法或因果解释。
+- unsupported_pharmacokinetic_inference：删除无依据的药代推论。不能将浓度-时间关系写成药物质量总量，不能由更高暴露直接推断更多药物到达靶部位、可降低临床剂量或可减少副作用。保留来源数据和核验问题，不补新的定义或机制。
 - fallback_or_daily_title：只依据现有正文改为具体的短标题，不使用“这一轮变化/这条线/我先记一笔”或日期占位标题。
 - unsupported_bio_safety_or_regulatory_claim：删除无依据的安全性、处方豁免和绕开监管断言。植物来源、补剂销售和动物实验不证明人体低风险；团队计划不能改写为已有人体结果或所有团队的试验要求。
 - 如果出现 unapproved_financial_detail，删除无关的作者财务数字，不换数字、不推算；保留有来源的行业产品定价和研究事实。
