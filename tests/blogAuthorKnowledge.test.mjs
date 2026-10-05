@@ -200,8 +200,17 @@ test('placeholder titles and unsupported tool success assurances do not pass', (
     for(const title of ['BioAI 这条线，我先记一笔 2026/10/04','AI 工具这一轮变化，我先记一笔 2026/10/04']){
         assert.ok(validateBlogDraft({title,body,dailyContent,blogType:'ai-daily'}).severe.includes('fallback_or_daily_title'));
     }
-    for(const claim of ['这个方法能拦住大半的理解偏差。','这不是模型问题，是沟通环节缺失。']){
+    for(const claim of ['这个方法能拦住大半的理解偏差。','它能拦下很大一部分因为理解偏差导致的失误。','这个习惯能显著降低失误率。','这不是模型问题，是沟通环节缺失。']){
         assert.ok(validateBlogDraft({title:'有歧义时先确认再执行',body:body+claim,dailyContent,blogType:'ai-daily'}).severe.includes('unsupported_tool_effectiveness_claim'));
     }
     assert.equal(validateBlogDraft({title:'有歧义时先确认再执行',body,dailyContent,blogType:'ai-daily'}).ok,true);
+});
+
+test('reported bioavailability is not an unsupported swallowed-dose interpretation', () => {
+    const body='我更关心实验对象和测量口径。动物实验需要等待人体证据，药代结果不等于临床效果。'.repeat(12);
+    const reference='\n\n## 参考资料\n\n- [研究](https://example.com/study)';
+    const dailyContent='AI药物研发的临床研究需要核对动物模型中的生物利用度，来源报告为75%到104%。'.repeat(25)+'\nhttps://example.com/study';
+    const input={title:'药代数据不能代替人体证据',dailyContent,blogType:'bioai-daily'};
+    assert.ok(validateBlogDraft({...input,body:body+'口服生物利用度75%到104%，意味着吞服剂量中的大部分能进入血液。'+reference}).severe.includes('unsupported_bioavailability_interpretation'));
+    assert.equal(validateBlogDraft({...input,body:body+'来源报告动物模型中的口服生物利用度为75%到104%，需结合实验方法解释，不能直接推断人体结果。'+reference}).ok,true);
 });

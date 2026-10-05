@@ -131,7 +131,8 @@ ${context.severe.map(item => `- ${item}`).join('\n')}
 - 如果出现无依据的精确 BioAI 时间预测，改成证据边界或待核验问题，不得换一个数字继续预测。
 - unsupported_author_business_duration：作者资料没有经营起始日期，删掉擅自添加的经营时长，不换成另一个时长。
 - unsupported_author_tool_routine：没有作者日常提示词习惯或踩坑记录。将相关句子改为明确的建议或假设例子，删除虚构的习惯来源和过往故障；保留有依据的当前判断，不添加其他亲历。
-- unsupported_tool_effectiveness_claim：删除未经测量的“大半/大多数失误被拦下”等效果幅度，改为有条件的用途；不能将模型失败一概归因于用户沟通，模型能力、环境和测试仍需核对。
+- unsupported_tool_effectiveness_claim：删除未经测量的“大半/很大一部分失误被拦下、显著降低失误率”等效果幅度，改为有条件的用途；不能将模型失败一概归因于用户沟通，模型能力、环境和测试仍需核对。
+- unsupported_bioavailability_interpretation：保留来源报告的生物利用度和实验对象，但删除将超过 100% 的比值直接解释成吞服剂量进入血液比例的说法；不同给药途径、剂量与实验条件影响比较，未提供分析方法时不要补写机制。
 - fallback_or_daily_title：只依据现有正文改为具体的短标题，不使用“这一轮变化/这条线/我先记一笔”或日期占位标题。
 - unsupported_bio_safety_or_regulatory_claim：删除无依据的安全性、处方豁免和绕开监管断言。植物来源、补剂销售和动物实验不证明人体低风险；团队计划不能改写为已有人体结果或所有团队的试验要求。
 - 如果出现 unapproved_financial_detail，删除无关的作者财务数字，不换数字、不推算；保留有来源的行业产品定价和研究事实。
