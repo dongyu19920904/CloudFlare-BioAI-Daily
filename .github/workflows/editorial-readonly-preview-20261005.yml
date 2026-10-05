@@ -1,0 +1,29 @@
+name: One-off personal blog editorial preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Generate dry-run drafts only
+        env:
+          EDITORIAL_PREVIEW_TOKEN: ${{ secrets.EDITORIAL_PREVIEW_TOKEN_20261005 }}
+          EDITORIAL_PREVIEW_URL: https://32541f18-cloudflare-bioai-daily.sabrinamisan090.workers.dev/editorial-preview
+        run: |
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          const r=await fetch(process.env.EDITORIAL_PREVIEW_URL,{method:'POST',redirect:'error',headers:{Authorization:'Bearer '+process.env.EDITORIAL_PREVIEW_TOKEN},signal:AbortSignal.timeout(480000)});
+          const d=await r.json();
+          writeFileSync('editorial-preview.json',JSON.stringify(d,null,2));
+          console.log(JSON.stringify({http:r.status,success:d.success,results:d.results?.map(({type,status,title,reason,warnings})=>({type,status,title,reason,warnings}))}));
+          if(!d.dryRun||!d.success||!d.results.every(x=>x.status==='preview'))process.exitCode=1;
+          JS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: personal-blog-editorial-preview
+          path: editorial-preview.json
+          retention-days: 3
