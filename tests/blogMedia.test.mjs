@@ -2,11 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { addReferencedSourceMedia, selectReferencedSourceMedia } from '../src/blogMedia.js';
 import { normalizeGeneratedMarkdown } from '../src/blogQuality.js';
+import { parseBlogOutput } from '../src/handlers/scheduledBlog.js';
 
 const source = 'https://example.org/study';
 const image = 'https://cdn.example.org/figure.png';
 const daily = `### [研究](${source})\n\n具体研究内容。\n\n[图片: 研究示意图](${image})\n\n### [其他](https://example.org/other)\n\n![其他图](https://cdn.example.org/other.jpg)`;
 const body = `这项[研究](${source})需要继续核查。\n\n## 参考资料\n\n- [研究](${source})`;
+
+test('article parsing preserves code examples and unwraps only whole-response fences', () => {
+    const input = '工作流的检查需要看真实结果\n\n正文说明。\n\n```js\nconst verified = true;\n```\n\n继续说明。';
+    const parsed = parseBlogOutput(input);
+    assert.equal(parsed.title, '工作流的检查需要看真实结果');
+    assert.equal(parsed.body, input.slice(input.indexOf('\n\n') + 2));
+    assert.deepEqual(parseBlogOutput('```md\n' + input + '\n```'), parsed);
+    assert.deepEqual(parseBlogOutput('```\n' + input + '\n```'), parsed);
+});
 
 test('only cited unambiguous source sections supply real image links', () => {
     assert.deepEqual(selectReferencedSourceMedia(daily, body), [{ imageUrl: image, alt: '来源配图：研究示意图', sourceUrl: source, sourceTitle: '研究' }]);
