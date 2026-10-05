@@ -1,6 +1,8 @@
 name: One-off personal blog editorial preview
 on:
   workflow_dispatch:
+  push:
+    branches: [codex/editorial-readonly-preview-20261005]
 permissions:
   contents: read
 jobs:
