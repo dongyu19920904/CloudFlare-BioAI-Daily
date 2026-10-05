@@ -188,3 +188,15 @@ test('upstream coding refusal is not eligible news, even when it mentions longev
     const bad = "我是 Claude Code，Anthropic 官方的 Claude 命令行工具。 I'm designed to help with software engineering tasks. A longevity newsletter falls outside that scope.".repeat(3);
     assert.equal(qualifyDailyForPersonalBlog(bad, 'bioai-daily').eligible, false);
 });
+
+test('editorial checks reject invented operating duration and unsupported safety shortcuts', () => {
+    const checks = [
+        ['经营 AI 账号店这一年多，我关心客服成本。','unsupported_author_business_duration'],
+        ['植物来源、低风险介入会先跑出来。','unsupported_bio_safety_or_regulatory_claim'],
+        ['这个产品绕开监管压力，也不需要处方。','unsupported_bio_safety_or_regulatory_claim'],
+    ];
+    for (const [body, code] of checks) {
+        const result = validateBlogDraft({title:'研究进展需要真实证据',body,dailyContent:aiDaily,blogType:'bioai-daily'});
+        assert.ok(result.severe.includes(code));
+    }
+});

@@ -123,6 +123,8 @@ ${context.severe.map(item => `- ${item}`).join('\n')}
 - 如果缺少参考资料，只能从原始触发材料中保留实际引用的真实 URL，并补充“## 参考资料”；禁止编造链接和来源说明套话。
 - 如果出现模型拒答、自报模型身份或“现在来写这篇博客”之类过程文本，删除这些内容并恢复为文章本身。
 - 如果出现无依据的精确 BioAI 时间预测，改成证据边界或待核验问题，不得换一个数字继续预测。
+- unsupported_author_business_duration：作者资料没有经营起始日期，删掉擅自添加的经营时长，不换成另一个时长。
+- unsupported_bio_safety_or_regulatory_claim：删除无依据的安全性、处方豁免和绕开监管断言。植物来源、补剂销售和动物实验不证明人体低风险；团队计划不能改写为已有人体结果或所有团队的试验要求。
 - 如果出现 unapproved_financial_detail，只保留作者资料中已授权且不晚于文章日期的财务原句。删除其他金额，不换数字、不推算日收入；保留行业产品定价和研究事实。
 - 不输出 Table of contents。
 
@@ -240,7 +242,7 @@ async function generateSingleBlog(env, dateStr, dailyContent, config, dryRun = f
 
     const description = deriveBlogDescription(draft.body, draft.title);
     const frontMatter = buildAstroPaperFrontMatter(draft.title, description, dateStr, config.tags);
-    const fullContent = frontMatter + draft.body + `\n\n---\n\n> 完整版日报请看 [${config.repoDesc}](${config.sourceUrl})\n`;
+    const fullContent = frontMatter + draft.body + (config.sourceUrl ? `\n\n---\n\n> 完整版日报请看 [${config.repoDesc}](${config.sourceUrl})\n` : '\n');
     const filePath = `src/data/blog/${config.filePrefix}-${dateStr}.md`;
     const commitMessage = `Auto-generate ${config.type} blog for ${dateStr}`;
 
@@ -350,7 +352,7 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null,
                 continue;
             }
 
-            const result = await generateSingleBlog(env, dateStr, dailyContent, config, options.dryRun === true);
+            const result = await generateSingleBlog(env, dateStr, dailyContent, sourceRecovered ? { ...config, sourceUrl: null } : config, options.dryRun === true);
             results.push({ type: config.type, sourceRecovered, ...result });
         } catch (error) {
             console.error(`[ScheduledBlog] ${config.type} failed:`, error);
@@ -367,6 +369,6 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null,
     const result = { ...summary, ...(options.dryRun ? { success: previewComplete, dryRun: true } : {}), date: dateStr, results };
     if (!options.dryRun) await writeBlogStatus(env, dateStr, result);
 
-    console.log(`[ScheduledBlog] Completed:`, JSON.stringify({ ...result, results: results.map(({ content, ...item }) => item) }));
+    console.log(`[ScheduledBlog] Completed:`, JSON.stringify({ ...result, results: results.map(item => ({ ...item, content: undefined })) }));
     return result;
 }

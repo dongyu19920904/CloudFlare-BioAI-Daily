@@ -350,6 +350,9 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     if (FABRICATED_TODAY_EXPERIENCE_PATTERNS.some(pattern => pattern.test(text))) {
         severe.push('possible_fabricated_today_experience');
     }
+    if (/(?:经营|卖(?:\s*AI\s*)?账号)[^。！？\n]{0,15}(?:这一年多|[一二两三四五六七八九十\d]+年(?:多|来))/.test(text)) {
+        severe.push('unsupported_author_business_duration');
+    }
     if (containsBlackHatLLMInstruction(body)) {
         severe.push('black_hat_llm_instruction');
     }
@@ -361,6 +364,9 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     }
 
     if (blogType === 'bioai-daily') {
+        if (/植物(?:来源|外泌体)[^。！？\n]{0,12}低风险|绕开(?:了)?[^。！？\n]{0,8}监管|不需要[^。！？\n]{0,6}处方|不需要等[^。！？\n]{0,10}临床|入围团队必须[^。！？\n]{0,20}人体/.test(text)) {
+            severe.push('unsupported_bio_safety_or_regulatory_claim');
+        }
         const sourceSection = hasApprovedBioSourceSection(body, dailyContent);
         if (!sourceSection.hasSection) severe.push('missing_reference_section');
         else if (!sourceSection.hasSource) severe.push('missing_approved_bio_source');
