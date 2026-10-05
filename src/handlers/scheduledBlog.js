@@ -16,6 +16,7 @@ import {
 } from '../blogQuality.js';
 import { buildAstroPaperFrontMatter } from '../utils/frontmatter.js';
 import { resolveBlogDate } from '../utils/blogDate.js';
+import { addReferencedSourceMedia } from '../blogMedia.js';
 
 async function fetchDailyContent(repoOwner, repoName, dateStr) {
     const rawUrl = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/daily/${dateStr}.md`;
@@ -215,6 +216,7 @@ async function generateSingleBlog(env, dateStr, dailyContent, config, dryRun = f
     const allowedUrls = [...extractUrls(dailyContent), config.sourceUrl];
     let draft = await generateBlogContent(env, dailyContent, config.type, dateStr, qualification.signals);
     draft.body = normalizeGeneratedMarkdown(draft.body, allowedUrls);
+    draft.body = addReferencedSourceMedia(draft.body, dailyContent);
 
     let validation = validateBlogDraft({
         title: draft.title,
@@ -235,6 +237,7 @@ async function generateSingleBlog(env, dateStr, dailyContent, config, dryRun = f
             severe: validation.severe,
         });
         draft.body = normalizeGeneratedMarkdown(draft.body, allowedUrls);
+        draft.body = addReferencedSourceMedia(draft.body, dailyContent);
         validation = validateBlogDraft({
             title: draft.title,
             body: draft.body,
