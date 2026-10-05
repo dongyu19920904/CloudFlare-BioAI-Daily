@@ -13,7 +13,7 @@ jobs:
       - name: Generate dry-run drafts only
         env:
           EDITORIAL_PREVIEW_TOKEN: ${{ secrets.EDITORIAL_PREVIEW_TOKEN_20261005 }}
-          EDITORIAL_PREVIEW_URL: https://47a2e474-cloudflare-bioai-daily.sabrinamisan090.workers.dev/editorial-preview
+          EDITORIAL_PREVIEW_URL: https://dab914e3-cloudflare-bioai-daily.sabrinamisan090.workers.dev/editorial-preview
         run: |
           node --input-type=module <<'JS'
           import {writeFileSync} from 'node:fs';
