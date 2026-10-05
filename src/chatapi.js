@@ -1286,7 +1286,11 @@ async function* callAnthropicChatAPIStream(env, promptText, systemPromptText = n
     };
 
     if (systemPromptText && systemPromptText.trim() !== '') {
-        payload.messages[0].content = `${systemPromptText}\n\n${promptText}`;
+        if (env.ANTHROPIC_NATIVE_SYSTEM_PROMPT === true) {
+            payload.system = systemPromptText;
+        } else {
+            payload.messages[0].content = `${systemPromptText}\n\n${promptText}`;
+        }
     }
 
     try {

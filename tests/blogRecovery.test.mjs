@@ -39,3 +39,18 @@ test('published blogs skip source fetch and model calls without mutating shared 
     assert.equal(result.existingCount, 2);
     assert.equal(calls, 2);
 });
+
+test('recovery prefers substantive research to roundups and excludes headline-only snippets', () => {
+    const item={description:'Research material with clinical study context and measurable outcomes. '.repeat(15),source:'Original report',published_date:'2026-10-02T12:00:00Z'};
+    const items=Array.from({length:5},(_,i)=>({...item,title:`Longevity awards summit ${i}`,url:`https://example.com/award-${i}`}));
+    items.push({...item,title:'Clinical trial expands its participant cohort',url:'https://example.com/trial'});
+    items.push({...item,title:'Autophagy study',url:'https://example.com/thin',description:'Headline and short RSS introduction only.'});
+    const original=JSON.stringify(items);
+    const source=buildCachedBlogSource(items,'2026-10-04');
+    assert.match(source,/example.com\/trial/);
+    assert.doesNotMatch(source,/example.com\/thin/);
+    assert.ok(source.indexOf('Clinical trial')<source.indexOf('Longevity awards'));
+    assert.equal((source.match(/\n来源：/g)||[]).length,4);
+    assert.equal(JSON.stringify(items),original);
+    assert.equal(buildCachedBlogSource([{...item,description:'Short RSS only.'}],'2026-10-04'),'');
+});

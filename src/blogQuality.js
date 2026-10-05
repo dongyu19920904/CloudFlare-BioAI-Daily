@@ -6,19 +6,21 @@ const AI_SIGNAL_PATTERNS = [
 ];
 
 const BIO_SIGNAL_PATTERNS = [
-    /aging|longevity|senescence|biomarker|wearable|drug discovery|protein|clinical|epigenetic/i,
-    /长寿|延寿|衰老|抗衰|生命|健康|医疗|药物|蛋白|论文|临床|生物标志物|可穿戴|检测|阿尔茨海默|脑龄/i,
-];
-
-const PERSONAL_MATERIAL_PATTERNS = [
-    /我|自己|小店|账号店|爱窝啦|Aivora|aivora/i,
-    /账号|发卡|卡密|客服|售后|补货|上新|教程|用户|客户|供应商|中转|镜像|额度|Cursor|Claude|Gemini|Codex|ChatGPT/i,
-    /一人公司|自动化|生命延续|生命科学|长生|BioAI|日报|现金流|项目/i,
+    /aging|longevity|senescence|biomarker|wearable|drug discovery|protein|clinical|epigenetic|mitochondri|mitophagy|urolithin|muscle/i,
+    /长寿|延寿|衰老|抗衰|生命|健康|医疗|药物|蛋白|论文|临床|生物标志物|可穿戴|检测|阿尔茨海默|脑龄|线粒体|尿石素|肌肉/i,
 ];
 
 const FABRICATED_TODAY_EXPERIENCE_PATTERNS = [
     /今天[^。！？\n]{0,50}(客户|买家|用户|供应商|客服|售后|补货|退款|订单|下单|私信|微信|群里|咖啡馆|大理)/,
     /(刚刚|早上|下午|晚上)[^。！？\n]{0,50}(客户|买家|用户|供应商|客服|售后|补货|退款|订单|下单|私信|微信|群里)/,
+];
+
+const UNSUPPORTED_AUTHOR_TOOL_ROUTINE_PATTERNS = [
+    /我(?:最常|通常|习惯)[^。！？\n]{0,25}(?:加|提示词|让\s*AI|使用|会在)/i,
+    /(?:这个|我的)习惯来自(?:反复)?踩坑/,
+    /我(?:曾经|以前|原来)[^。！？\n]{0,25}(?:以为|觉得|认为|使用|试用|加)/,
+    /每次[^。！？\n]{0,35}我(?:会|都|都会)?(?:加|先让|使用|写)/,
+    /我(?:见过|碰到过|遇到过)[^。！？\n]{0,15}(?:不少|很多|许多|多次)/,
 ];
 
 const BLACK_HAT_LLM_INSTRUCTION_PATTERNS = [
@@ -198,25 +200,43 @@ export function deriveBlogDescription(markdown, fallbackTitle = '') {
     return description.length > 120 ? `${description.slice(0, 117)}...` : description;
 }
 
+export function stripDailyBlogExtras(dailyContent) {
+    let supplementLevel = null;
+    return String(dailyContent || '').split('\n').filter(line => {
+        const heading = line.match(/^(#{1,3})\s+(.+)$/);
+        if (heading) {
+            const level = heading[1].length;
+            if (supplementLevel !== null && level <= supplementLevel) supplementLevel = null;
+            if (/相关问题|常见问题|\bFAQ\b/i.test(heading[2])) supplementLevel = level;
+        }
+        return supplementLevel === null && !/utm_campaign|自助下单|卡密秒发/.test(line);
+    }).join('\n');
+}
+
 export function selectBlogSignals(dailyContent, blogType, limit = 6) {
     const patterns = blogType === 'bioai-daily' ? BIO_SIGNAL_PATTERNS : AI_SIGNAL_PATTERNS;
     const lines = String(dailyContent || '')
-        .split(/\n+/)
+        .split(/\n+|(?<=[。！？])|(?<=[.!?])\s+(?=[A-Z])/)
         .map(line => line.replace(/^#+\s*/, '').trim())
-        .filter(line => line.length >= 12 && line.length <= 420);
+        .filter(line => line.length >= 12 && line.length <= 1600);
 
     const seen = new Set();
-    const signals = [];
+    const candidates = [];
     for (const line of lines) {
         if (!patterns.some(pattern => pattern.test(line))) continue;
+        if (/utm_campaign|自助下单|卡密秒发/.test(line)) continue;
         const key = line.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        signals.push(line);
-        if (signals.length >= limit) break;
+        const practical = blogType === 'bioai-daily'
+            ? /机制|终点|随机|对照|样本|数据集|生物标志物|蛋白|分子|线粒体|尿石素|clinical|biomarker|epigenetic|mitophagy|urolithin|randomized|endpoint/i
+            : /工作流|验证|需求|调试|测试|代码|开发|提示词|记忆|技能|自动化|workflow|coding|agent|API|Codex|Cursor/i;
+        const roundup = /今日摘要|快速导航|奖项|获奖|名单|投稿量|投稿.*万|热榜|Star|星标/i;
+        candidates.push({ line, score: Number(practical.test(line)) * 2 - Number(roundup.test(line)) });
     }
 
-    return signals;
+    // Stable ranking keeps source order for ties, without letting the opening summary fill every slot.
+    return candidates.sort((a, b) => b.score - a.score).slice(0, limit).map(item => item.line);
 }
 
 export function qualifyDailyForPersonalBlog(dailyContent, blogType) {
@@ -237,12 +257,6 @@ export function qualifyDailyForPersonalBlog(dailyContent, blogType) {
     }
 
     return { eligible: true, signals };
-}
-
-function containsPersonalMaterial(markdown) {
-    const text = stripMarkdown(markdown);
-    const matches = PERSONAL_MATERIAL_PATTERNS.filter(pattern => pattern.test(text));
-    return matches.length >= 2;
 }
 
 export function containsBlackHatLLMInstruction(markdown) {
@@ -336,6 +350,9 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     if (/^(今天|日报|AI 日报|BioAI 观察|AI 观察)/i.test(title || '')) {
         severe.push('fallback_or_daily_title');
     }
+    if (/^(?:AI 工具这一轮变化|BioAI 这条线)，我先记一笔/.test(title || '')) {
+        severe.push('fallback_or_daily_title');
+    }
     if (containsModelFailure(`${title}\n${body}`)) {
         severe.push('model_failure_or_identity_leak');
     }
@@ -348,11 +365,17 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     if (/Table of contents/i.test(body || '')) {
         severe.push('toc_visible');
     }
-    if (!containsPersonalMaterial(body)) {
-        severe.push('missing_personal_material');
-    }
     if (FABRICATED_TODAY_EXPERIENCE_PATTERNS.some(pattern => pattern.test(text))) {
         severe.push('possible_fabricated_today_experience');
+    }
+    if (UNSUPPORTED_AUTHOR_TOOL_ROUTINE_PATTERNS.some(pattern => pattern.test(text))) {
+        severe.push('unsupported_author_tool_routine');
+    }
+    if (blogType === 'ai-daily' && (
+        /(?:拦住|拦下|减少|降低|避免)[^。！？\n]{0,12}(?:大半|大多数|一半)[^。！？\n]{0,15}(?:理解偏差|失误|返工|错误)/.test(text) ||
+        /(?:不是|不在)模型(?:问题|能力|智商)[^。！？\n]{0,15}(?:是|在)(?:沟通|表达|理解|使用者)/.test(text)
+    )) {
+        severe.push('unsupported_tool_effectiveness_claim');
     }
     if (/(?:经营|卖(?:\s*AI\s*)?账号)[^。！？\n]{0,15}(?:这一年多|[一二两三四五六七八九十\d]+年(?:多|来))/.test(text)) {
         severe.push('unsupported_author_business_duration');
@@ -368,7 +391,7 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     }
 
     if (blogType === 'bioai-daily') {
-        if (/植物(?:来源|外泌体)[^。！？\n]{0,12}低风险|绕开(?:了)?[^。！？\n]{0,8}监管|不需要[^。！？\n]{0,6}处方|不需要等[^。！？\n]{0,10}临床|入围团队必须[^。！？\n]{0,20}人体/.test(text)) {
+        if (/植物(?:来源|外泌体)[^。！？\n]{0,12}低风险|绕开(?:了)?[^。！？\n]{0,8}监管|不需要[^。！？\n]{0,6}处方|不需要等[^。！？\n]{0,10}临床|入围团队必须[^。！？\n]{0,20}人体|(?<!没|未|不)(?:有|拥有|具备)[^。！？\n]{0,60}明确的安全性记录|安全无副作用/.test(text)) {
             severe.push('unsupported_bio_safety_or_regulatory_claim');
         }
         const sourceSection = hasApprovedBioSourceSection(body, dailyContent);
