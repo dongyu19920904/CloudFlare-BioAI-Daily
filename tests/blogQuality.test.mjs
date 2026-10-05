@@ -162,11 +162,11 @@ test('BioAI drafts require an approved source section and reject invented timeli
         blogType: 'bioai-daily',
         allowedUrls: ['https://example.com/longevity-paper'],
     });
-    assert.ok(missing.severe.includes('missing_source_boundary_section'));
+    assert.ok(missing.severe.includes('missing_reference_section'));
 
     const unsupported = validateBlogDraft({
         title: '衰老指标离普通人还有多远',
-        body: `${base.repeat(2)}\n我估计 5 年内就能实现长生。\n\n## 来源与边界\n\n- [原始论文](https://example.com/longevity-paper)`,
+        body: `${base.repeat(2)}\n我估计 5 年内就能实现长生。\n\n## 参考资料\n\n- [原始论文](https://example.com/longevity-paper)`,
         dailyContent: bioDaily,
         blogType: 'bioai-daily',
         allowedUrls: ['https://example.com/longevity-paper'],
@@ -175,11 +175,16 @@ test('BioAI drafts require an approved source section and reject invented timeli
 
     const valid = validateBlogDraft({
         title: '衰老指标离普通人还有多远',
-        body: `${base.repeat(2)}\n## 来源与边界\n\n- [原始论文](https://example.com/longevity-paper)：研究结论需按论文设计核验。`,
+        body: `${base.repeat(2)}\n## 参考资料\n\n- [原始论文](https://example.com/longevity-paper)`,
         dailyContent: bioDaily,
         blogType: 'bioai-daily',
         allowedUrls: ['https://example.com/longevity-paper'],
     });
     assert.equal(valid.severe.includes('missing_approved_bio_source'), false);
     assert.equal(valid.severe.includes('unsupported_bio_timeline'), false);
+});
+
+test('upstream coding refusal is not eligible news, even when it mentions longevity', () => {
+    const bad = "我是 Claude Code，Anthropic 官方的 Claude 命令行工具。 I'm designed to help with software engineering tasks. A longevity newsletter falls outside that scope.".repeat(3);
+    assert.equal(qualifyDailyForPersonalBlog(bad, 'bioai-daily').eligible, false);
 });

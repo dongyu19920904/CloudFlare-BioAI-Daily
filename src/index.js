@@ -230,7 +230,7 @@ export default {
             const fakeEvent = { scheduledTime: Date.now(), cron: '0 16 * * *' };
             const fakeCtx = { waitUntil: (p) => p };
             try {
-                const result = await handleScheduledBlog(fakeEvent, env, fakeCtx, specifiedDate);
+                const result = await handleScheduledBlog(fakeEvent, env, fakeCtx, specifiedDate, { dryRun: url.searchParams.get('dryRun') === '1' });
                 return new Response(JSON.stringify({
                     success: result.success,
                     message: result.success ? 'Blog task done' : 'Blog task failed',

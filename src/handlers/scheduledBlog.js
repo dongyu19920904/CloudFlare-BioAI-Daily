@@ -7,6 +7,7 @@ import { createOrUpdateGitHubFile, getGitHubFileSha } from '../github.js';
 import { getBlogPrompt } from '../prompt/blogPrompt.js';
 import {
     deriveBlogDescription,
+    containsModelFailure,
     extractUrls,
     normalizeGeneratedMarkdown,
     qualifyDailyForPersonalBlog,
@@ -35,7 +36,7 @@ async function fetchDailyContent(repoOwner, repoName, dateStr) {
         return await response.text();
     } catch (error) {
         console.error(`[ScheduledBlog] Fetch error for ${rawUrl}:`, error);
-        return null;
+        throw error;
     }
 }
 
@@ -84,13 +85,13 @@ function buildUserPrompt({ dateStr, dailyContent, blogType, signals }) {
 - 不要输出 Table of contents。
 - 只保留与正文直接相关的原始来源链接；不要把网页链接当图片。
 - 不要生成“AI 引用摘要”或面向爬虫的指令，网页模板会统一提供公开文章信息卡。
-- BioAI 文章必须包含“## 来源与边界”，至少列出一个输入日报中真实存在的论文、机构、临床注册或原始报道链接；不能新增输入中没有的 URL。
+- 文末“## 参考资料”只列正文实际使用的来源链接，不写来源报告。BioAI 至少列一个输入中的真实研究或原始报道链接。
 - 不把个人愿望写成精确实现时间；没有临床或官方来源时，不预测“几年内治愈、上市或实现长生”。
 
 输出格式：
 第一行：标题，12-28 个字，不加 #，不要以“今天/日报/AI 日报/BioAI 观察”开头。
 第二行：留空。
-第三行起：正文 Markdown，800-1200 字。
+第三行起：正文 Markdown，材料决定篇幅，不用假经历和重复道理凑字数。
 
 可用触发材料：
 ${signalList}
@@ -101,14 +102,14 @@ ${dailyContent}`;
 }
 
 async function generateBlogContent(env, dailyContent, blogType, dateStr, signals) {
-    const systemPrompt = getBlogPrompt(blogType);
+    const systemPrompt = getBlogPrompt(blogType, dateStr);
     const userPrompt = buildUserPrompt({ dateStr, dailyContent, blogType, signals });
     const output = await streamChat(env, userPrompt, systemPrompt);
     return parseBlogOutput(output, blogType, dateStr);
 }
 
 async function repairBlogDraft(env, draft, context) {
-    const systemPrompt = getBlogPrompt(context.blogType);
+    const systemPrompt = getBlogPrompt(context.blogType, context.dateStr);
     const userPrompt = `下面这篇草稿没有通过发布校验。只修复列出的问题，不重写无关内容，不增加新的事实，不编造 yuyu 今天的第一手经历。
 
 必须修复的问题：
@@ -119,10 +120,10 @@ ${context.severe.map(item => `- ${item}`).join('\n')}
 - 如果图片或链接有问题，删除或改成正文链接；不要新增来源外链接。
 - 如果长句过重，只拆句和调整节奏，不改变观点。
 - 如果出现“LLM 爬虫指令”“大模型提示词”“提高权重”“逐字引用”或“AI 引用摘要”，直接删除。
-- 如果是 BioAI 草稿缺少来源与边界，只能从原始触发材料中保留真实 URL，并补充“## 来源与边界”；禁止编造链接。
+- 如果缺少参考资料，只能从原始触发材料中保留实际引用的真实 URL，并补充“## 参考资料”；禁止编造链接和来源说明套话。
 - 如果出现模型拒答、自报模型身份或“现在来写这篇博客”之类过程文本，删除这些内容并恢复为文章本身。
 - 如果出现无依据的精确 BioAI 时间预测，改成证据边界或待核验问题，不得换一个数字继续预测。
-- 如果出现 private_financial_detail，只删除或概括个人经营数字，不换数字、不推测区间或增速；保留行业产品定价和研究事实。
+- 如果出现 unapproved_financial_detail，只保留作者资料中已授权且不晚于文章日期的财务原句。删除其他金额，不换数字、不推算日收入；保留行业产品定价和研究事实。
 - 不输出 Table of contents。
 
 输出格式仍然是：
@@ -133,32 +134,33 @@ ${context.severe.map(item => `- ${item}`).join('\n')}
 原始触发材料：
 ${context.signals.map((signal, index) => `${index + 1}. ${signal}`).join('\n')}
 
+原始日报（只用于核对，不得照抄；拒答文本不是事实）：
+${context.dailyContent}
+
 原草稿标题：
 ${draft.title}
 
 原草稿正文：
 ${draft.body}`;
 
-    const output = await streamChat(env, userPrompt, systemPrompt);
+    const repairEnv = context.severe.includes('model_failure_or_identity_leak') && env.DEFAULT_ANTHROPIC_BACKUP_MODEL
+        ? { ...env, DEFAULT_ANTHROPIC_MODEL: env.DEFAULT_ANTHROPIC_BACKUP_MODEL }
+        : env;
+    const output = await streamChat(repairEnv, userPrompt, systemPrompt);
     return parseBlogOutput(output, context.blogType, context.dateStr);
 }
 
 async function pushBlogToGitHub(env, filePath, content, commitMessage) {
-    const originalRepoName = env.GITHUB_REPO_NAME;
-    const originalBranch = env.GITHUB_BRANCH;
+    const blogEnv = getBlogEnvironment(env);
+    if (await getGitHubFileSha(blogEnv, filePath)) return false;
+    // Create without sha: concurrent writers cannot replace an existing article.
+    await createOrUpdateGitHubFile(blogEnv, filePath, content, commitMessage);
+    console.log(`[ScheduledBlog] Successfully pushed: ${filePath}`);
+    return true;
+}
 
-    try {
-        env.GITHUB_REPO_NAME = env.BLOG_REPO_NAME || 'astro-paper';
-        env.GITHUB_BRANCH = env.BLOG_REPO_BRANCH || 'main';
-
-        const existingSha = await getGitHubFileSha(env, filePath);
-        await createOrUpdateGitHubFile(env, filePath, content, commitMessage, existingSha);
-
-        console.log(`[ScheduledBlog] Successfully pushed: ${filePath}`);
-    } finally {
-        env.GITHUB_REPO_NAME = originalRepoName;
-        env.GITHUB_BRANCH = originalBranch;
-    }
+function getBlogEnvironment(env) {
+    return { ...env, GITHUB_REPO_NAME: env.BLOG_REPO_NAME || 'astro-paper', GITHUB_BRANCH: env.BLOG_REPO_BRANCH || 'main' };
 }
 
 export function getBlogJobConfigs(dateStr) {
@@ -182,7 +184,7 @@ export function getBlogJobConfigs(dateStr) {
     ];
 }
 
-async function generateSingleBlog(env, dateStr, dailyContent, config) {
+async function generateSingleBlog(env, dateStr, dailyContent, config, dryRun = false) {
     console.log(`[ScheduledBlog] Generating ${config.type} blog for ${dateStr}...`);
 
     const qualification = qualifyDailyForPersonalBlog(dailyContent, config.type);
@@ -204,6 +206,7 @@ async function generateSingleBlog(env, dateStr, dailyContent, config) {
         dailyContent,
         blogType: config.type,
         allowedUrls,
+        dateStr,
     });
 
     if (!validation.ok) {
@@ -222,6 +225,7 @@ async function generateSingleBlog(env, dateStr, dailyContent, config) {
             dailyContent,
             blogType: config.type,
             allowedUrls,
+            dateStr,
         });
     }
 
@@ -240,10 +244,12 @@ async function generateSingleBlog(env, dateStr, dailyContent, config) {
     const filePath = `src/data/blog/${config.filePrefix}-${dateStr}.md`;
     const commitMessage = `Auto-generate ${config.type} blog for ${dateStr}`;
 
-    await pushBlogToGitHub(env, filePath, fullContent, commitMessage);
+    if (dryRun) return { status: 'preview', filePath, title: draft.title, content: fullContent, warnings: validation.warnings };
+
+    const created = await pushBlogToGitHub(env, filePath, fullContent, commitMessage);
 
     return {
-        status: 'success',
+        status: created ? 'success' : 'existing',
         filePath,
         title: draft.title,
         warnings: validation.warnings,
@@ -270,29 +276,70 @@ async function writeBlogStatus(env, dateStr, result) {
 
 export function summarizeBlogResults(results) {
     const successCount = results.filter(result => result.status === 'success').length;
+    const existingCount = results.filter(result => result.status === 'existing').length;
     const failedCount = results.filter(result => result.status === 'failed').length;
     const skippedCount = results.filter(result => result.status === 'skipped').length;
 
     return {
-        success: failedCount === 0 || successCount > 0 || skippedCount === results.length,
+        success: results.length > 0 && successCount + existingCount === results.length,
         successCount,
+        existingCount,
         failedCount,
         skippedCount,
     };
 }
 
-export async function handleScheduledBlog(event, env, ctx, specifiedDate = null) {
+export function buildCachedBlogSource(items, dateStr) {
+    if (!Array.isArray(items)) return '';
+    const end = Date.parse(`${dateStr}T23:59:59+08:00`);
+    const start = end - 5 * 86400000;
+    const seen = new Set();
+    const selected = [];
+    for (const item of items) {
+        const published = Date.parse(item.published_date || '');
+        if (!Number.isFinite(published) || published < start || published > end) continue;
+        if (!item.title || !item.description || containsModelFailure(`${item.title}\n${item.description}`)) continue;
+        let url;
+        try {
+            url = new URL(item.url);
+            if (!/^https?:$/.test(url.protocol) || url.username || url.password || seen.has(url.href)) continue;
+        } catch { continue; }
+        seen.add(url.href);
+        selected.push(`## ${item.title}\n\n来源：[${item.source || item.title}](${url.href})\n原文发布时间：${item.published_date}\n\n${String(item.description).slice(0, 3500)}`);
+        if (selected.length === 4) break;
+    }
+    return selected.length ? `# ${dateStr} 已采集的生命科学原始来源\n\n以下是当天缓存中的公开来源，发布日期按每条原文标注，不代表当日新发生。\n\n${selected.join('\n\n')}` : '';
+}
+
+async function recoverCachedBlogSource(env, dateStr) {
+    if (!env.DATA_KV?.get) return '';
+    const items = await env.DATA_KV.get(`${dateStr}-news`, 'json');
+    return buildCachedBlogSource(items, dateStr);
+}
+
+export async function handleScheduledBlog(event, env, ctx, specifiedDate = null, options = {}) {
     const dateStr = resolveBlogDate(specifiedDate, getISODate());
     console.log(`[ScheduledBlog] Starting blog generation for ${dateStr}`);
 
     const results = [];
     for (const config of getBlogJobConfigs(dateStr)) {
         try {
-            const dailyContent = await fetchDailyContent(
+            const filePath = `src/data/blog/${config.filePrefix}-${dateStr}.md`;
+            if (await getGitHubFileSha(getBlogEnvironment(env), filePath)) {
+                results.push({ type: config.type, status: 'existing', filePath });
+                continue;
+            }
+            let dailyContent = await fetchDailyContent(
                 env.GITHUB_REPO_OWNER,
                 config.repoName,
                 dateStr
             );
+
+            let sourceRecovered = false;
+            if (config.type === 'bioai-daily' && (!dailyContent || containsModelFailure(dailyContent))) {
+                dailyContent = await recoverCachedBlogSource(env, dateStr);
+                sourceRecovered = Boolean(dailyContent);
+            }
 
             if (!dailyContent) {
                 results.push({
@@ -303,8 +350,8 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null)
                 continue;
             }
 
-            const result = await generateSingleBlog(env, dateStr, dailyContent, config);
-            results.push({ type: config.type, ...result });
+            const result = await generateSingleBlog(env, dateStr, dailyContent, config, options.dryRun === true);
+            results.push({ type: config.type, sourceRecovered, ...result });
         } catch (error) {
             console.error(`[ScheduledBlog] ${config.type} failed:`, error);
             results.push({
@@ -316,9 +363,10 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null)
     }
 
     const summary = summarizeBlogResults(results);
-    const result = { ...summary, date: dateStr, results };
-    await writeBlogStatus(env, dateStr, result);
+    const previewComplete = results.length === 2 && results.every(item => ['preview', 'existing'].includes(item.status));
+    const result = { ...summary, ...(options.dryRun ? { success: previewComplete, dryRun: true } : {}), date: dateStr, results };
+    if (!options.dryRun) await writeBlogStatus(env, dateStr, result);
 
-    console.log(`[ScheduledBlog] Completed:`, JSON.stringify(result));
+    console.log(`[ScheduledBlog] Completed:`, JSON.stringify({ ...result, results: results.map(({ content, ...item }) => item) }));
     return result;
 }

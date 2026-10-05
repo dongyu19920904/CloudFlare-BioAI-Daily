@@ -10,15 +10,21 @@ test('personal blog jobs are only the two blog reuse targets', () => {
     );
 });
 
-test('one personal blog failure does not fail the whole run when the other publishes', () => {
+test('one personal blog failure is visible even when the other publishes', () => {
     const summary = summarizeBlogResults([
         { type: 'ai-daily', status: 'failed' },
         { type: 'bioai-daily', status: 'success' },
     ]);
 
-    assert.equal(summary.success, true);
+    assert.equal(summary.success, false);
     assert.equal(summary.failedCount, 1);
     assert.equal(summary.successCount, 1);
+});
+
+test('all skipped is incomplete, both existing is complete', () => {
+    assert.equal(summarizeBlogResults([{status:'skipped'}, {status:'skipped'}]).success, false);
+    assert.equal(summarizeBlogResults([{status:'existing'}, {status:'existing'}]).success, true);
+    assert.equal(summarizeBlogResults([]).success, false);
 });
 
 test('a blog-only failure does not masquerade as success when nothing published', () => {

@@ -1,3 +1,5 @@
+import knowledge from './prompt/blogAuthorKnowledge.json' with { type: 'json' };
+
 const AI_SIGNAL_PATTERNS = [
     /ChatGPT|GPT|OpenAI|Codex|Cursor|Claude|Gemini|Grok|Perplexity|MiniMax/i,
     /agent|coding|IDE|API|模型|中转|镜像|账号|发卡|额度|客服|售后|教程|自动化|一人公司/i,
@@ -35,6 +37,9 @@ const BLACK_HAT_LLM_INSTRUCTION_PATTERNS = [
 ];
 
 const MODEL_FAILURE_PATTERNS = [
+    /我是\s*Claude\s*Code|Anthropic\s*官方.{0,12}命令行/i,
+    /I'm designed to help with software engineering|outside (?:that|my) scope|clarify my role here/i,
+    /AI assistant built for general writing|rather than me writing the briefing/i,
     /I\s+(?:can(?:not|'t)|won't)\s+(?:discuss|help|comply|assist)/i,
     /(?:无法|不能|不便)(?:讨论|回答|协助|提供)(?:这个|该|上述)?/,
     /(?:Kiro\s*是我|我是\s*(?:Kiro|Claude|ChatGPT|Gemini|一个由\s*Amazon\s*开发的\s*AI\s*助手))/i,
@@ -215,6 +220,9 @@ export function selectBlogSignals(dailyContent, blogType, limit = 6) {
 }
 
 export function qualifyDailyForPersonalBlog(dailyContent, blogType) {
+    if (containsModelFailure(dailyContent)) {
+        return { eligible: false, reason: 'source contains model refusal or identity text', signals: [] };
+    }
     if (!dailyContent || String(dailyContent).trim().length < 200) {
         return { eligible: false, reason: 'daily content missing or too short', signals: [] };
     }
@@ -255,6 +263,15 @@ export function containsPrivateFinancialDetail(text) {
     });
 }
 
+export function containsUnapprovedFinancialDetail(text, asOfDate = null) {
+    let remaining = String(text || '');
+    for (const item of knowledge.publicFinancialStatements || []) {
+        if (asOfDate && item.date > asOfDate) continue;
+        remaining = remaining.replaceAll(item.statement, '');
+    }
+    return containsPrivateFinancialDetail(remaining);
+}
+
 function getMarkdownSection(markdown, heading) {
     const lines = String(markdown || '').split('\n');
     const start = lines.findIndex(line => new RegExp(`^##\\s+${heading}\\s*$`, 'i').test(line.trim()));
@@ -265,7 +282,7 @@ function getMarkdownSection(markdown, heading) {
 }
 
 function hasApprovedBioSourceSection(body, dailyContent) {
-    const section = getMarkdownSection(body, '来源与边界');
+    const section = getMarkdownSection(body, '参考资料');
     if (!section) return { hasSection: false, hasSource: false };
 
     const dailyUrls = new Set(extractUrls(dailyContent).map(normalizeUrl));
@@ -303,7 +320,7 @@ export function classifyLongSentences(markdown) {
     return { warnings, severe };
 }
 
-export function validateBlogDraft({ title, body, dailyContent, blogType, allowedUrls = [] }) {
+export function validateBlogDraft({ title, body, dailyContent, blogType, allowedUrls = [], dateStr = null }) {
     const severe = [];
     const warnings = [];
     const normalizedAllowedUrls = [...new Set([...allowedUrls, ...extractUrls(dailyContent)])];
@@ -318,8 +335,8 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     if (containsModelFailure(`${title}\n${body}`)) {
         severe.push('model_failure_or_identity_leak');
     }
-    if (containsPrivateFinancialDetail(`${title}\n${body}`)) {
-        severe.push('private_financial_detail');
+    if (containsUnapprovedFinancialDetail(`${title}\n${body}`, dateStr)) {
+        severe.push('unapproved_financial_detail');
     }
     if (!body || text.length < 350) {
         severe.push('body_too_short');
@@ -345,7 +362,7 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
 
     if (blogType === 'bioai-daily') {
         const sourceSection = hasApprovedBioSourceSection(body, dailyContent);
-        if (!sourceSection.hasSection) severe.push('missing_source_boundary_section');
+        if (!sourceSection.hasSection) severe.push('missing_reference_section');
         else if (!sourceSection.hasSource) severe.push('missing_approved_bio_source');
     }
 

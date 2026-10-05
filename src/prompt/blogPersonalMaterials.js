@@ -5,7 +5,7 @@ export const BLOG_PERSONAL_MATERIALS_20260614 = `
 
 - 爱窝啦·AI 账号店：官网下单为 https://www.aivora.cn/，定位是 24h 自助、卡密秒发、AI 工具入口矩阵。
 - 主要产品线包括 ChatGPT 官方号/镜像、Cursor 独享号、Cursor Pro 激活器、Cursor Auto 换号器、Cursor 无限助手、Claude/Gemini/Codex 三合一、Codex 中转、Claude 中转、MiniMax Coding Plan、Gemini 年卡、Claude 官方镜像、Grok、Perplexity、Consensus Pro 等。
-- 2026-06-14 的历史业务状态：业务进入更忙的阶段，客服、售后、补货、教程、异常解释和用户不会用的问题占用很多时间。具体财务数字不进入公开写作，当前状态以最新作者资料为准。
+- 2026-06-14 的历史业务状态：业务进入更忙的阶段，客服、售后、补货、教程、异常解释和用户不会用的问题占用很多时间。可公开经营数字及当前状态以最新作者资料的有日期原句为准。
 - 当前三条主线：AI 一人公司、AI 生命延续学、维持好 AI 账号生意。
 - 当前最想解决的问题：用 AI 增效节能，让 AI 承担更多重复劳动，尤其是客服、教程、日报、博客、商机判断、上新和售后知识库。
 `;
