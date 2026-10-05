@@ -213,4 +213,16 @@ test('reported bioavailability is not an unsupported swallowed-dose interpretati
     const input={title:'药代数据不能代替人体证据',dailyContent,blogType:'bioai-daily'};
     assert.ok(validateBlogDraft({...input,body:body+'口服生物利用度75%到104%，意味着吞服剂量中的大部分能进入血液。'+reference}).severe.includes('unsupported_bioavailability_interpretation'));
     assert.equal(validateBlogDraft({...input,body:body+'来源报告动物模型中的口服生物利用度为75%到104%，需结合实验方法解释，不能直接推断人体结果。'+reference}).ok,true);
+    for(const negation of ['不意味着','不能说明','未必证明','不足以说明']){
+        assert.equal(validateBlogDraft({...input,body:body+'生物利用度75%到104%，'+negation+'吞服剂量全都进入血液。'+reference}).severe.includes('unsupported_bioavailability_interpretation'),false);
+    }
+});
+
+test('plasma exposure does not become an unsupported concentration ratio', () => {
+    const base='我更关心测量口径。实验室结果需要核对对象，不能代替人体安全性和临床效果。'.repeat(12);
+    const reference='\n\n## 参考资料\n\n- [研究](https://example.com/study)';
+    const input={title:'暴露量不能写成血药浓度',blogType:'bioai-daily',dailyContent:'AI药物研发的临床研究需要核对动物模型。'.repeat(20)+'At the same dose, at least 18-fold greater plasma exposure.\nhttps://example.com/study'};
+    assert.ok(validateBlogDraft({...input,body:base+'血药浓度至少是对照化合物的18倍。'+reference}).severe.includes('unsupported_pharmacokinetic_metric'));
+    assert.equal(validateBlogDraft({...input,body:base+'来源报告同剂量下血浆暴露量至少为对照化合物的18倍。'+reference}).ok,true);
+    assert.equal(validateBlogDraft({...input,dailyContent:input.dailyContent+'\nPlasma concentration was 18-fold higher.',body:base+'血药浓度至少是对照化合物的18倍。'+reference}).severe.includes('unsupported_pharmacokinetic_metric'),false);
 });
