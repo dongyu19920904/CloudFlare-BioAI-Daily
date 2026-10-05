@@ -226,3 +226,10 @@ test('plasma exposure does not become an unsupported concentration ratio', () =>
     assert.equal(validateBlogDraft({...input,body:base+'来源报告同剂量下血浆暴露量至少为对照化合物的18倍。'+reference}).ok,true);
     assert.equal(validateBlogDraft({...input,dailyContent:input.dailyContent+'\nPlasma concentration was 18-fold higher.',body:base+'血药浓度至少是对照化合物的18倍。'+reference}).severe.includes('unsupported_pharmacokinetic_metric'),false);
 });
+
+test('many mild long sentences remain warnings rather than repair triggers', () => {
+    const sentence='我的建议是先看清任务的输入与预期结果，并留下可检查的输出，复杂工作还应核对测试环境和执行范围；其中每个判断都需要对应实际材料，不能仅凭工具宣传推算结果或杜撰作者使用经历，也不能为了文章完整就补入没有记录的细节。';
+    const result=validateBlogDraft({title:'复杂任务先留下可核验结果',body:Array(8).fill(sentence).join('\n\n'),dailyContent:'Claude与Codex编码工作流需要验证任务输入、环境和结果。'.repeat(20),blogType:'ai-daily'});
+    assert.equal(result.ok,true,JSON.stringify(result));
+    assert.ok(result.warnings.some(item=>item.startsWith('long_sentences:')));
+});

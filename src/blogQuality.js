@@ -331,10 +331,6 @@ export function classifyLongSentences(markdown) {
     const warnings = sentences.filter(sentence => sentence.length >= 90 && sentence.length < 170);
     const severe = sentences.filter(sentence => sentence.length >= 170);
 
-    if (warnings.length >= 6) {
-        severe.push(`long sentence count: ${warnings.length}`);
-    }
-
     return { warnings, severe };
 }
 
