@@ -48,10 +48,14 @@ export default {
         // Route scheduled crons to the correct task.
         if (mode === 'blog') {
             // 博客生成任务 - UTC 23:00 (北京时间 07:00)
-            await handleScheduledBlog(event, env, ctx);
+            const result = await handleScheduledBlog(event, env, ctx);
+            if (result?.success === false) throw new Error('Scheduled blog task did not complete');
             return;
         }
-        await runScheduledMode(mode, event, env, ctx);
+        const result = await runScheduledMode(mode, event, env, ctx);
+        if (result?.success === false) {
+            throw new Error(`Scheduled ${mode} task did not complete: ${result.failedSections?.join(', ') || result.reason || 'generation or publication failed'}`);
+        }
     },
     async fetch(request, rawEnv, ctx) {
         const env = withWorkerConfigDefaults(rawEnv);

@@ -1,0 +1,88 @@
+{
+  "scope": "Offline execution of actual BioAI source gate; fixed synthetic drafts, no model/API/GitHub writes",
+  "production_trajectory": false,
+  "model_calls": 0,
+  "observations": [
+    {
+      "id": "standard-source",
+      "expected_publishable": true,
+      "observed_publishable": true,
+      "passed": true,
+      "generation_calls": 1,
+      "error": null,
+      "fixture_sha256": "3f4b91f56afbffad4f2ba74bf271183027ce1cddfa563da164382b93aa31a228"
+    },
+    {
+      "id": "bold-colon-source",
+      "expected_publishable": true,
+      "observed_publishable": true,
+      "passed": true,
+      "generation_calls": 1,
+      "error": null,
+      "fixture_sha256": "77f4f4f0bfcd685c949eb9de4ac64388096345d88449b7ef92da27d0c21d9690"
+    },
+    {
+      "id": "doi-normalization",
+      "expected_publishable": true,
+      "observed_publishable": false,
+      "passed": false,
+      "generation_calls": 2,
+      "error": "Opportunity publication gate blocked opportunity: candidates_extracted; 1 main item(s) lack URLs; unsafe health self-assessment=false",
+      "fixture_sha256": "60aa795d93217ec4940c62ef58203c3197b9db7741d4ac17bfeb821b3e5e520c"
+    },
+    {
+      "id": "missing-source",
+      "expected_publishable": false,
+      "observed_publishable": false,
+      "passed": true,
+      "generation_calls": 2,
+      "error": "Opportunity publication gate blocked opportunity: candidates_extracted; 1 main item(s) lack URLs; unsafe health self-assessment=false",
+      "fixture_sha256": "509b20841b0770c8ca41589111420dcb83e02d2b85d56b7fe390dd31aa0863a5"
+    },
+    {
+      "id": "invented-source",
+      "expected_publishable": false,
+      "observed_publishable": false,
+      "passed": true,
+      "generation_calls": 2,
+      "error": "Opportunity publication gate blocked opportunity: candidates_extracted; 1 main item(s) lack URLs; unsafe health self-assessment=false",
+      "fixture_sha256": "61f085ce6580b34ebe02bde6a60f62a9ad532e77e8df2b392520ffe577b3b9c9"
+    },
+    {
+      "id": "mixed-real-and-forged",
+      "expected_publishable": false,
+      "observed_publishable": true,
+      "passed": false,
+      "generation_calls": 1,
+      "error": null,
+      "fixture_sha256": "8d10c24d35dd82b433d04dde27c02af96240c4e61f1dcd7d186543e2ac7a0ca6"
+    },
+    {
+      "id": "description-url-injection",
+      "expected_publishable": false,
+      "observed_publishable": true,
+      "passed": false,
+      "generation_calls": 1,
+      "error": null,
+      "fixture_sha256": "64b9d002aefd60cd9281f186695abe00bbf1edd5499bbbf53eb682f2b0422036"
+    },
+    {
+      "id": "unsupported-health-tool",
+      "expected_publishable": false,
+      "observed_publishable": false,
+      "passed": true,
+      "generation_calls": 2,
+      "error": "Opportunity publication gate blocked opportunity: candidates_extracted; 0 main item(s) lack URLs; unsafe health self-assessment=true",
+      "fixture_sha256": "3f81c6ee4352ea906a7f4e3347d8b5ccdf380e808625107330c9a5df7ba18abe"
+    },
+    {
+      "id": "honest-empty-project",
+      "expected_publishable": true,
+      "observed_publishable": true,
+      "passed": true,
+      "generation_calls": 1,
+      "error": null,
+      "fixture_sha256": "8322a23c11f88cc78c6b63029cccffed51586511a15346407bf2d2eaaa14807d"
+    }
+  ]
+}
