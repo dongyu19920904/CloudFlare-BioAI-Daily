@@ -7,6 +7,7 @@ import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPr
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
 import { generateWithSourceGate } from "../opportunitySourceGate.js";
+import { runOpportunityBatch } from "../opportunityBatch.js";
 import { insertFoot } from '../foot.js';
 import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
@@ -270,17 +271,20 @@ function formatOpportunityPromptItem(item, sourceType) {
 
 function buildOpportunityPromptInput(allUnifiedData, sourceOrder, caps) {
     const selectedItems = [];
+    const sourceUrls = [];
 
     for (const sourceType of sourceOrder) {
         const cap = caps[sourceType] || 0;
         const items = (allUnifiedData[sourceType] || []).slice(0, cap);
         for (const item of items) {
             selectedItems.push(formatOpportunityPromptItem(item, sourceType));
+            if (item?.url) sourceUrls.push(item.url);
         }
     }
 
     return {
         selectedItems,
+        allowedSourceUrls: sourceUrls.join('\n'),
         promptInput: selectedItems.join('\n\n------\n\n'),
     };
 }
@@ -384,7 +388,7 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
         project: 4,
         socialMedia: 3,
     };
-    const { selectedItems, promptInput } = buildOpportunityPromptInput(
+    const { selectedItems, promptInput, allowedSourceUrls } = buildOpportunityPromptInput(
         allUnifiedData,
         ['news', 'paper', 'project', 'socialMedia'],
         caps
@@ -397,7 +401,7 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
     const markdownContent = await generateWithSourceGate(
         (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioOpportunity(dateStr), 'opportunity'),
         `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
-        { date: dateStr, section: 'opportunity' }
+        { date: dateStr, section: 'opportunity', allowedSourceUrls }
     );
     const records = await commitOpportunityRecords(env, dateStr, 'opportunity', markdownContent, {
         getSha: getGitHubFileSha,
@@ -422,7 +426,7 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
         paper: parsePositiveInteger(env.PROJECT_OPPORTUNITY_MAX_PAPERS, 3),
         socialMedia: parsePositiveInteger(env.PROJECT_OPPORTUNITY_MAX_SOCIAL, 2),
     };
-    const { selectedItems, promptInput } = buildOpportunityPromptInput(
+    const { selectedItems, promptInput, allowedSourceUrls } = buildOpportunityPromptInput(
         allUnifiedData,
         ['project', 'news', 'paper', 'socialMedia'],
         caps
@@ -435,7 +439,7 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
     const markdownContent = await generateWithSourceGate(
         (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioProjectOpportunity(dateStr), 'project-opportunity'),
         `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
-        { date: dateStr, section: 'project-opportunity' }
+        { date: dateStr, section: 'project-opportunity', allowedSourceUrls }
     );
     const records = await commitOpportunityRecords(env, dateStr, 'project-opportunity', markdownContent, {
         getSha: getGitHubFileSha,
@@ -485,9 +489,10 @@ export async function handleScheduledOpportunityBatch(event, env, ctx, specified
     console.log(`[Scheduled][OpportunityBatch] Starting shared opportunity automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
     try {
         const allUnifiedData = await fetchAndCacheScheduledData(env, dateStr, '[Scheduled][OpportunityBatch]');
-        const opportunity = await generateAndCommitOpportunity(env, dateStr, allUnifiedData);
-        const projectOpportunity = await generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData);
-        return { success: Boolean(opportunity.success || projectOpportunity.success), date: dateStr, opportunity, projectOpportunity };
+        return await runOpportunityBatch(dateStr, {
+            opportunity: () => generateAndCommitOpportunity(env, dateStr, allUnifiedData),
+            projectOpportunity: () => generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData),
+        });
     } catch (error) {
         console.error(`[Scheduled][OpportunityBatch] Error:`, error);
         return { success: false, date: dateStr, error: error.message };
@@ -684,7 +689,7 @@ export async function handleScheduled(event, env, ctx, specifiedDate = null, mod
     if (mode === 'all') {
         const daily = await handleScheduledDaily(event, env, ctx, specifiedDate);
         const opportunityBatch = await handleScheduledOpportunityBatch(event, env, ctx, specifiedDate);
-        return { daily, ...opportunityBatch };
+        return { ...opportunityBatch, daily, success: daily?.success === true && opportunityBatch.success === true };
     }
 
     return handleScheduledDaily(event, env, ctx, specifiedDate);

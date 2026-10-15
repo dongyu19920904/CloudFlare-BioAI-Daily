@@ -43,7 +43,7 @@ function canonicalUrl(raw) {
   }
 }
 
-function extractUrls(value) {
+export function extractOpportunitySourceUrls(value) {
   return [...new Set((value.match(URL_PATTERN) || []).map(canonicalUrl).filter(Boolean))];
 }
 
@@ -89,7 +89,7 @@ export function extractOpportunityRecords(markdown, { date, section = "opportuni
   for (const { title, body } of sectionsFromMain(main)) {
     if (!title) continue;
     const sourceText = extractField(body, "证据来源");
-    const sourceUrls = extractUrls(sourceText);
+    const sourceUrls = extractOpportunitySourceUrls(sourceText);
     const deliverable = extractField(body, "可交付物");
     const buyer = extractField(body, "目标鱼塘");
     const demandClaim = extractField(body, "痛点和付费理由");

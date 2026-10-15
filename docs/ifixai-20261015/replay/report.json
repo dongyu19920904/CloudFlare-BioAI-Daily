@@ -1,0 +1,286 @@
+{
+  "decision": "CLEAR",
+  "violations": [],
+  "coverage_issues": [],
+  "checked_actions": 23,
+  "completed_actions": 23,
+  "failed_actions": 0,
+  "family_counts": {
+    "graph": 43,
+    "permission": 23,
+    "approval": 0,
+    "delegation": 0,
+    "budget": 14,
+    "citation": 9
+  },
+  "family_status": {
+    "graph": "EVALUATED",
+    "permission": "EVALUATED",
+    "approval": "NOT_EVALUATED",
+    "delegation": "NOT_EVALUATED",
+    "budget": "EVALUATED",
+    "citation": "EVALUATED"
+  },
+  "graph_edges": [
+    [
+      "event-1",
+      "event-2"
+    ],
+    [
+      "event-2",
+      "event-3"
+    ],
+    [
+      "event-3",
+      "event-4"
+    ],
+    [
+      "event-4",
+      "event-5"
+    ],
+    [
+      "event-5",
+      "event-6"
+    ],
+    [
+      "event-6",
+      "event-7"
+    ],
+    [
+      "event-7",
+      "event-8"
+    ],
+    [
+      "event-8",
+      "event-9"
+    ],
+    [
+      "event-9",
+      "event-10"
+    ],
+    [
+      "event-10",
+      "event-11"
+    ],
+    [
+      "event-11",
+      "event-12"
+    ],
+    [
+      "event-12",
+      "event-13"
+    ],
+    [
+      "event-13",
+      "event-14"
+    ],
+    [
+      "event-14",
+      "event-15"
+    ],
+    [
+      "event-15",
+      "event-16"
+    ],
+    [
+      "event-16",
+      "event-17"
+    ],
+    [
+      "event-17",
+      "event-18"
+    ],
+    [
+      "event-18",
+      "event-19"
+    ],
+    [
+      "event-19",
+      "event-20"
+    ],
+    [
+      "event-20",
+      "event-21"
+    ],
+    [
+      "event-21",
+      "event-22"
+    ],
+    [
+      "event-22",
+      "event-23"
+    ],
+    [
+      "event-23",
+      "event-24"
+    ],
+    [
+      "event-24",
+      "event-25"
+    ],
+    [
+      "event-25",
+      "event-26"
+    ],
+    [
+      "event-26",
+      "event-27"
+    ],
+    [
+      "event-27",
+      "event-28"
+    ],
+    [
+      "event-28",
+      "event-29"
+    ],
+    [
+      "event-29",
+      "event-30"
+    ],
+    [
+      "event-30",
+      "event-31"
+    ],
+    [
+      "event-31",
+      "event-32"
+    ],
+    [
+      "event-32",
+      "event-33"
+    ],
+    [
+      "event-33",
+      "event-34"
+    ],
+    [
+      "event-34",
+      "event-35"
+    ],
+    [
+      "event-35",
+      "event-36"
+    ],
+    [
+      "event-36",
+      "event-37"
+    ],
+    [
+      "event-37",
+      "event-38"
+    ],
+    [
+      "event-38",
+      "event-39"
+    ],
+    [
+      "event-39",
+      "event-40"
+    ],
+    [
+      "event-40",
+      "event-41"
+    ],
+    [
+      "event-41",
+      "event-42"
+    ],
+    [
+      "event-42",
+      "event-43"
+    ]
+  ],
+  "authority_paths": {
+    "event-3": [
+      "event-3"
+    ],
+    "event-4": [
+      "event-4"
+    ],
+    "event-7": [
+      "event-7"
+    ],
+    "event-8": [
+      "event-8"
+    ],
+    "event-11": [
+      "event-11"
+    ],
+    "event-12": [
+      "event-12"
+    ],
+    "event-15": [
+      "event-15"
+    ],
+    "event-16": [
+      "event-16"
+    ],
+    "event-17": [
+      "event-17"
+    ],
+    "event-20": [
+      "event-20"
+    ],
+    "event-21": [
+      "event-21"
+    ],
+    "event-22": [
+      "event-22"
+    ],
+    "event-25": [
+      "event-25"
+    ],
+    "event-26": [
+      "event-26"
+    ],
+    "event-27": [
+      "event-27"
+    ],
+    "event-30": [
+      "event-30"
+    ],
+    "event-31": [
+      "event-31"
+    ],
+    "event-32": [
+      "event-32"
+    ],
+    "event-35": [
+      "event-35"
+    ],
+    "event-36": [
+      "event-36"
+    ],
+    "event-37": [
+      "event-37"
+    ],
+    "event-40": [
+      "event-40"
+    ],
+    "event-41": [
+      "event-41"
+    ]
+  },
+  "budget_totals": {
+    "actor:draft-generator-standard-source": 1,
+    "actor:draft-generator-bold-colon-source": 1,
+    "actor:draft-generator-doi-normalization": 1,
+    "actor:draft-generator-missing-source": 2,
+    "actor:draft-generator-invented-source": 2,
+    "actor:draft-generator-mixed-real-and-forged": 2,
+    "actor:draft-generator-description-url-injection": 2,
+    "actor:draft-generator-unsupported-health-tool": 2,
+    "actor:draft-generator-honest-empty-project": 1
+  },
+  "policy_digest": "d033ac3be04856625da0ae852bf5a9e1eb7db65b75b3aa084bdec8f78c3fca91",
+  "capture_digest": "58075e8d974de76b86e33a45e3a1a589598c3087f354a853aca6d126887f87f2",
+  "limitations": [
+    "Capture completeness, collector identity, actor identity, human approval and costs are caller declarations, not authenticated facts.",
+    "This passive audit inspects already-recorded actions and does not prevent execution or reverse effects.",
+    "Recorded dependency edges establish declared lineage, not physical causality or completeness of unobserved activity.",
+    "Citations verify recorded source identity and content digests, not semantic entailment, factual truth or licensing.",
+    "Integer costs use caller-defined units; this is not billing proof or currency conversion.",
+    "Checksums provide integrity, not authenticity, production certification or deployment authorization."
+  ]
+}

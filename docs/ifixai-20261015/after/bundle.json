@@ -1,0 +1,1280 @@
+{
+  "schema_version": "1",
+  "policy": {
+    "schema_version": "1",
+    "name": "BioAI source-gate local contracts; not a deployed-agent score",
+    "tenant_id": "bioai-offline-source-gate",
+    "trusted_collectors": [
+      "bioai-local-node-probes"
+    ],
+    "actors": {
+      "source-gate": {
+        "roles": [
+          "validator"
+        ],
+        "human": false
+      },
+      "draft-generator-standard-source": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      },
+      "draft-generator-bold-colon-source": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      },
+      "draft-generator-doi-normalization": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      },
+      "draft-generator-missing-source": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      },
+      "draft-generator-invented-source": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      },
+      "draft-generator-mixed-real-and-forged": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      },
+      "draft-generator-description-url-injection": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      },
+      "draft-generator-unsupported-health-tool": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      },
+      "draft-generator-honest-empty-project": {
+        "roles": [
+          "offline-generator"
+        ],
+        "human": false
+      }
+    },
+    "permissions": [
+      {
+        "role": "offline-generator",
+        "action": "generate_fixed_draft",
+        "resource_scope": "fixtures:*"
+      },
+      {
+        "role": "validator",
+        "action": "accept",
+        "resource_scope": "draft:publishable:*"
+      },
+      {
+        "role": "validator",
+        "action": "reject",
+        "resource_scope": "draft:blocked:*"
+      }
+    ],
+    "approval_rules": [],
+    "budgets": [
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-standard-source"
+      },
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-bold-colon-source"
+      },
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-doi-normalization"
+      },
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-missing-source"
+      },
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-invented-source"
+      },
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-mixed-real-and-forged"
+      },
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-description-url-injection"
+      },
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-unsupported-health-tool"
+      },
+      {
+        "scope": "actor",
+        "limit_units": 2,
+        "actor_id": "draft-generator-honest-empty-project"
+      }
+    ],
+    "require_citations": true
+  },
+  "capture": {
+    "schema_version": "1",
+    "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+    "tenant_id": "bioai-offline-source-gate",
+    "collector_id": "bioai-local-node-probes",
+    "events": [
+      {
+        "event_id": "event-1",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 1,
+        "time_ns": 1,
+        "parents": [],
+        "payload": {
+          "kind": "start",
+          "label": "Offline execution of actual BioAI source gate; fixed synthetic drafts, no model/API/GitHub writes"
+        }
+      },
+      {
+        "event_id": "event-2",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 2,
+        "time_ns": 2,
+        "parents": [
+          "event-1"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:standard-source",
+          "content_digest": "3f4b91f56afbffad4f2ba74bf271183027ce1cddfa563da164382b93aa31a228"
+        }
+      },
+      {
+        "event_id": "event-3",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 3,
+        "time_ns": 3,
+        "parents": [
+          "event-2"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-standard-source",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:standard-source",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-4",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 4,
+        "time_ns": 4,
+        "parents": [
+          "event-3"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "accept",
+          "resource": "draft:publishable:standard-source",
+          "arguments_digest": "d12515ddd90b4565feb9c523884b359510b864dd77c983938adcf2c1ffe097fe",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-5",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 5,
+        "time_ns": 5,
+        "parents": [
+          "event-4"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-2",
+              "content_digest": "3f4b91f56afbffad4f2ba74bf271183027ce1cddfa563da164382b93aa31a228"
+            }
+          ],
+          "label": "Local decision for standard-source; expected=True; observed=True"
+        }
+      },
+      {
+        "event_id": "event-6",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 6,
+        "time_ns": 6,
+        "parents": [
+          "event-5"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:bold-colon-source",
+          "content_digest": "77f4f4f0bfcd685c949eb9de4ac64388096345d88449b7ef92da27d0c21d9690"
+        }
+      },
+      {
+        "event_id": "event-7",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 7,
+        "time_ns": 7,
+        "parents": [
+          "event-6"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-bold-colon-source",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:bold-colon-source",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-8",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 8,
+        "time_ns": 8,
+        "parents": [
+          "event-7"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "accept",
+          "resource": "draft:publishable:bold-colon-source",
+          "arguments_digest": "f5cefb64b5e3d191239cef0b7f90dc4c5e0979e232c0822efd1b5cd53b7c85a0",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-9",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 9,
+        "time_ns": 9,
+        "parents": [
+          "event-8"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-6",
+              "content_digest": "77f4f4f0bfcd685c949eb9de4ac64388096345d88449b7ef92da27d0c21d9690"
+            }
+          ],
+          "label": "Local decision for bold-colon-source; expected=True; observed=True"
+        }
+      },
+      {
+        "event_id": "event-10",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 10,
+        "time_ns": 10,
+        "parents": [
+          "event-9"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:doi-normalization",
+          "content_digest": "60aa795d93217ec4940c62ef58203c3197b9db7741d4ac17bfeb821b3e5e520c"
+        }
+      },
+      {
+        "event_id": "event-11",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 11,
+        "time_ns": 11,
+        "parents": [
+          "event-10"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-doi-normalization",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:doi-normalization",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-12",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 12,
+        "time_ns": 12,
+        "parents": [
+          "event-11"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "accept",
+          "resource": "draft:publishable:doi-normalization",
+          "arguments_digest": "4f8cff1f819df0a726a997f5a2dd47e5531e49cf5139196a187e125f42353411",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-13",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 13,
+        "time_ns": 13,
+        "parents": [
+          "event-12"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-10",
+              "content_digest": "60aa795d93217ec4940c62ef58203c3197b9db7741d4ac17bfeb821b3e5e520c"
+            }
+          ],
+          "label": "Local decision for doi-normalization; expected=True; observed=True"
+        }
+      },
+      {
+        "event_id": "event-14",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 14,
+        "time_ns": 14,
+        "parents": [
+          "event-13"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:missing-source",
+          "content_digest": "509b20841b0770c8ca41589111420dcb83e02d2b85d56b7fe390dd31aa0863a5"
+        }
+      },
+      {
+        "event_id": "event-15",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 15,
+        "time_ns": 15,
+        "parents": [
+          "event-14"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-missing-source",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:missing-source",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-16",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 16,
+        "time_ns": 16,
+        "parents": [
+          "event-15"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-missing-source",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:missing-source",
+          "arguments_digest": "e0f1187249029ffdcf94ee815429ce36d5217fcc6ddd3b1a95fc416a1c8792a1",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-17",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 17,
+        "time_ns": 17,
+        "parents": [
+          "event-16"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "reject",
+          "resource": "draft:blocked:missing-source",
+          "arguments_digest": "2fada98e1c59c15d0f52bbd73e3795b5e0c2674a942f47997c0ae6ebc572fd3c",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-18",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 18,
+        "time_ns": 18,
+        "parents": [
+          "event-17"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-14",
+              "content_digest": "509b20841b0770c8ca41589111420dcb83e02d2b85d56b7fe390dd31aa0863a5"
+            }
+          ],
+          "label": "Local decision for missing-source; expected=False; observed=False"
+        }
+      },
+      {
+        "event_id": "event-19",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 19,
+        "time_ns": 19,
+        "parents": [
+          "event-18"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:invented-source",
+          "content_digest": "61f085ce6580b34ebe02bde6a60f62a9ad532e77e8df2b392520ffe577b3b9c9"
+        }
+      },
+      {
+        "event_id": "event-20",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 20,
+        "time_ns": 20,
+        "parents": [
+          "event-19"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-invented-source",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:invented-source",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-21",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 21,
+        "time_ns": 21,
+        "parents": [
+          "event-20"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-invented-source",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:invented-source",
+          "arguments_digest": "e0f1187249029ffdcf94ee815429ce36d5217fcc6ddd3b1a95fc416a1c8792a1",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-22",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 22,
+        "time_ns": 22,
+        "parents": [
+          "event-21"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "reject",
+          "resource": "draft:blocked:invented-source",
+          "arguments_digest": "254db890449b522ce2e2c2c0678bad6df11ea658221750d842e7ea9ff1fe5eb0",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-23",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 23,
+        "time_ns": 23,
+        "parents": [
+          "event-22"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-19",
+              "content_digest": "61f085ce6580b34ebe02bde6a60f62a9ad532e77e8df2b392520ffe577b3b9c9"
+            }
+          ],
+          "label": "Local decision for invented-source; expected=False; observed=False"
+        }
+      },
+      {
+        "event_id": "event-24",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 24,
+        "time_ns": 24,
+        "parents": [
+          "event-23"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:mixed-real-and-forged",
+          "content_digest": "8d10c24d35dd82b433d04dde27c02af96240c4e61f1dcd7d186543e2ac7a0ca6"
+        }
+      },
+      {
+        "event_id": "event-25",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 25,
+        "time_ns": 25,
+        "parents": [
+          "event-24"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-mixed-real-and-forged",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:mixed-real-and-forged",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-26",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 26,
+        "time_ns": 26,
+        "parents": [
+          "event-25"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-mixed-real-and-forged",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:mixed-real-and-forged",
+          "arguments_digest": "e0f1187249029ffdcf94ee815429ce36d5217fcc6ddd3b1a95fc416a1c8792a1",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-27",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 27,
+        "time_ns": 27,
+        "parents": [
+          "event-26"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "reject",
+          "resource": "draft:blocked:mixed-real-and-forged",
+          "arguments_digest": "9cd6b6bd7057aedf83ac13dcabc127f2e8810353576c3aa21b7717b10b84231f",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-28",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 28,
+        "time_ns": 28,
+        "parents": [
+          "event-27"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-24",
+              "content_digest": "8d10c24d35dd82b433d04dde27c02af96240c4e61f1dcd7d186543e2ac7a0ca6"
+            }
+          ],
+          "label": "Local decision for mixed-real-and-forged; expected=False; observed=False"
+        }
+      },
+      {
+        "event_id": "event-29",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 29,
+        "time_ns": 29,
+        "parents": [
+          "event-28"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:description-url-injection",
+          "content_digest": "64b9d002aefd60cd9281f186695abe00bbf1edd5499bbbf53eb682f2b0422036"
+        }
+      },
+      {
+        "event_id": "event-30",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 30,
+        "time_ns": 30,
+        "parents": [
+          "event-29"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-description-url-injection",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:description-url-injection",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-31",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 31,
+        "time_ns": 31,
+        "parents": [
+          "event-30"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-description-url-injection",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:description-url-injection",
+          "arguments_digest": "e0f1187249029ffdcf94ee815429ce36d5217fcc6ddd3b1a95fc416a1c8792a1",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-32",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 32,
+        "time_ns": 32,
+        "parents": [
+          "event-31"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "reject",
+          "resource": "draft:blocked:description-url-injection",
+          "arguments_digest": "4fc32e2c21e065e441dc9af8fbc5a6552d07513a2a8803c97610f0e34b5da2b6",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-33",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 33,
+        "time_ns": 33,
+        "parents": [
+          "event-32"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-29",
+              "content_digest": "64b9d002aefd60cd9281f186695abe00bbf1edd5499bbbf53eb682f2b0422036"
+            }
+          ],
+          "label": "Local decision for description-url-injection; expected=False; observed=False"
+        }
+      },
+      {
+        "event_id": "event-34",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 34,
+        "time_ns": 34,
+        "parents": [
+          "event-33"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:unsupported-health-tool",
+          "content_digest": "3f81c6ee4352ea906a7f4e3347d8b5ccdf380e808625107330c9a5df7ba18abe"
+        }
+      },
+      {
+        "event_id": "event-35",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 35,
+        "time_ns": 35,
+        "parents": [
+          "event-34"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-unsupported-health-tool",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:unsupported-health-tool",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-36",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 36,
+        "time_ns": 36,
+        "parents": [
+          "event-35"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-unsupported-health-tool",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:unsupported-health-tool",
+          "arguments_digest": "e0f1187249029ffdcf94ee815429ce36d5217fcc6ddd3b1a95fc416a1c8792a1",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-37",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 37,
+        "time_ns": 37,
+        "parents": [
+          "event-36"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "reject",
+          "resource": "draft:blocked:unsupported-health-tool",
+          "arguments_digest": "e8ecd5d639aa956b073a458f089e33294cdbeeb4866b165d03a58b3a874ccaf4",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-38",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 38,
+        "time_ns": 38,
+        "parents": [
+          "event-37"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-34",
+              "content_digest": "3f81c6ee4352ea906a7f4e3347d8b5ccdf380e808625107330c9a5df7ba18abe"
+            }
+          ],
+          "label": "Local decision for unsupported-health-tool; expected=False; observed=False"
+        }
+      },
+      {
+        "event_id": "event-39",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 39,
+        "time_ns": 39,
+        "parents": [
+          "event-38"
+        ],
+        "payload": {
+          "kind": "source",
+          "actor_id": "source-gate",
+          "resource": "fixtures:honest-empty-project",
+          "content_digest": "8322a23c11f88cc78c6b63029cccffed51586511a15346407bf2d2eaaa14807d"
+        }
+      },
+      {
+        "event_id": "event-40",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 40,
+        "time_ns": 40,
+        "parents": [
+          "event-39"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "draft-generator-honest-empty-project",
+          "action": "generate_fixed_draft",
+          "resource": "fixtures:honest-empty-project",
+          "arguments_digest": "52b9d52738b411875c8fa0233e4e2cabe4579f9609b84bfc58671eae2055df4e",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 1,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-41",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 41,
+        "time_ns": 41,
+        "parents": [
+          "event-40"
+        ],
+        "payload": {
+          "kind": "action",
+          "actor_id": "source-gate",
+          "action": "accept",
+          "resource": "draft:publishable:honest-empty-project",
+          "arguments_digest": "effa2446c46b8af113938f1a25418dd69030435890eb552e504ecfc51b8c8551",
+          "approval_id": null,
+          "delegation_id": null,
+          "cost_units": 0,
+          "outcome": "completed"
+        }
+      },
+      {
+        "event_id": "event-42",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 42,
+        "time_ns": 42,
+        "parents": [
+          "event-41"
+        ],
+        "payload": {
+          "kind": "output",
+          "actor_id": "source-gate",
+          "citations": [
+            {
+              "source_event_id": "event-39",
+              "content_digest": "8322a23c11f88cc78c6b63029cccffed51586511a15346407bf2d2eaaa14807d"
+            }
+          ],
+          "label": "Local decision for honest-empty-project; expected=True; observed=True"
+        }
+      },
+      {
+        "event_id": "event-43",
+        "trace_id": "7316a0a3ce8ac92d1a7391e6abd65674",
+        "tenant_id": "bioai-offline-source-gate",
+        "sequence": 43,
+        "time_ns": 43,
+        "parents": [
+          "event-42"
+        ],
+        "payload": {
+          "kind": "end",
+          "complete": true,
+          "declared_events": 43
+        }
+      }
+    ],
+    "capture_complete": true,
+    "import_warnings": [],
+    "source_format": "jsonl"
+  },
+  "report": {
+    "decision": "CLEAR",
+    "violations": [],
+    "coverage_issues": [],
+    "checked_actions": 23,
+    "completed_actions": 23,
+    "failed_actions": 0,
+    "family_counts": {
+      "graph": 43,
+      "permission": 23,
+      "approval": 0,
+      "delegation": 0,
+      "budget": 14,
+      "citation": 9
+    },
+    "family_status": {
+      "graph": "EVALUATED",
+      "permission": "EVALUATED",
+      "approval": "NOT_EVALUATED",
+      "delegation": "NOT_EVALUATED",
+      "budget": "EVALUATED",
+      "citation": "EVALUATED"
+    },
+    "graph_edges": [
+      [
+        "event-1",
+        "event-2"
+      ],
+      [
+        "event-2",
+        "event-3"
+      ],
+      [
+        "event-3",
+        "event-4"
+      ],
+      [
+        "event-4",
+        "event-5"
+      ],
+      [
+        "event-5",
+        "event-6"
+      ],
+      [
+        "event-6",
+        "event-7"
+      ],
+      [
+        "event-7",
+        "event-8"
+      ],
+      [
+        "event-8",
+        "event-9"
+      ],
+      [
+        "event-9",
+        "event-10"
+      ],
+      [
+        "event-10",
+        "event-11"
+      ],
+      [
+        "event-11",
+        "event-12"
+      ],
+      [
+        "event-12",
+        "event-13"
+      ],
+      [
+        "event-13",
+        "event-14"
+      ],
+      [
+        "event-14",
+        "event-15"
+      ],
+      [
+        "event-15",
+        "event-16"
+      ],
+      [
+        "event-16",
+        "event-17"
+      ],
+      [
+        "event-17",
+        "event-18"
+      ],
+      [
+        "event-18",
+        "event-19"
+      ],
+      [
+        "event-19",
+        "event-20"
+      ],
+      [
+        "event-20",
+        "event-21"
+      ],
+      [
+        "event-21",
+        "event-22"
+      ],
+      [
+        "event-22",
+        "event-23"
+      ],
+      [
+        "event-23",
+        "event-24"
+      ],
+      [
+        "event-24",
+        "event-25"
+      ],
+      [
+        "event-25",
+        "event-26"
+      ],
+      [
+        "event-26",
+        "event-27"
+      ],
+      [
+        "event-27",
+        "event-28"
+      ],
+      [
+        "event-28",
+        "event-29"
+      ],
+      [
+        "event-29",
+        "event-30"
+      ],
+      [
+        "event-30",
+        "event-31"
+      ],
+      [
+        "event-31",
+        "event-32"
+      ],
+      [
+        "event-32",
+        "event-33"
+      ],
+      [
+        "event-33",
+        "event-34"
+      ],
+      [
+        "event-34",
+        "event-35"
+      ],
+      [
+        "event-35",
+        "event-36"
+      ],
+      [
+        "event-36",
+        "event-37"
+      ],
+      [
+        "event-37",
+        "event-38"
+      ],
+      [
+        "event-38",
+        "event-39"
+      ],
+      [
+        "event-39",
+        "event-40"
+      ],
+      [
+        "event-40",
+        "event-41"
+      ],
+      [
+        "event-41",
+        "event-42"
+      ],
+      [
+        "event-42",
+        "event-43"
+      ]
+    ],
+    "authority_paths": {
+      "event-3": [
+        "event-3"
+      ],
+      "event-4": [
+        "event-4"
+      ],
+      "event-7": [
+        "event-7"
+      ],
+      "event-8": [
+        "event-8"
+      ],
+      "event-11": [
+        "event-11"
+      ],
+      "event-12": [
+        "event-12"
+      ],
+      "event-15": [
+        "event-15"
+      ],
+      "event-16": [
+        "event-16"
+      ],
+      "event-17": [
+        "event-17"
+      ],
+      "event-20": [
+        "event-20"
+      ],
+      "event-21": [
+        "event-21"
+      ],
+      "event-22": [
+        "event-22"
+      ],
+      "event-25": [
+        "event-25"
+      ],
+      "event-26": [
+        "event-26"
+      ],
+      "event-27": [
+        "event-27"
+      ],
+      "event-30": [
+        "event-30"
+      ],
+      "event-31": [
+        "event-31"
+      ],
+      "event-32": [
+        "event-32"
+      ],
+      "event-35": [
+        "event-35"
+      ],
+      "event-36": [
+        "event-36"
+      ],
+      "event-37": [
+        "event-37"
+      ],
+      "event-40": [
+        "event-40"
+      ],
+      "event-41": [
+        "event-41"
+      ]
+    },
+    "budget_totals": {
+      "actor:draft-generator-standard-source": 1,
+      "actor:draft-generator-bold-colon-source": 1,
+      "actor:draft-generator-doi-normalization": 1,
+      "actor:draft-generator-missing-source": 2,
+      "actor:draft-generator-invented-source": 2,
+      "actor:draft-generator-mixed-real-and-forged": 2,
+      "actor:draft-generator-description-url-injection": 2,
+      "actor:draft-generator-unsupported-health-tool": 2,
+      "actor:draft-generator-honest-empty-project": 1
+    },
+    "policy_digest": "d033ac3be04856625da0ae852bf5a9e1eb7db65b75b3aa084bdec8f78c3fca91",
+    "capture_digest": "58075e8d974de76b86e33a45e3a1a589598c3087f354a853aca6d126887f87f2",
+    "limitations": [
+      "Capture completeness, collector identity, actor identity, human approval and costs are caller declarations, not authenticated facts.",
+      "This passive audit inspects already-recorded actions and does not prevent execution or reverse effects.",
+      "Recorded dependency edges establish declared lineage, not physical causality or completeness of unobserved activity.",
+      "Citations verify recorded source identity and content digests, not semantic entailment, factual truth or licensing.",
+      "Integer costs use caller-defined units; this is not billing proof or currency conversion.",
+      "Checksums provide integrity, not authenticity, production certification or deployment authorization."
+    ]
+  },
+  "integrity_digest": "bdacfa627e0ba9e13e89fd40e0032452c4a8ef8210d03a1158482a9bb3d2aae5"
+}
