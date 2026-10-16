@@ -6,7 +6,7 @@ function url(value) {
 }
 
 function links(markdown) {
-    return [...String(markdown || '').matchAll(/(!?)\[([^\]\n]+)]\((https?:\/\/[^\s)]+)(?:\s+"[^"]*")?\)/g)]
+    return [...String(markdown || '').matchAll(/(!?)\[([^\[\]\n]+)]\((https?:\/\/[^\s)]+)(?:\s+"[^"]*")?\)/g)]
         .map(match => ({ image: match[1] === '!' || /^图片\s*[:：]/.test(match[2]), label: match[2].replace(/^图片\s*[:：]\s*/, '').trim(), url: url(match[3]) }))
         .filter(link => link.url);
 }
