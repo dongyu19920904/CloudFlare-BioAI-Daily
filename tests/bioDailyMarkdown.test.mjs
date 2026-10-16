@@ -4,7 +4,7 @@ import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPre
 import { getSystemPromptSummarizationStepOne } from '../src/prompt/summarizationPromptStepZero.js';
 
 test('daily assembly preserves source, evidence and media but removes the generated preamble', () => {
-    const body = '## **🔥 今日焦点 TOP 10**\n### 1. 一项研究\n**观察到关联。** [队列数据](https://example.org/study)不证明因果。\n来源类型 / 证据阶段 / 可信度：中\n![研究配图](https://example.org/image.png)';
+    const body = '## **🔥 今日焦点 TOP 1**\n### 1. 一项研究\n**观察到关联。** [队列数据](https://example.org/study)不证明因果。\n来源类型 / 证据阶段 / 可信度：中\n![研究配图](https://example.org/image.png)';
     const output = assembleBioDailyMarkdown('## 快速导航\n旧前言\n\n' + body, '事实。\n变化。\n先核查研究。');
     assert.ok(output.endsWith(body));
     assert.equal((output.match(/## \*\*今日摘要\*\*/g) || []).length, 1);
@@ -81,6 +81,17 @@ test('duplicate TOP sources are removed and remaining ranks/count stay truthful'
     const output = deduplicateBioDailyNews('## **🔥 今日焦点 TOP 2**\n\n### 1. 甲\n[甲](https://example.org/a)\n\n### 2. 又甲\n[甲](https://example.org/a)');
     assert.match(output, /TOP 1/);
     assert.doesNotMatch(output, /### 2\./);
+});
+
+test('TOP reading removes explicit cross-reference placeholders and repairs duplicate numbering', () => {
+    const input = '## **🔥 今日焦点 TOP 10**\n\n### 1. 甲\n[甲](https://example.org/a)有新结果。\n\n### 2. 项目预留\n*见下方开源 TOP 项目*\n\n### 2. 乙\n[乙](https://example.org/b)尚未临床验证。\n\n### 3. 已报道\n（已在TOP 1详述，此处不重复。）\n\n## **⌘ 开源 TOP 项目**\n\n### 项目\n[仓库](https://github.com/example/project)可试用。';
+    const output = deduplicateBioDailyNews(input);
+    assert.match(output, /TOP 2/);
+    assert.doesNotMatch(output, /见下方|此处不重复|项目预留/);
+    assert.match(output, /### 2\. 乙/);
+    assert.match(output, /尚未临床验证/);
+    assert.match(output, /github.com\/example\/project/);
+    assert.equal(deduplicateBioDailyNews(output), output);
 });
 
 test('daily FAQ does not expand secondary news into legal or regulatory advice', () => {

@@ -35,36 +35,38 @@ export async function readBioDailyPreviewCache(kv, date, categories) {
 
 export function deduplicateBioDailyNews(markdown) {
     const seen = new Set();
-    let removed = 0;
     const sections = String(markdown).split(/(?=^##\s)/m).map(section => {
         if (/^##.*相关问题/.test(section)) {
             const [heading, ...questions] = section.split(/(?=^###\s)/m);
             const kept = questions.filter(question => !/监管|合规|法律|合法|法规|\bBLA\b|第\s*361\s*条/.test(question));
             if (kept.length === questions.length) return section;
-            removed += questions.length - kept.length;
             return kept.length ? heading + kept.join('') : '';
         }
         const [heading, ...items] = section.split(/(?=^###\s)/m);
         if (!items.length) return section;
         const kept = items.filter(item => {
             const source = getReferencedSourceUrls(item)[0];
+            const prose = item.replace(/^###[^\n]*\n/, '').trim();
+            if (!source && /^(?:\*|（|\()?\s*(?:见下方|已在[^\n]{0,40}(?:详述|报道)|已预留)/.test(prose)) {
+                return false;
+            }
             if (!source) return true;
             const parsed = new URL(source);
             parsed.hash = '';
             for (const key of [...parsed.searchParams.keys()]) if (/^utm_|^(fbclid|gclid)$/i.test(key)) parsed.searchParams.delete(key);
             const key = parsed.href.replace(/\/$/, '');
-            if (seen.has(key)) { removed++; return false; }
+            if (seen.has(key)) return false;
             seen.add(key);
             return true;
         });
-        if (kept.length === items.length) return section;
-        if (!kept.length) return '';
-        if (/TOP\s+\d+/i.test(heading)) {
+        if (/TOP\s+\d+/i.test(heading) && kept.length) {
             return heading.replace(/TOP\s+\d+/i, `TOP ${kept.length}`) + kept.map((item, index) => item.replace(/^###\s+\d+\.\s*/, `### ${index + 1}. `)).join('');
         }
+        if (kept.length === items.length) return section;
+        if (!kept.length) return '';
         return heading + kept.join('');
     });
-    return removed ? sections.filter(Boolean).join('') : markdown;
+    return sections.filter(Boolean).join('');
 }
 
 export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
