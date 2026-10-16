@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../src/bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
 import { getSystemPromptSummarizationStepOne } from '../src/prompt/summarizationPromptStepZero.js';
 
 test('daily assembly preserves source, evidence and media but removes the generated preamble', () => {
@@ -66,4 +66,19 @@ test('ordinary longevity daily excludes crop-only applications without excluding
     assert.equal(isBioDailyPaperCandidate({ title: 'Potato leaf disease CNN', text: 'Neural network disease classification on PlantVillage farms.' }), false);
     assert.equal(isBioDailyPaperCandidate({ title: 'Single-cell trajectory inference', text: 'Neural network on single-cell benchmarks.' }), true);
     assert.equal(isBioDailyPaperCandidate({ title: 'Plant-derived drug discovery', text: 'Machine learning for human Alzheimer drug discovery.' }), true);
+});
+
+test('same source is not repeated across news columns, while sourced FAQ stays', () => {
+    const input = '## **🔥 今日焦点 TOP 2**\n\n### 1. 甲\n[甲](https://example.org/a)\n\n### 2. 乙\n[乙](https://example.org/b)\n\n## **⚡ 产品与功能更新**\n\n### 重复甲\n[甲](https://example.org/a?utm_source=test)\n\n## **❓ 相关问题**\n\n### 甲能否应用？\n[甲](https://example.org/a)仍需核查。';
+    const output = deduplicateBioDailyNews(input);
+    assert.doesNotMatch(output, /产品与功能更新|重复甲/);
+    assert.match(output, /甲能否应用/);
+    assert.match(output, /TOP 2/);
+    assert.equal(deduplicateBioDailyNews(output), output);
+});
+
+test('duplicate TOP sources are removed and remaining ranks/count stay truthful', () => {
+    const output = deduplicateBioDailyNews('## **🔥 今日焦点 TOP 2**\n\n### 1. 甲\n[甲](https://example.org/a)\n\n### 2. 又甲\n[甲](https://example.org/a)');
+    assert.match(output, /TOP 1/);
+    assert.doesNotMatch(output, /### 2\./);
 });

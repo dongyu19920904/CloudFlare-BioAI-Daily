@@ -11,6 +11,11 @@ function links(markdown) {
         .filter(link => link.url);
 }
 
+export function getReferencedSourceUrls(markdown) {
+    const text = String(markdown || '').replace(/!\[[^\]\n]*]\([^)]+\)/g, '');
+    return links(text).filter(link => !link.image).map(link => link.url);
+}
+
 function sections(markdown) {
     const result = [];
     let block = [], fenced = false;

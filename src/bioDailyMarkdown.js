@@ -1,6 +1,6 @@
 import { insertAd } from './ad.js';
 import { insertFoot } from './foot.js';
-import { addReferencedSourceMedia } from './blogMedia.js';
+import { addReferencedSourceMedia, getReferencedSourceUrls } from './blogMedia.js';
 import { itemMatchesPapersCoolTopic } from './dataSources/longevity-rss.js';
 
 export function isBioDailyPaperCandidate(candidate, env = {}) {
@@ -33,10 +33,38 @@ export async function readBioDailyPreviewCache(kv, date, categories) {
     })));
 }
 
+export function deduplicateBioDailyNews(markdown) {
+    const seen = new Set();
+    let removed = 0;
+    const sections = String(markdown).split(/(?=^##\s)/m).map(section => {
+        if (/^##.*相关问题/.test(section)) return section;
+        const [heading, ...items] = section.split(/(?=^###\s)/m);
+        if (!items.length) return section;
+        const kept = items.filter(item => {
+            const source = getReferencedSourceUrls(item)[0];
+            if (!source) return true;
+            const parsed = new URL(source);
+            parsed.hash = '';
+            for (const key of [...parsed.searchParams.keys()]) if (/^utm_|^(fbclid|gclid)$/i.test(key)) parsed.searchParams.delete(key);
+            const key = parsed.href.replace(/\/$/, '');
+            if (seen.has(key)) { removed++; return false; }
+            seen.add(key);
+            return true;
+        });
+        if (kept.length === items.length) return section;
+        if (!kept.length) return '';
+        if (/TOP\s+\d+/i.test(heading)) {
+            return heading.replace(/TOP\s+\d+/i, `TOP ${kept.length}`) + kept.map((item, index) => item.replace(/^###\s+\d+\.\s*/, `### ${index + 1}. `)).join('');
+        }
+        return heading + kept.join('');
+    });
+    return removed ? sections.filter(Boolean).join('') : markdown;
+}
+
 export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
     const content = String(markdown || '').trim();
     const top = /^##\s*\*{0,2}(?:🔥\s*)?(?:今日焦点|重磅)\s*TOP\s+\d+.*$/im.exec(content);
-    const body = top ? content.slice(top.index) : content;
+    const body = deduplicateBioDailyNews(top ? content.slice(top.index) : content);
     const lines = String(summary || '').replace(/^```(?:text|markdown)?\s*/i, '').replace(/\s*```$/i, '')
         .split(/\r?\n/).map(line => line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, '').trim()).filter(Boolean);
     const candidates = lines.length > 1 ? lines : (lines[0]?.match(/[^。！？!?]+[。！？!?]?/g) || []);
