@@ -7,11 +7,10 @@ import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPr
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
 import { generateWithSourceGate } from "../opportunitySourceGate.js";
-import { insertFoot } from '../foot.js';
-import { insertAd, insertMidAd } from '../ad.js';
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
+import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache } from '../bioDailyMarkdown.js';
 import {
     buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
@@ -494,7 +493,7 @@ export async function handleScheduledOpportunityBatch(event, env, ctx, specified
     }
 }
 
-export async function handleScheduledDaily(event, env, ctx, specifiedDate = null) {
+export async function handleScheduledDaily(event, env, ctx, specifiedDate = null, options = {}) {
     // 如果指定了日期，使用指定日期；否则使用当前日期
     const dateStr = specifiedDate || getISODate();
     setFetchDate(dateStr);
@@ -502,7 +501,9 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
 
     try {
         // 1. Fetch Data
-        const allUnifiedData = await fetchAndCacheScheduledData(env, dateStr, '[Scheduled]');
+        const allUnifiedData = options.dryRun
+            ? await readBioDailyPreviewCache(env.DATA_KV, dateStr, Object.keys(dataSources))
+            : await fetchAndCacheScheduledData(env, dateStr, '[Scheduled]');
 
         // 2. Prepare Content Items
         // Priority: items with images/videos first
@@ -583,7 +584,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         // 3. Generate Content (Call 2)
         console.log(`[Scheduled] Generating content...`);
         let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr);
-        let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n';
+        let fullPromptForCall2_User = buildBioDailyCandidateBudget(selectedCandidates) + '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n';
         
         let outputOfCall2 = await generateScheduledMarkdownWithFallback(
             env,
@@ -612,15 +613,12 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         outputOfCall3 = normalizeSummaryLines(outputOfCall3);
 
         // 5. Assemble Markdown
-        const contentWithMidAd = insertMidAd(outputOfCall2);
-        let dailySummaryMarkdownContent = `## **今日摘要**\n\n\`\`\`\n${outputOfCall3}\n\`\`\`\n\n`;
-        dailySummaryMarkdownContent += '\n\n## ⚡ 快速导航\n\n';
-        dailySummaryMarkdownContent += '- [📰 今日 AI 资讯](#今日ai资讯) - 最新动态速览\n\n';
-        dailySummaryMarkdownContent += `\n\n${contentWithMidAd}`;
-        
-        if (env.INSERT_AD=='true') dailySummaryMarkdownContent += insertAd() +`\n`;
-        if (env.INSERT_FOOT=='true') dailySummaryMarkdownContent += insertFoot() +`\n\n`;
+        const dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, outputOfCall3, env);
         assertSafeGeoMarkdown(dailySummaryMarkdownContent, 'daily');
+
+        if (options.dryRun) {
+            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent };
+        }
 
         // 6. Commit to GitHub
         console.log(`[Scheduled] Committing to GitHub...`);

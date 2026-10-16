@@ -161,6 +161,10 @@ export default {
             const forceAsync = url.searchParams.get('async') === '1';
             const specifiedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
             const mode = resolveManualScheduledMode(path, url.searchParams.get('mode'));
+            const dryRun = url.searchParams.get('dryRun') === '1';
+            if (dryRun && (mode !== 'daily' || forceAsync)) {
+                return Response.json({ success: false, error: 'Daily preview requires mode=daily and synchronous execution.' }, { status: 400 });
+            }
             const fakeEvent = { scheduledTime: Date.now(), cron: '' };
             try {
                 const waitUntil = ctx && typeof ctx.waitUntil === 'function' ? ctx.waitUntil.bind(ctx) : null;
@@ -179,7 +183,9 @@ export default {
                     });
                 }
                 const fakeCtx = { waitUntil: (promise) => promise };
-                const result = await runScheduledMode(mode, fakeEvent, env, fakeCtx, specifiedDate);
+                const result = dryRun
+                    ? await handleScheduledDaily(fakeEvent, env, fakeCtx, specifiedDate, { dryRun: true })
+                    : await runScheduledMode(mode, fakeEvent, env, fakeCtx, specifiedDate);
                 if (result && result.success === false) {
                     return new Response(JSON.stringify({
                         success: false,

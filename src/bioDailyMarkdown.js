@@ -1,0 +1,34 @@
+import { insertAd } from './ad.js';
+import { insertFoot } from './foot.js';
+
+export async function readBioDailyPreviewCache(kv, date, categories) {
+    return Object.fromEntries(await Promise.all(categories.map(async category => {
+        const value = await kv.get(`${date}-${category}`, 'json');
+        return [category, Array.isArray(value) ? value : []];
+    })));
+}
+
+export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
+    const content = String(markdown || '').trim();
+    const top = /^##\s*\*{0,2}(?:🔥\s*)?(?:今日焦点|重磅)\s*TOP\s+\d+.*$/im.exec(content);
+    const body = top ? content.slice(top.index) : content;
+    const lines = String(summary || '').replace(/^```(?:text|markdown)?\s*/i, '').replace(/\s*```$/i, '')
+        .split(/\r?\n/).map(line => line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, '').trim()).filter(Boolean);
+    const candidates = lines.length > 1 ? lines : (lines[0]?.match(/[^。！？!?]+[。！？!?]?/g) || []);
+    let result = `## **今日摘要**\n\n\`\`\`\n${candidates.slice(0, 3).join('\n')}\n\`\`\`\n\n${body}`;
+    if (env.INSERT_AD === 'true') result += `\n${insertAd()}\n`;
+    if (env.INSERT_FOOT === 'true') result += `\n${insertFoot()}\n`;
+    return result;
+}
+
+export function buildBioDailyCandidateBudget(candidates) {
+    const count = type => candidates.filter(item => item.sourceType === type).length;
+    const projects = count('project');
+    const social = count('socialMedia');
+    return [
+        '【栏目候选预算】',
+        `当前候选 ${candidates.length} 条。项目 ${projects} 条，真实社媒 ${social} 条。`,
+        `先为开源 TOP 预留 ${Math.min(projects, 2)} 条，为社媒精选预留 ${Math.min(social, 2)} 条；其余再按事实分到 TOP、产品、研究和行业。`,
+        '预留素材不得重复进入 TOP；没有对应素材的栏目省略，不用预测或重复新闻补位。',
+    ].join('\n');
+}
