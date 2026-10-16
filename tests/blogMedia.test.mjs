@@ -23,6 +23,14 @@ test('only cited unambiguous source sections supply real image links', () => {
     assert.equal(selectReferencedSourceMedia(daily, '没有引用资料。').length, 0);
     assert.equal(selectReferencedSourceMedia(daily, body, 0).length, 0);
 });
+
+test('linked daily figures remain available to downstream source-media reuse', () => {
+    const linkedDaily = `### 研究\n\n[研究](${source})给出数据。\n\n[![研究示意图](${image})](${source})`;
+    const selected = selectReferencedSourceMedia(linkedDaily, body);
+    assert.equal(selected.length, 1);
+    assert.equal(selected[0].imageUrl, image);
+    assert.equal(selected[0].sourceUrl, source);
+});
 test('normal Markdown images are accepted but web pages, ads, fenced examples and ambiguous roundups are not', () => {
     assert.equal(selectReferencedSourceMedia(daily.replace('[图片: 研究示意图]', '![研究示意图]'), body).length, 1);
     assert.equal(selectReferencedSourceMedia(daily.replace(image, source), body).length, 0);
