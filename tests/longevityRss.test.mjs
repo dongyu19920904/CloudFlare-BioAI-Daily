@@ -4,11 +4,17 @@ import assert from "node:assert/strict";
 import {
   LongevityNewsRssDataSource,
   PapersCoolDataSource,
+  itemMatchesPapersCoolTopic,
 } from "../src/dataSources/longevity-rss.js";
 import { getISODate, setFetchDate } from "../src/helpers.js";
 
 const originalFetch = globalThis.fetch;
 const originalFetchDate = getISODate();
+
+test('daily paper relevance rejects generic model pruning but retains biological methods', () => {
+  assert.equal(itemMatchesPapersCoolTopic({ title: 'Your Transformer Is Secretly Elastic', summary: 'Retraining-free pruning for ImageNet vision and text encoders on A100 GPUs.' }, {}), false);
+  assert.equal(itemMatchesPapersCoolTopic({ title: 'Neural Wasserstein Splines', summary: 'Neural network trajectory inference evaluated on single-cell benchmarks.' }, {}), true);
+});
 
 test("papers.cool Atom feed is filtered for BioAI relevance", async () => {
   globalThis.fetch = async () => ({

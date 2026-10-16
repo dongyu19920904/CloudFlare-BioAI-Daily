@@ -17,6 +17,15 @@ on:
         required: false
         default: "false"
         type: string
+      dry_run:
+        description: "Daily-only preview using dated cache; no GitHub or KV writes"
+        required: false
+        default: "false"
+        type: boolean
+      worker_url:
+        description: "Optional approved BioAI version URL, preview only"
+        required: false
+        type: string
 
 jobs:
   trigger:
@@ -30,6 +39,8 @@ jobs:
           INPUT_MODE: ${{ github.event.inputs.mode }}
           INPUT_TARGET_DATE: ${{ github.event.inputs.target_date }}
           INPUT_ASYNC: ${{ github.event.inputs.async }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          INPUT_WORKER_URL: ${{ github.event.inputs.worker_url }}
           WORKER_BASE_URL: ${{ vars.WORKER_BASE_URL }}
           TRIGGER_SECRET: ${{ secrets.TEST_TRIGGER_SECRET }}
         run: |
@@ -45,6 +56,17 @@ jobs:
           fi
 
           WORKER_BASE_URL="${WORKER_BASE_URL:-$DEFAULT_WORKER_BASE_URL}"
+          if [[ -n "${INPUT_WORKER_URL:-}" ]]; then
+            if [[ "${INPUT_DRY_RUN:-false}" != "true" || "${INPUT_MODE:-}" != "daily" ]]; then
+              echo "Version URLs are allowed only for daily previews" >&2
+              exit 1
+            fi
+            if [[ ! "$INPUT_WORKER_URL" =~ ^https://([a-z0-9-]+-)?cloudflare-bioai-daily\.sabrinamisan090\.workers\.dev/?$ ]]; then
+              echo "Worker URL is not an approved BioAI host" >&2
+              exit 1
+            fi
+            WORKER_BASE_URL="$INPUT_WORKER_URL"
+          fi
           if [[ -z "${TRIGGER_SECRET:-}" ]]; then
             echo "TEST_TRIGGER_SECRET is not configured" >&2
             exit 1
@@ -72,6 +94,13 @@ jobs:
           if [[ "$ASYNC_FLAG" == "true" || "$ASYNC_FLAG" == "1" ]]; then
             URL="${WORKER_BASE_URL%/}/${PATH_PART}?key=${TRIGGER_SECRET}&date=${TARGET_DATE}&mode=${MODE}&async=1"
           fi
+          if [[ "${INPUT_DRY_RUN:-false}" == "true" ]]; then
+            if [[ "$MODE" != "daily" || "$ASYNC_FLAG" == "true" || "$ASYNC_FLAG" == "1" ]]; then
+              echo "Daily preview must be synchronous" >&2
+              exit 1
+            fi
+            URL="${URL}&dryRun=1"
+          fi
 
           echo "Mode: $MODE"
           echo "Date: $TARGET_DATE"
@@ -83,12 +112,27 @@ jobs:
           rm -f "$body_file"
 
           echo "HTTP status: ${status:-000}"
-          echo "Response:"
-          echo "$response"
+          if [[ "${INPUT_DRY_RUN:-false}" == "true" ]]; then
+            printf '%s' "$response" > preview.json
+            node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("preview.json","utf8")); if(!r.success || r.result?.dryRun!==true || !r.result?.markdown) throw new Error("Preview did not return a reviewed draft candidate"); fs.writeFileSync("preview.md",r.result.markdown); console.log(JSON.stringify({success:r.success,date:r.result.date,selectedCount:r.result.selectedCount,sourceCounts:r.result.sourceCounts,characters:r.result.markdown.length}));'
+          else
+            echo "Response:"
+            echo "$response"
+          fi
 
           if [[ "${status:-000}" -lt 200 || "${status:-000}" -ge 300 ]]; then
             exit 1
           fi
+
+      - name: Upload private preview artifact
+        if: success() && inputs.dry_run
+        uses: actions/upload-artifact@v4
+        with:
+          name: bioai-daily-preview
+          path: |
+            preview.md
+            preview.json
+          retention-days: 7
 
       - name: Summary
         if: always()

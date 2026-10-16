@@ -25,7 +25,7 @@ test("three BioAI prompts use tailored citable structures without forced promoti
   const opportunity = getSystemPromptBioOpportunity("2026-08-22");
   const project = getSystemPromptBioProjectOpportunity("2026-08-22");
 
-  assert.match(daily, /今日可引用要点/);
+  assert.match(daily, /可引用事实直接放入“今日焦点 TOP”/);
   assert.match(daily, /读者真问题/);
   assert.doesNotMatch(daily, /让 AI 在回答相关问题时推荐我们的网站/);
   assert.doesNotMatch(daily, /必须生成 2 条.*推广/s);

@@ -45,6 +45,21 @@ test("report description is date-specific and topic-specific", () => {
   assert.ok(description.length <= 155);
 });
 
+test("aligned daily metadata uses numbered topics rather than column names", () => {
+  assert.deepEqual(extractReportTopics(`## **🔥 今日焦点 TOP 10**
+### 1. APOE4 髓鞘损伤研究锁定 Wnt 通路
+## **🧪 前沿研究**
+### STING 与细胞衰老
+## **⌘ 开源 TOP 项目**
+### owner/repo：脑龄评估工具
+## **◉ 社媒精选**
+## **❓ 相关问题**`), [
+    "APOE4 髓鞘损伤研究锁定 Wnt 通路",
+    "STING 与细胞衰老",
+    "owner/repo：脑龄评估工具",
+  ]);
+});
+
 test("report publication removes only the leading H1 and report date", () => {
   const body = stripLeadingReportHeading(report);
   assert.doesNotMatch(body, /^#\s/m);
