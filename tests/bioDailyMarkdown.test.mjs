@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia } from '../src/bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../src/bioDailyMarkdown.js';
 import { getSystemPromptSummarizationStepOne } from '../src/prompt/summarizationPromptStepZero.js';
 
 test('daily assembly preserves source, evidence and media but removes the generated preamble', () => {
@@ -60,4 +60,10 @@ test('daily media repair uses only the matching cited source and never repeats i
     assert.doesNotMatch(output, /b\.jpg/);
     assert.doesNotMatch(output.slice(output.indexOf('## **❓')), /!\[/);
     assert.equal(restoreBioDailySourceMedia(output, candidates), output);
+});
+
+test('ordinary longevity daily excludes crop-only applications without excluding biomedical methods', () => {
+    assert.equal(isBioDailyPaperCandidate({ title: 'Potato leaf disease CNN', text: 'Neural network disease classification on PlantVillage farms.' }), false);
+    assert.equal(isBioDailyPaperCandidate({ title: 'Single-cell trajectory inference', text: 'Neural network on single-cell benchmarks.' }), true);
+    assert.equal(isBioDailyPaperCandidate({ title: 'Plant-derived drug discovery', text: 'Machine learning for human Alzheimer drug discovery.' }), true);
 });

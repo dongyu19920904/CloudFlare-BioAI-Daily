@@ -10,8 +10,7 @@ import { generateWithSourceGate } from "../opportunitySourceGate.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
-import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia } from '../bioDailyMarkdown.js';
-import { itemMatchesPapersCoolTopic } from '../dataSources/longevity-rss.js';
+import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../bioDailyMarkdown.js';
 import {
     buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
@@ -542,6 +541,9 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                             break;
                     }
                     if (itemText) {
+                        if (item.type === 'news' && stripHtml(item.details?.content_html || '').length < 600) {
+                            itemText += '\n证据范围：短摘要/元数据级。只报告题目、作者、期刊及原文明确给出的发现；不得补写机制、恢复效果、样本或干预结果。';
+                        }
                         if (mediaPromptHint) {
                             itemText += `\n${mediaPromptHint}`;
                         }
@@ -560,8 +562,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             }
         }
         
-        const topicCandidates = promptCandidates.filter(candidate => candidate.sourceType !== 'paper' ||
-            itemMatchesPapersCoolTopic({ title: candidate.title, summary: candidate.text }, env));
+        const topicCandidates = promptCandidates.filter(candidate => candidate.sourceType !== 'paper' || isBioDailyPaperCandidate(candidate, env));
         const selectedCandidates = selectDailyPromptCandidates(
             topicCandidates,
             env,

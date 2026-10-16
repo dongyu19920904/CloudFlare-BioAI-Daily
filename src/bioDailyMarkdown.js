@@ -1,6 +1,14 @@
 import { insertAd } from './ad.js';
 import { insertFoot } from './foot.js';
 import { addReferencedSourceMedia } from './blogMedia.js';
+import { itemMatchesPapersCoolTopic } from './dataSources/longevity-rss.js';
+
+export function isBioDailyPaperCandidate(candidate, env = {}) {
+    const text = `${candidate.title || ''}\n${candidate.text || ''}`;
+    const agriculture = /\b(potato|plantvillage|crop|farming|agricultur\w*|leaf disease)\b/i.test(text);
+    const biomedical = /\b(human|patient|clinical|mice|mouse|mammal\w*|drug discovery|alzheimer\w*|dementia)\b/i.test(text);
+    return (!agriculture || biomedical) && itemMatchesPapersCoolTopic({ title: candidate.title, summary: text }, env);
+}
 
 export function getBioDailyMediaUrl(item) {
     return item?.details?.imageUrl || item?.imageUrl ||
@@ -10,7 +18,7 @@ export function getBioDailyMediaUrl(item) {
 export function restoreBioDailySourceMedia(markdown, candidates) {
     const label = value => String(value || '来源配图').replace(/[\[\]\n]/g, ' ').trim();
     const context = candidates.filter(item => item.url && item.mediaUrl).map(item =>
-        `### ${label(item.title)}\n\n[${label(item.title)}](${item.url})\n\n![来源配图：${label(item.title)}](${item.mediaUrl})`
+        `### ${label(item.title)}\n\n[${label(item.title)}](${item.url})\n\n![${label(item.title)}](${item.mediaUrl})`
     ).join('\n\n');
     const faq = markdown.search(/^##\s*\*{0,2}(?:❓\s*)?相关问题/m);
     const body = faq < 0 ? markdown : markdown.slice(0, faq);
