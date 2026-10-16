@@ -5,13 +5,14 @@
 2026-10-16 已完成普通中文日报的结构修改、真实模型预览、发布和线上检查。没有改 AI 日报项目、两个商机栏目的内容模板或其他项目。
 
 - 后端 [PR #60](https://github.com/dongyu19920904/CloudFlare-BioAI-Daily/pull/60) 已合并至 main：`78fa32d34d51d2247301b2158c9a4d99bf98fcfc`。
+- 后续图片解析兼容 [PR #61](https://github.com/dongyu19920904/CloudFlare-BioAI-Daily/pull/61) 也已合并：`c2cc071b49e8a7637041ef72bb0ab5401e67470f`。只修正带链接图片的标签解析，避免后续文章复用漏图，不修改正文或提示词。
 - 前端 [PR #6](https://github.com/dongyu19920904/BioAI-Daily-Web/pull/6) 和同步清理 [PR #7](https://github.com/dongyu19920904/BioAI-Daily-Web/pull/7) 已合并至 main，最后代码提交 `66a40a6c4217e0b9ff6716c434e11b59dcb22231`。
-- 生产 Worker 版本 `d9a24439-8fe1-4d4d-9ac9-3d1b29830a2c` 已承接 100% 流量。线上 API 确认；登录页 200，缺少密钥的预览入口 401。没有将模型 Secret 导出到本地或输出到日志。
+- 最终生产 Worker 版本 `9803a744-6dc2-4510-8c48-b31f5b0ec866` 已承接 100% 流量。上一结构版本为 `d9a24439-8fe1-4d4d-9ac9-3d1b29830a2c`。两次均由线上 API 确认；最终版本登录页 200，缺少密钥的预览入口 401。没有将模型 Secret 导出到本地或输出到日志。
 - 原 Cron 完全保留：UTC `20 11 * * *`、`30 11 * * *`、`30 12 * * *`，普通日报仍为北京时间每天 19:20。不新增日常模型轮次或定时任务。
 - 正式同步 [38896325484](https://github.com/dongyu19920904/BioAI-Daily-Web/actions/runs/38896325484) 成功；Pages [38896377597](https://github.com/dongyu19920904/BioAI-Daily-Web/actions/runs/38896377597) 构建、测试、GEO/时间线检查及部署成功。同步清理最终版本 Pages [38897825678](https://github.com/dongyu19920904/BioAI-Daily-Web/actions/runs/38897825678) 也已构建并部署成功，head 为 `66a40a6c`。
 - [线上日期页](https://news.aibioo.cn/2026-10/2026-10-16/)、[首页](https://news.aibioo.cn/)及[时间线](https://news.aibioo.cn/timeline/)已通过实际浏览器检查。桌面 1440x1000、手机 390x844 均 HTTP 200，TOP10 连续、没有旧导读/固定预测、没有横向溢出；6/6 来源图片加载成功，时间线最新日期为 2026-10-16、当天两个节点正常。
 - 本机 BrowserOS neo 接口返回 502，实际线上验收使用隔离 Playwright，不冒称使用 neo。检查 JSON 与截图保留于 `D:/CodexCache/artifacts/bioai-structure-20261015/production-checks.json` 及同目录截图。
-- 最终后端测试 166/166，前端 23/23；PR 构建与正式 Pages 检查通过。对 297 篇日刊做只读同步重放，未变化正文将导致的写入数为 0。
+- 最终后端测试 167/167，前端 23/23；PR 构建与正式 Pages 检查通过。对 297 篇日刊做只读同步重放，未变化正文将导致的写入数为 0。带链接配图的下游复用回归测试通过；最终组装重放仍为 7772 字符，没有新增模型调用。
 
 发布前原定时任务生成了更鲜的 10 月 16 日稿，因此最终采用 `04d4340b` 的新稿重排，而非较早的本地样稿。10 条 TOP 的事实正文和证据边界原样保留；原有六张图片（包括 SIRT1 图示）均能在当天来源素材中找到。新稿原文另存前端 `docs/daily-structure-20261016/2026-10-16-original-04d4340b.md`，早期归档仍保留。只改变标题/短结论、引用位置和分类；辅助条目的“510(k)批准”校正为“510(k)许可”。
 
