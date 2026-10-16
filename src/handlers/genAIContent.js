@@ -10,7 +10,7 @@ import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPr
 import { getSystemPromptPodcastFormatting, getSystemPromptShortPodcastFormatting } from '../prompt/podcastFormattingPrompt.js';
 import { getSystemPromptDailyAnalysis } from '../prompt/dailyAnalysisPrompt.js'; // Import new prompt
 import { getDailyReportContent } from '../github.js'; // 导入 getDailyReportContent
-import { assembleBioDailyMarkdown } from '../bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, getBioDailyMediaUrl, restoreBioDailySourceMedia } from '../bioDailyMarkdown.js';
 
 export async function handleGenAIPodcastScript(request, env) {
     let dateStr;
@@ -162,6 +162,7 @@ export async function handleGenAIContent(request, env) {
         await Promise.allSettled(fetchPromises);
 
         const selectedContentItems = [];
+        const selectedMedia = [];
         let validItemsProcessedCount = 0;
 
         for (const selection of selectedItemsParams) {
@@ -197,6 +198,7 @@ export async function handleGenAIContent(request, env) {
                 
                 if (itemText) {
                     selectedContentItems.push(itemText);
+                    selectedMedia.push({ url: item.url, title: item.title, mediaUrl: getBioDailyMediaUrl(item) });
                     validItemsProcessedCount++;
                 }
             } else {
@@ -258,6 +260,7 @@ export async function handleGenAIContent(request, env) {
             if (!outputOfCall2 || outputOfCall2.trim() === "") throw new Error("Chat processing call returned empty content.");
             outputOfCall2 = removeMarkdownCodeBlock(outputOfCall2); // Clean the output
             outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
+            outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, selectedMedia);
             console.log("Call 2 (Processing Call 1 Output) successful. Output length:", outputOfCall2.length);
         } catch (error) {
             console.error("Error in Chat API Call 2 (Processing Call 1 Output):", error);

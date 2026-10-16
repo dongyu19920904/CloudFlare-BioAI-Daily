@@ -10,7 +10,8 @@ import { generateWithSourceGate } from "../opportunitySourceGate.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
-import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache } from '../bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia } from '../bioDailyMarkdown.js';
+import { itemMatchesPapersCoolTopic } from '../dataSources/longevity-rss.js';
 import {
     buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
@@ -549,6 +550,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                             text: itemText,
                             sourceType: item.type || sourceType,
                             hasMedia: Boolean(itemHasMedia),
+                            mediaUrl: getBioDailyMediaUrl(item),
                             publishedDate: item.published_date,
                             url: item.url,
                             title: item.title,
@@ -558,8 +560,10 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             }
         }
         
+        const topicCandidates = promptCandidates.filter(candidate => candidate.sourceType !== 'paper' ||
+            itemMatchesPapersCoolTopic({ title: candidate.title, summary: candidate.text }, env));
         const selectedCandidates = selectDailyPromptCandidates(
-            promptCandidates,
+            topicCandidates,
             env,
             resolveDailyPromptItemCap(env, Boolean(specifiedDate))
         );
@@ -597,6 +601,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         // 替换错误的域名链接
         outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
+        outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, selectedCandidates);
 
         // 4. Generate Summary (Call 3)
         console.log(`[Scheduled] Generating summary...`);

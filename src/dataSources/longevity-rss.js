@@ -183,7 +183,7 @@ function parseFeedDefinitions(rawValue, fallbackValue) {
         .filter((feed) => /^https?:\/\//i.test(feed.url));
 }
 
-function itemMatchesPapersCoolTopic(item, env) {
+export function itemMatchesPapersCoolTopic(item, env) {
     const text = `${item.title || ''}\n${item.summary || ''}`.toLowerCase();
     const aiKeywords = parseKeywordList(env.PAPERS_COOL_AI_KEYWORDS, DEFAULT_PAPERS_COOL_AI_KEYWORDS);
     const bioKeywords = parseKeywordList(env.PAPERS_COOL_BIO_KEYWORDS, DEFAULT_PAPERS_COOL_BIO_KEYWORDS);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache } from '../src/bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia } from '../src/bioDailyMarkdown.js';
 import { getSystemPromptSummarizationStepOne } from '../src/prompt/summarizationPromptStepZero.js';
 
 test('daily assembly preserves source, evidence and media but removes the generated preamble', () => {
@@ -46,4 +46,18 @@ test('BioAI uses AI daily section order while retaining scientific and small-pro
     assert.match(prompt, /动物有效不等于人体有效/);
     assert.match(prompt, /不要求普通 AI Trending 日榜/);
     assert.doesNotMatch(prompt, /预测概率.*XX%|## \*\*📎 今日可引用要点/);
+});
+
+test('daily media repair uses only the matching cited source and never repeats images in FAQ', () => {
+    const input = '## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n\n[研究报道](https://example.org/a)发现机制线索。\n\n## **❓ 相关问题**\n\n### 能否应用？\n\n[研究报道](https://example.org/a)仅是早期研究。';
+    const candidates = [
+        { title: '研究来源', url: 'https://example.org/a', mediaUrl: 'https://example.org/a.jpg' },
+        { title: '其他来源', url: 'https://example.org/b', mediaUrl: 'https://example.org/b.jpg' },
+    ];
+    const output = restoreBioDailySourceMedia(input, candidates);
+    assert.equal((output.match(/!\[/g) || []).length, 1);
+    assert.match(output, /a\.jpg/);
+    assert.doesNotMatch(output, /b\.jpg/);
+    assert.doesNotMatch(output.slice(output.indexOf('## **❓')), /!\[/);
+    assert.equal(restoreBioDailySourceMedia(output, candidates), output);
 });

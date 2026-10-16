@@ -1,5 +1,22 @@
 import { insertAd } from './ad.js';
 import { insertFoot } from './foot.js';
+import { addReferencedSourceMedia } from './blogMedia.js';
+
+export function getBioDailyMediaUrl(item) {
+    return item?.details?.imageUrl || item?.imageUrl ||
+        String(item?.details?.content_html || '').match(/<img\b[^>]*\ssrc=["']([^"']+)["']/i)?.[1] || '';
+}
+
+export function restoreBioDailySourceMedia(markdown, candidates) {
+    const label = value => String(value || '来源配图').replace(/[\[\]\n]/g, ' ').trim();
+    const context = candidates.filter(item => item.url && item.mediaUrl).map(item =>
+        `### ${label(item.title)}\n\n[${label(item.title)}](${item.url})\n\n![来源配图：${label(item.title)}](${item.mediaUrl})`
+    ).join('\n\n');
+    const faq = markdown.search(/^##\s*\*{0,2}(?:❓\s*)?相关问题/m);
+    const body = faq < 0 ? markdown : markdown.slice(0, faq);
+    const tail = faq < 0 ? '' : markdown.slice(faq);
+    return body.split(/(?=^###\s)/m).map(block => addReferencedSourceMedia(block, context)).join('') + tail;
+}
 
 export async function readBioDailyPreviewCache(kv, date, categories) {
     return Object.fromEntries(await Promise.all(categories.map(async category => {
