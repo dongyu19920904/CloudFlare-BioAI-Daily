@@ -37,7 +37,13 @@ export function deduplicateBioDailyNews(markdown) {
     const seen = new Set();
     let removed = 0;
     const sections = String(markdown).split(/(?=^##\s)/m).map(section => {
-        if (/^##.*相关问题/.test(section)) return section;
+        if (/^##.*相关问题/.test(section)) {
+            const [heading, ...questions] = section.split(/(?=^###\s)/m);
+            const kept = questions.filter(question => !/监管|合规|法律|合法|法规|\bBLA\b|第\s*361\s*条/.test(question));
+            if (kept.length === questions.length) return section;
+            removed += questions.length - kept.length;
+            return kept.length ? heading + kept.join('') : '';
+        }
         const [heading, ...items] = section.split(/(?=^###\s)/m);
         if (!items.length) return section;
         const kept = items.filter(item => {

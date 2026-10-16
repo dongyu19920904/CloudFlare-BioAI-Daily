@@ -82,3 +82,10 @@ test('duplicate TOP sources are removed and remaining ranks/count stay truthful'
     assert.match(output, /TOP 1/);
     assert.doesNotMatch(output, /### 2\./);
 });
+
+test('daily FAQ does not expand secondary news into legal or regulatory advice', () => {
+    const input = '## **🔥 今日焦点 TOP 1**\n\n### 1. 保存服务\n[报道](https://example.org/service)无疗效证据。\n\n## **❓ 相关问题**\n\n### 有何监管差异？\n依据第361条及BLA法规解释。';
+    const output = deduplicateBioDailyNews(input);
+    assert.doesNotMatch(output, /相关问题|BLA/);
+    assert.match(output, /无疗效证据/);
+});
