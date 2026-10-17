@@ -62,9 +62,9 @@ export function deduplicateBioDailyNews(markdown) {
         if (/TOP\s+\d+/i.test(heading) && kept.length) {
             return heading.replace(/TOP\s+\d+/i, `TOP ${kept.length}`) + kept.map((item, index) => item.replace(/^###\s+\d+\.\s*/, `### ${index + 1}. `)).join('');
         }
-        if (kept.length === items.length) return section;
+        if (kept.length === items.length) return heading + kept.map(item => item.replace(/^###\s+\d+\.\s*/, '### ')).join('');
         if (!kept.length) return '';
-        return heading + kept.join('');
+        return heading + kept.map(item => item.replace(/^###\s+\d+\.\s*/, '### ')).join('');
     });
     return sections.filter(Boolean).join('');
 }
@@ -80,6 +80,40 @@ export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
     if (env.INSERT_AD === 'true') result += `\n${insertAd()}\n`;
     if (env.INSERT_FOOT === 'true') result += `\n${insertFoot()}\n`;
     return result;
+}
+
+export function prepareBioDailyPlainEditingInput(markdown) {
+    const references = {};
+    const byUrl = new Map();
+    const prompt = String(markdown || '').replace(/(\]\()(https?:\/\/[^\s)]+)(?=[\s)])/g, (_match, prefix, url) => {
+        if (!byUrl.has(url)) {
+            const id = `BIOAI_REF_${byUrl.size + 1}`;
+            byUrl.set(url, id);
+            references[id] = url;
+        }
+        return prefix + byUrl.get(url);
+    });
+    return { prompt, references };
+}
+
+export function parseBioDailyPlainEditingResult(markdown, originalDraft, references = {}) {
+    const restored = String(markdown || '').replace(/BIOAI_REF_\d+\b/g, id => {
+        if (!Object.hasOwn(references, id)) throw new Error('Daily plain editing invented a source reference');
+        return references[id];
+    });
+    const content = restored.trim().replace(/^```(?:markdown|md)?\s*\n([\s\S]*)\n```$/i, '$1').trim();
+    const top = /^##\s*\*{0,2}(?:🔥\s*)?今日焦点\s*TOP\s+\d+.*$/im.exec(content);
+    const summary = content.slice(0, top?.index ?? 0).match(/```(?:text|markdown)?\s*\n([\s\S]*?)\n```/i)?.[1]?.trim();
+    if (!top || !summary || summary.split(/\r?\n/).filter(line => line.trim()).length !== 3) {
+        throw new Error('Daily plain editing must return a complete body and three summary lines');
+    }
+    const body = content.slice(top.index);
+    const expectedSources = new Set(getReferencedSourceUrls(originalDraft));
+    const actualSources = new Set(getReferencedSourceUrls(body));
+    if ([...actualSources].some(url => !expectedSources.has(url)) || [...expectedSources].some(url => !actualSources.has(url))) {
+        throw new Error('Daily plain editing changed or omitted a source URL');
+    }
+    return { body, summary };
 }
 
 export function buildBioDailyCandidateBudget(candidates) {

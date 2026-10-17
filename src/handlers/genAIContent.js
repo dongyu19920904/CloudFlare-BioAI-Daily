@@ -4,13 +4,13 @@ import { getFromKV } from '../kv.js';
 import { callChatAPIStream } from '../chatapi.js';
 import { generateGenAiPageHtml } from '../htmlGenerators.js';
 import { dataSources } from '../dataFetchers.js'; // Import dataSources
-import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationPromptStepZero";
+import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
 import { getSystemPromptSummarizationStepTwo } from "../prompt/summarizationPromptStepTwo";
-import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
+import { getSystemPromptDailyPlainEditing } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptPodcastFormatting, getSystemPromptShortPodcastFormatting } from '../prompt/podcastFormattingPrompt.js';
 import { getSystemPromptDailyAnalysis } from '../prompt/dailyAnalysisPrompt.js'; // Import new prompt
 import { getDailyReportContent } from '../github.js'; // 导入 getDailyReportContent
-import { assembleBioDailyMarkdown, getBioDailyMediaUrl, restoreBioDailySourceMedia } from '../bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, prepareBioDailyPlainEditingInput, parseBioDailyPlainEditingResult, getBioDailyMediaUrl, restoreBioDailySourceMedia } from '../bioDailyMarkdown.js';
 
 export async function handleGenAIPodcastScript(request, env) {
     let dateStr;
@@ -248,12 +248,12 @@ export async function handleGenAIContent(request, env) {
         // Call 2: Process outputOfCall1
         let outputOfCall2 = null;
         let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr); // Re-using summarization prompt for now
-        let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n'; // Input for Call 2 is output of Call 1
+        let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n' + getBioDailyReadabilityReminder();
 
         console.log("Call 2 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall2_User.length);
         try {
             let processedChunks = [];
-            for await (const chunk of callChatAPIStream(env, fullPromptForCall2_User, fullPromptForCall2_System)) {
+            for await (const chunk of callChatAPIStream({ ...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true }, fullPromptForCall2_User, fullPromptForCall2_System)) {
                 processedChunks.push(chunk);
             }
             outputOfCall2 = processedChunks.join('');
@@ -278,25 +278,28 @@ export async function handleGenAIContent(request, env) {
 
         let dailySummaryMarkdownContent = '';
 
-        let fullPromptForCall3_System = getSystemPromptSummarizationStepThree(); // Re-using summarization prompt for now
-        let fullPromptForCall3_User = outputOfCall2; // Input for Call 2 is output of Call 1
+        let fullPromptForCall3_System = getSystemPromptDailyPlainEditing();
+        const editInput = prepareBioDailyPlainEditingInput(outputOfCall2);
+        let fullPromptForCall3_User = editInput.prompt;
         let outputOfCall3 = null;
         console.log("Call 3 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall3_User.length);
         try {
             let processedChunks = [];
-            for await (const chunk of callChatAPIStream(env, fullPromptForCall3_User, fullPromptForCall3_System)) {
+            for await (const chunk of callChatAPIStream({ ...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true }, fullPromptForCall3_User, fullPromptForCall3_System)) {
                 processedChunks.push(chunk);
             }
             outputOfCall3 = processedChunks.join('');
             if (!outputOfCall3 || outputOfCall3.trim() === "") throw new Error("Chat processing call returned empty content.");
-            outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3); // Clean the output
+            outputOfCall3 = String(outputOfCall3 || '').trim();
             console.log("Call 3 (Processing Call 2 Output) successful. Output length:", outputOfCall3.length);
         } catch (error) {
             console.error("Error in Chat API Call 3 (Processing Call 2 Output):", error);
             const errorHtml = generateGenAiPageHtml(env, '生成AI日报出错(摘要)', `<p><strong>Failed during processing of summarized content:</strong> ${escapeHtml(error.message)}</p>${error.stack ? `<pre>${escapeHtml(error.stack)}</pre>` : ''}`, dateStr, true, selectedItemsParams, fullPromptForCall3_System, fullPromptForCall3_User);
             return new Response(errorHtml, { status: 500, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         }
-        dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, outputOfCall3, env);
+        const edited = parseBioDailyPlainEditingResult(outputOfCall3, outputOfCall2, editInput.references);
+        const editedBody = restoreBioDailySourceMedia(edited.body, selectedMedia);
+        dailySummaryMarkdownContent = assembleBioDailyMarkdown(editedBody, edited.summary, env);
 
         const successHtml = generateGenAiPageHtml(
             env, 

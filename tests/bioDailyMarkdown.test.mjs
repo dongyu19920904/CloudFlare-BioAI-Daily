@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, prepareBioDailyPlainEditingInput, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
 import { getSystemPromptSummarizationStepOne } from '../src/prompt/summarizationPromptStepZero.js';
 
 test('daily assembly preserves source, evidence and media but removes the generated preamble', () => {
@@ -9,6 +9,37 @@ test('daily assembly preserves source, evidence and media but removes the genera
     assert.ok(output.endsWith(body));
     assert.equal((output.match(/## \*\*今日摘要\*\*/g) || []).length, 1);
     assert.doesNotMatch(output, /快速导航|旧前言|今日ai资讯|utm_campaign/);
+});
+
+test('plain editing extracts the complete short edition and preserves the source set', () => {
+    const original = '## **🔥 今日焦点 TOP 1**\n\n### 1. 原稿\n[媒体报道](https://example.org/study)研究较复杂。';
+    const body = '## **🔥 今日焦点 TOP 1**\n\n### 1. 小鼠研究有新发现\n据[报道](https://example.org/study)，小鼠中观察到变化，还不能推到人体。';
+    const edited = parseBioDailyPlainEditingResult('## **今日摘要**\n\n```\n事实。\n变化。\n限制。\n```\n\n' + body, original);
+    assert.equal(edited.body, body);
+    assert.equal(edited.summary, '事实。\n变化。\n限制。');
+    assert.deepEqual(parseBioDailyPlainEditingResult('```markdown\n## **今日摘要**\n\n```text\n事实。\n变化。\n限制。\n```\n\n' + body + '\n```', original), edited);
+    assert.throws(() => parseBioDailyPlainEditingResult('只有三句话。', original), /complete body/);
+    assert.throws(() => parseBioDailyPlainEditingResult('## **今日摘要**\n```\n甲\n乙\n丙\n```\n' + body.replace('example.org', 'invented.org'), original), /source URL/);
+    assert.throws(() => parseBioDailyPlainEditingResult('## **今日摘要**\n```\n甲\n乙\n丙\n```\n## **🔥 今日焦点 TOP 1**\n### 1. 无来源\n没有链接。', original), /source URL/);
+});
+
+test('only TOP news has ranking numbers, not following product or project headings', () => {
+    const input='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n[报道](https://example.org/a)结果。\n\n## **⌘ 开源 TOP 项目**\n\n### 11. 工具\n[仓库](https://github.com/example/tool)用途。';
+    const result=deduplicateBioDailyNews(input);
+    assert.match(result,/### 1\. 研究/);
+    assert.match(result,/### 工具/);
+    assert.doesNotMatch(result,/### 11\./);
+});
+
+test('plain editing protects long source and image URLs with reusable short references', () => {
+    const original='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n据[报道](https://example.org/long-path?oc=5&x=123)，结果待核实。\n\n[![原图](https://example.org/a.jpg "原图")](https://example.org/long-path?oc=5&x=123)';
+    const input=prepareBioDailyPlainEditingInput(original);
+    assert.doesNotMatch(input.prompt,/https?:/);
+    assert.equal(Object.keys(input.references).length,2);
+    const response='## **今日摘要**\n```\n甲\n乙\n丙\n```\n'+input.prompt;
+    const edited=parseBioDailyPlainEditingResult(response,original,input.references);
+    assert.equal(edited.body,original);
+    assert.throws(()=>parseBioDailyPlainEditingResult(response.replace('BIOAI_REF_1','BIOAI_REF_999'),original,input.references),/invented a source reference/);
 });
 
 test('assembly keeps optional columns and does not manufacture unavailable material', () => {
