@@ -82,8 +82,26 @@ export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
     return result;
 }
 
-export function parseBioDailyPlainEditingResult(markdown, originalDraft) {
-    const content = String(markdown || '').trim().replace(/^```(?:markdown|md)?\s*\n([\s\S]*)\n```$/i, '$1').trim();
+export function prepareBioDailyPlainEditingInput(markdown) {
+    const references = {};
+    const byUrl = new Map();
+    const prompt = String(markdown || '').replace(/(\]\()(https?:\/\/[^\s)]+)(?=[\s)])/g, (_match, prefix, url) => {
+        if (!byUrl.has(url)) {
+            const id = `BIOAI_REF_${byUrl.size + 1}`;
+            byUrl.set(url, id);
+            references[id] = url;
+        }
+        return prefix + byUrl.get(url);
+    });
+    return { prompt, references };
+}
+
+export function parseBioDailyPlainEditingResult(markdown, originalDraft, references = {}) {
+    const restored = String(markdown || '').replace(/BIOAI_REF_\d+\b/g, id => {
+        if (!Object.hasOwn(references, id)) throw new Error('Daily plain editing invented a source reference');
+        return references[id];
+    });
+    const content = restored.trim().replace(/^```(?:markdown|md)?\s*\n([\s\S]*)\n```$/i, '$1').trim();
     const top = /^##\s*\*{0,2}(?:🔥\s*)?今日焦点\s*TOP\s+\d+.*$/im.exec(content);
     const summary = content.slice(0, top?.index ?? 0).match(/```(?:text|markdown)?\s*\n([\s\S]*?)\n```/i)?.[1]?.trim();
     if (!top || !summary || summary.split(/\r?\n/).filter(line => line.trim()).length !== 3) {

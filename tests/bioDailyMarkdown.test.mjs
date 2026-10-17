@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleBioDailyMarkdown, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, prepareBioDailyPlainEditingInput, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
 import { getSystemPromptSummarizationStepOne } from '../src/prompt/summarizationPromptStepZero.js';
 
 test('daily assembly preserves source, evidence and media but removes the generated preamble', () => {
@@ -29,6 +29,17 @@ test('only TOP news has ranking numbers, not following product or project headin
     assert.match(result,/### 1\. 研究/);
     assert.match(result,/### 工具/);
     assert.doesNotMatch(result,/### 11\./);
+});
+
+test('plain editing protects long source and image URLs with reusable short references', () => {
+    const original='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n据[报道](https://example.org/long-path?oc=5&x=123)，结果待核实。\n\n[![原图](https://example.org/a.jpg "原图")](https://example.org/long-path?oc=5&x=123)';
+    const input=prepareBioDailyPlainEditingInput(original);
+    assert.doesNotMatch(input.prompt,/https?:/);
+    assert.equal(Object.keys(input.references).length,2);
+    const response='## **今日摘要**\n```\n甲\n乙\n丙\n```\n'+input.prompt;
+    const edited=parseBioDailyPlainEditingResult(response,original,input.references);
+    assert.equal(edited.body,original);
+    assert.throws(()=>parseBioDailyPlainEditingResult(response.replace('BIOAI_REF_1','BIOAI_REF_999'),original,input.references),/invented a source reference/);
 });
 
 test('assembly keeps optional columns and does not manufacture unavailable material', () => {

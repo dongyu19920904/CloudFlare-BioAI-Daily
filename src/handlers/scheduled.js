@@ -10,7 +10,7 @@ import { generateWithSourceGate } from "../opportunitySourceGate.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
-import { assembleBioDailyMarkdown, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, prepareBioDailyPlainEditingInput, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../bioDailyMarkdown.js';
 import {
     buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
@@ -598,7 +598,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         // Reuse the summary call for a complete plain-language editorial pass.
         console.log(`[Scheduled] Editing plain-language daily and summary...`);
         let fullPromptForCall3_System = getSystemPromptDailyPlainEditing();
-        let fullPromptForCall3_User = outputOfCall2;
+        const editInput = prepareBioDailyPlainEditingInput(outputOfCall2);
+        let fullPromptForCall3_User = editInput.prompt;
         
         let outputOfCall3 = await generateScheduledMarkdownWithFallback(
             env,
@@ -607,7 +608,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             'DailyPlainEditing'
         );
         outputOfCall3 = String(outputOfCall3 || '').trim();
-        const edited = parseBioDailyPlainEditingResult(outputOfCall3, outputOfCall2);
+        const edited = parseBioDailyPlainEditingResult(outputOfCall3, outputOfCall2, editInput.references);
         outputOfCall2 = restoreBioDailySourceMedia(edited.body, selectedCandidates);
 
         // 5. Assemble Markdown

@@ -47,7 +47,8 @@ test('scheduled and manual daily paths repeat the same brief after source materi
     const source = readFileSync(new URL(`../src/handlers/${file}`, import.meta.url), 'utf8');
     assert.match(source, /let fullPromptForCall2_User =[^\n]+\+ getBioDailyReadabilityReminder\(\)/);
     assert.match(source, /let fullPromptForCall3_System = getSystemPromptDailyPlainEditing\(\)/);
-    assert.match(source, /parseBioDailyPlainEditingResult\(outputOfCall3, outputOfCall2\)/);
+    assert.match(source, /parseBioDailyPlainEditingResult\(outputOfCall3, outputOfCall2, editInput\.references\)/);
+    assert.match(source, /prepareBioDailyPlainEditingInput\(outputOfCall2\)/);
     assert.doesNotMatch(source, /outputOfCall3 = removeMarkdownCodeBlock\(outputOfCall3\)/);
   }
 });
