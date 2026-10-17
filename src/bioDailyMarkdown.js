@@ -82,6 +82,22 @@ export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
     return result;
 }
 
+export function parseBioDailyPlainEditingResult(markdown, originalDraft) {
+    const content = String(markdown || '').trim().replace(/^```(?:markdown|md)?\s*\n([\s\S]*)\n```$/i, '$1').trim();
+    const top = /^##\s*\*{0,2}(?:🔥\s*)?今日焦点\s*TOP\s+\d+.*$/im.exec(content);
+    const summary = content.slice(0, top?.index ?? 0).match(/```(?:text|markdown)?\s*\n([\s\S]*?)\n```/i)?.[1]?.trim();
+    if (!top || !summary || summary.split(/\r?\n/).filter(line => line.trim()).length !== 3) {
+        throw new Error('Daily plain editing must return a complete body and three summary lines');
+    }
+    const body = content.slice(top.index);
+    const expectedSources = new Set(getReferencedSourceUrls(originalDraft));
+    const actualSources = new Set(getReferencedSourceUrls(body));
+    if ([...actualSources].some(url => !expectedSources.has(url)) || [...expectedSources].some(url => !actualSources.has(url))) {
+        throw new Error('Daily plain editing changed or omitted a source URL');
+    }
+    return { body, summary };
+}
+
 export function buildBioDailyCandidateBudget(candidates) {
     const count = type => candidates.filter(item => item.sourceType === type).length;
     const projects = count('project');

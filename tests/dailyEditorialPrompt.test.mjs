@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { getSystemPromptSummarizationStepOne } from "../src/prompt/summarizationPromptStepZero.js";
 import { getBioDailyReadabilityReminder } from "../src/prompt/summarizationPromptStepZero.js";
-import { getSystemPromptSummarizationStepThree } from "../src/prompt/summarizationPromptStepThree.js";
+import { getSystemPromptSummarizationStepThree, getSystemPromptDailyPlainEditing } from "../src/prompt/summarizationPromptStepThree.js";
 import { readFileSync } from 'node:fs';
 
 test("daily prompt keeps the report evidence-first and separate from opportunity columns", () => {
@@ -45,7 +45,19 @@ test('scheduled and manual daily paths repeat the same brief after source materi
   for (const file of ['scheduled.js', 'genAIContent.js']) {
     const source = readFileSync(new URL(`../src/handlers/${file}`, import.meta.url), 'utf8');
     assert.match(source, /let fullPromptForCall2_User =[^\n]+\+ getBioDailyReadabilityReminder\(\)/);
+    assert.match(source, /let fullPromptForCall3_System = getSystemPromptDailyPlainEditing\(\)/);
+    assert.match(source, /parseBioDailyPlainEditingResult\(outputOfCall3, outputOfCall2\)/);
+    assert.doesNotMatch(source, /outputOfCall3 = removeMarkdownCodeBlock\(outputOfCall3\)/);
   }
+});
+
+test('the existing summary call also edits the full daily without adding a third call', () => {
+  const prompt = getSystemPromptDailyPlainEditing();
+  assert.match(prompt, /整篇改成普通 AI 日报那样好读/);
+  assert.match(prompt, /三行合计最多一组数字/);
+  assert.match(prompt, /不能把几千人写成万人/);
+  assert.match(prompt, /来源链接逐字复制/);
+  assert.match(prompt, /具体干预|干预方式|实验方式/);
 });
 
 test('failed dry-runs retain private diagnostics without printing the response body', () => {
