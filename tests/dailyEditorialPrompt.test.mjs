@@ -47,3 +47,9 @@ test('scheduled and manual daily paths repeat the same brief after source materi
     assert.match(source, /let fullPromptForCall2_User =[^\n]+\+ getBioDailyReadabilityReminder\(\)/);
   }
 });
+
+test('failed dry-runs retain private diagnostics without printing the response body', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/manual-trigger-worker.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /if: always\(\) && inputs\.dry_run/);
+  assert.match(workflow, /retention-days: 7/);
+});
