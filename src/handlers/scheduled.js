@@ -2,7 +2,7 @@ import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, co
 import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
-import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationPromptStepZero";
+import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
 import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
@@ -589,7 +589,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         // 3. Generate Content (Call 2)
         console.log(`[Scheduled] Generating content...`);
         let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr);
-        let fullPromptForCall2_User = buildBioDailyCandidateBudget(selectedCandidates) + '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n';
+        let fullPromptForCall2_User = buildBioDailyCandidateBudget(selectedCandidates) + '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n' + getBioDailyReadabilityReminder();
         
         let outputOfCall2 = await generateScheduledMarkdownWithFallback(
             env,
