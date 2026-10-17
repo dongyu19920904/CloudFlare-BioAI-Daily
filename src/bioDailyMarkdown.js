@@ -62,9 +62,9 @@ export function deduplicateBioDailyNews(markdown) {
         if (/TOP\s+\d+/i.test(heading) && kept.length) {
             return heading.replace(/TOP\s+\d+/i, `TOP ${kept.length}`) + kept.map((item, index) => item.replace(/^###\s+\d+\.\s*/, `### ${index + 1}. `)).join('');
         }
-        if (kept.length === items.length) return section;
+        if (kept.length === items.length) return heading + kept.map(item => item.replace(/^###\s+\d+\.\s*/, '### ')).join('');
         if (!kept.length) return '';
-        return heading + kept.join('');
+        return heading + kept.map(item => item.replace(/^###\s+\d+\.\s*/, '### ')).join('');
     });
     return sections.filter(Boolean).join('');
 }

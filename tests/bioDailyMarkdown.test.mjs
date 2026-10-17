@@ -23,6 +23,14 @@ test('plain editing extracts the complete short edition and preserves the source
     assert.throws(() => parseBioDailyPlainEditingResult('## **今日摘要**\n```\n甲\n乙\n丙\n```\n## **🔥 今日焦点 TOP 1**\n### 1. 无来源\n没有链接。', original), /source URL/);
 });
 
+test('only TOP news has ranking numbers, not following product or project headings', () => {
+    const input='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n[报道](https://example.org/a)结果。\n\n## **⌘ 开源 TOP 项目**\n\n### 11. 工具\n[仓库](https://github.com/example/tool)用途。';
+    const result=deduplicateBioDailyNews(input);
+    assert.match(result,/### 1\. 研究/);
+    assert.match(result,/### 工具/);
+    assert.doesNotMatch(result,/### 11\./);
+});
+
 test('assembly keeps optional columns and does not manufacture unavailable material', () => {
     const body = '## **🔥 今日焦点 TOP 2**\n### 1. 甲\n甲。\n### 2. 乙\n乙。\n## **❓ 相关问题**\n### 能否外推？\n不能。';
     const output = assembleBioDailyMarkdown(body, '甲。\n乙。\n先核查。');
