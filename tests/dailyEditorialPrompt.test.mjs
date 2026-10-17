@@ -22,15 +22,32 @@ test("daily prompt keeps the report evidence-first and separate from opportunity
   assert.doesNotMatch(prompt, /太离谱了|笑死|跑分直接碾压/);
 });
 
-test('daily writing targets non-specialists without hiding scientific limits', () => {
+test('daily writing teaches core concepts without hiding scientific limits', () => {
   const prompt = getSystemPromptSummarizationStepOne('2026-10-17');
   assert.match(prompt, /没有医学背景/);
-  assert.match(prompt, /每条只保留理解新闻必需的 1-2 个专有名称/);
-  assert.match(prompt, /数字通常只留一组，最多两组/);
+  assert.match(prompt, /保留核心概念，而不是删光术语/);
+  assert.match(prompt, /首次出现时就近用白话解释/);
+  assert.match(prompt, /一项有信息量的发现或方法细节/);
+  assert.match(prompt, /样本量、观察时长和关键结果/);
+  assert.match(prompt, /不设最多两组的硬上限/);
+  assert.match(prompt, /150-230/);
+  assert.match(prompt, /让读者知道点开能继续学什么/);
+  assert.match(prompt, /不能捏造 URL、搜索地址/);
   assert.match(prompt, /不能把指标下降说成患病风险下降或延寿比例/);
   assert.match(prompt, /目前只在小鼠中看到效果，还不能说明对人也有效/);
   assert.match(prompt, /不额外加粗术语、数字或整句/);
   assert.match(prompt, /不机械截断|不为满足字数机械截断/);
+});
+
+test('both generation and editing retain learning detail rather than enforce tiny caps', () => {
+  const prompts = [getSystemPromptSummarizationStepOne(), getSystemPromptDailyPlainEditing(), getBioDailyReadabilityReminder()];
+  for (const prompt of prompts) {
+    assert.match(prompt, /核心概念/);
+    assert.match(prompt, /解释|说明/);
+    assert.match(prompt, /发现或方法细节/);
+    assert.match(prompt, /锚文本/);
+    assert.doesNotMatch(prompt, /每条最多两组数字|数字通常一组、最多两组|90-150 个汉字|专有名称通常最多 1-2/);
+  }
 });
 
 test('daily summary is plain Chinese, not a second technical abstract', () => {
