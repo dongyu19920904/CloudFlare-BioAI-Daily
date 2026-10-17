@@ -5,6 +5,7 @@ import { getSystemPromptSummarizationStepOne } from "../src/prompt/summarization
 import { getBioDailyReadabilityReminder } from "../src/prompt/summarizationPromptStepZero.js";
 import { getSystemPromptSummarizationStepThree, getSystemPromptDailyPlainEditing } from "../src/prompt/summarizationPromptStepThree.js";
 import { readFileSync } from 'node:fs';
+import { callChatAPI } from '../src/chatapi.js';
 
 test("daily prompt keeps the report evidence-first and separate from opportunity columns", () => {
   const prompt = getSystemPromptSummarizationStepOne("2026-09-20");
@@ -58,6 +59,21 @@ test('the existing summary call also edits the full daily without adding a third
   assert.match(prompt, /不能把几千人写成万人/);
   assert.match(prompt, /来源链接逐字复制/);
   assert.match(prompt, /具体干预|干预方式|实验方式/);
+});
+
+test('non-stream daily fallback preserves the native Anthropic instruction boundary', async t => {
+  const payloads=[];
+  t.mock.method(globalThis,'fetch',async (_url,options)=>{
+    payloads.push(JSON.parse(options.body));
+    return new Response(JSON.stringify({content:[{type:'text',text:'ok'}],stop_reason:'end_turn'}));
+  });
+  const env={USE_MODEL_PLATFORM:'ANTHROPIC',ANTHROPIC_API_BASE_URL:'https://example.invalid',ANTHROPIC_API_KEY:'test-only-placeholder',DEFAULT_ANTHROPIC_MODEL:'test-model'};
+  await callChatAPI(env,'news-data','editorial-rules');
+  await callChatAPI({...env,ANTHROPIC_NATIVE_SYSTEM_PROMPT:true},'news-data','editorial-rules');
+  assert.equal(payloads[0].system,undefined);
+  assert.equal(payloads[0].messages[0].content,'editorial-rules\n\nnews-data');
+  assert.equal(payloads[1].system,'editorial-rules');
+  assert.equal(payloads[1].messages[0].content,'news-data');
 });
 
 test('failed dry-runs retain private diagnostics without printing the response body', () => {

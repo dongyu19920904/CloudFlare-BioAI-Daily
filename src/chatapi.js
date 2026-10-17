@@ -1225,8 +1225,11 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
     };
 
     if (systemPromptText && systemPromptText.trim() !== '') {
-        // Anthropic 涓浆涓嶆敮鎸?system 鍙傛暟锛屽皢鍏惰瀺鍏?user 娑堟伅
-        payload.messages[0].content = `${systemPromptText}\n\n${promptText}`;
+        if (env.ANTHROPIC_NATIVE_SYSTEM_PROMPT === true) {
+            payload.system = systemPromptText;
+        } else {
+            payload.messages[0].content = `${systemPromptText}\n\n${promptText}`;
+        }
     }
 
     try {

@@ -253,7 +253,7 @@ export async function handleGenAIContent(request, env) {
         console.log("Call 2 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall2_User.length);
         try {
             let processedChunks = [];
-            for await (const chunk of callChatAPIStream(env, fullPromptForCall2_User, fullPromptForCall2_System)) {
+            for await (const chunk of callChatAPIStream({ ...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true }, fullPromptForCall2_User, fullPromptForCall2_System)) {
                 processedChunks.push(chunk);
             }
             outputOfCall2 = processedChunks.join('');
@@ -284,7 +284,7 @@ export async function handleGenAIContent(request, env) {
         console.log("Call 3 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall3_User.length);
         try {
             let processedChunks = [];
-            for await (const chunk of callChatAPIStream(env, fullPromptForCall3_User, fullPromptForCall3_System)) {
+            for await (const chunk of callChatAPIStream({ ...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true }, fullPromptForCall3_User, fullPromptForCall3_System)) {
                 processedChunks.push(chunk);
             }
             outputOfCall3 = processedChunks.join('');

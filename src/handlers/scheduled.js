@@ -296,9 +296,10 @@ async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt, sec
 }
 
 async function generateScheduledMarkdownWithFallback(env, userPrompt, systemPrompt, label) {
+    const dailyEnv = { ...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true };
     let output = '';
     try {
-        for await (const chunk of callChatAPIStream(env, userPrompt, systemPrompt)) {
+        for await (const chunk of callChatAPIStream(dailyEnv, userPrompt, systemPrompt)) {
             output += chunk;
         }
         return output;
@@ -308,7 +309,7 @@ async function generateScheduledMarkdownWithFallback(env, userPrompt, systemProm
             throw error;
         }
         console.warn(`[Scheduled][${label}] Stream generation failed, retrying non-stream: ${message}`);
-        return callChatAPI(env, userPrompt, systemPrompt);
+        return callChatAPI(dailyEnv, userPrompt, systemPrompt);
     }
 }
 
