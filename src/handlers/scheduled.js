@@ -4,7 +4,7 @@ import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
 import { generateDailyMarkdownWithFallback } from '../dailyModelGeneration.js';
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
-import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
+import { getSystemPromptSummarizationStepThree, getBioDailySummaryReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
 import { generateWithSourceGate } from "../opportunitySourceGate.js";
@@ -501,7 +501,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                             itemText = `News Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nContent Summary: ${stripHtml(item.details.content_html)}`;
                             break;
                         case 'project':
-                            itemText = `Project Name: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
+                            itemText = `Project Name: ${item.title}\nLast activity observed (not creation or release): ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
                             break;
                         case 'paper':
                             itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
@@ -589,7 +589,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         console.log(`[Scheduled] Generating three-line daily summary...`);
         let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
         const draftMarkdown = outputOfCall2;
-        let fullPromptForCall3_User = outputOfCall2;
+        let fullPromptForCall3_User = outputOfCall2 + getBioDailySummaryReminder();
         diagnostics.stage = 'summary';
         diagnostics.summaryPromptCharacters = fullPromptForCall3_User.length + fullPromptForCall3_System.length;
         

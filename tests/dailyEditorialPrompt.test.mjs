@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { getSystemPromptSummarizationStepOne } from "../src/prompt/summarizationPromptStepZero.js";
 import { getBioDailyReadabilityReminder } from "../src/prompt/summarizationPromptStepZero.js";
-import { getSystemPromptSummarizationStepThree, getSystemPromptDailyPlainEditing, getBioDailyEditingReminder } from "../src/prompt/summarizationPromptStepThree.js";
+import { getSystemPromptSummarizationStepThree, getSystemPromptDailyPlainEditing, getBioDailyEditingReminder, getBioDailySummaryReminder } from "../src/prompt/summarizationPromptStepThree.js";
 import { readFileSync } from 'node:fs';
 import { callChatAPI } from '../src/chatapi.js';
 
@@ -81,6 +81,25 @@ test('first-stage writing owns the factual and duplicate-event checks', () => {
   assert.match(reminder, /入组不等于全部完成/);
   assert.match(reminder, /相关不能写成准确测出/);
   assert.match(reminder, /上传、界面、可视化、免费使用等功能不补/);
+});
+
+test('project activity timestamps are never presented as release dates in daily inputs', () => {
+  for (const file of ['scheduled.js', 'genAIContent.js']) {
+    const source = readFileSync(new URL(`../src/handlers/${file}`, import.meta.url), 'utf8');
+    assert.match(source, /Project Name:.*Last activity observed \(not creation or release\)/);
+    assert.doesNotMatch(source, /Project Name:.*\\nPublished:/);
+  }
+  assert.match(getSystemPromptSummarizationStepOne(), /最近活跃\/收录时间不是创建或发布日/);
+  assert.match(getSystemPromptSummarizationStepOne(), /不能把单次差值直接解释成个人/);
+});
+
+test('summary repeats the short brief after the body without inventing a third event', () => {
+  assert.match(getBioDailySummaryReminder(), /目标24-32字，最长44字/);
+  assert.match(getBioDailySummaryReminder(), /第三行只说前两项/);
+  for (const file of ['scheduled.js', 'genAIContent.js']) {
+    const source = readFileSync(new URL(`../src/handlers/${file}`, import.meta.url), 'utf8');
+    assert.match(source, /fullPromptForCall3_User = outputOfCall2 \+ getBioDailySummaryReminder\(\)/);
+  }
 });
 
 test('final edit cross-checks thin evidence and cannot invent project upload workflows', () => {

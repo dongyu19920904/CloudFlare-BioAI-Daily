@@ -7,7 +7,7 @@ import { generateGenAiPageHtml } from '../htmlGenerators.js';
 import { dataSources } from '../dataFetchers.js'; // Import dataSources
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
 import { getSystemPromptSummarizationStepTwo } from "../prompt/summarizationPromptStepTwo";
-import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
+import { getSystemPromptSummarizationStepThree, getBioDailySummaryReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptPodcastFormatting, getSystemPromptShortPodcastFormatting } from '../prompt/podcastFormattingPrompt.js';
 import { getSystemPromptDailyAnalysis } from '../prompt/dailyAnalysisPrompt.js'; // Import new prompt
 import { getDailyReportContent } from '../github.js'; // 导入 getDailyReportContent
@@ -180,7 +180,7 @@ export async function handleGenAIContent(request, env) {
                         itemText = `News Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nContent Summary: ${stripHtml(item.details.content_html)}`;
                         break;
                     case 'project':
-                        itemText = `Project Name: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
+                        itemText = `Project Name: ${item.title}\nLast activity observed (not creation or release): ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
                         break;
                     case 'paper':
                         itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
@@ -277,7 +277,7 @@ export async function handleGenAIContent(request, env) {
 
         assertBioDailyBodySources(outputOfCall2, selectedContentItems);
         let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
-        let fullPromptForCall3_User = outputOfCall2;
+        let fullPromptForCall3_User = outputOfCall2 + getBioDailySummaryReminder();
         let outputOfCall3 = null;
         console.log("Call 3 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall3_User.length);
         try {
