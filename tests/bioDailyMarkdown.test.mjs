@@ -31,18 +31,24 @@ test('only TOP news has ranking numbers, not following product or project headin
     assert.doesNotMatch(result,/### 11\./);
 });
 
-test('thin source evidence uses the same protected links without adding unrelated candidates', () => {
+test('source evidence preserves full matching sources with the same protected links', () => {
     const original='## 今日焦点 TOP 1\n\n### 1. 工具\n\n[项目](https://github.com/test/age)';
     const input=prepareBioDailyPlainEditingInput(original,[
         'Project Name: age\nUrl: https://github.com/test/age\nDescription: estimates age',
         'Project Name: unrelated\nUrl: https://github.com/test/other',
-        'Url: https://github.com/test/age\n'+'x'.repeat(1200),
+        'Url: https://github.com/test/age\nFull evidence: '+'x'.repeat(1200),
     ]);
-    assert.match(input.prompt,/短来源事实核查材料/);
+    assert.match(input.prompt,/原始来源事实核查材料/);
+    assert.match(input.prompt,/Full evidence: x{1200}/);
     assert.match(input.prompt,/Description: estimates age/);
     assert.match(input.prompt,/Url: BIOAI_REF_1/);
     assert.doesNotMatch(input.prompt,/unrelated|https:\/\//);
     assert.equal(Object.keys(input.references).length,1);
+});
+
+test('generic cognitive-bias AI debate is not a biomedical paper candidate', () => {
+    assert.equal(isBioDailyPaperCandidate({title:'AI debate and cognitive bias',text:'LLM debate helps human judges correct biases and cognition in general tasks.'}),false);
+    assert.equal(isBioDailyPaperCandidate({title:'AI brain MRI for cognitive aging',text:'A neural network estimates brain age from human MRI.'}),true);
 });
 
 test('plain editing protects long source and image URLs with reusable short references', () => {

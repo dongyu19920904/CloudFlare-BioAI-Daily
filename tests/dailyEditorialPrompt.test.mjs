@@ -73,11 +73,13 @@ test('scheduled and manual daily paths repeat the same brief after source materi
 
 test('final edit cross-checks thin evidence and cannot invent project upload workflows', () => {
   const prompt=getSystemPromptDailyPlainEditing();
-  assert.match(prompt,/原始素材.*优先于草稿/);
+  assert.match(prompt,/原始来源.*优先于草稿/);
   assert.match(prompt,/数据上传、脑区可视化、无需安装/);
   assert.match(prompt,/阴性结果仍用白话保留/);
-  assert.match(getBioDailyEditingReminder(),/每行24-44字/);
-  assert.match(getBioDailyEditingReminder(),/术语解释不等于允许推断新事实/);
+  assert.match(getBioDailyEditingReminder(),/每行目标30字、不超过44字/);
+  assert.match(getBioDailyEditingReminder(),/相关性不能写成能准确测量/);
+  assert.match(prompt,/必须合并为一条.*全部来源链接/);
+  assert.doesNotMatch(prompt,/不合并新闻|保持原栏目顺序、新闻数量/);
 });
 
 test('the existing summary call also edits the full daily without adding a third call', () => {

@@ -7,7 +7,8 @@ export function isBioDailyPaperCandidate(candidate, env = {}) {
     const text = `${candidate.title || ''}\n${candidate.text || ''}`;
     const agriculture = /\b(potato|plantvillage|crop|farming|agricultur\w*|leaf disease)\b/i.test(text);
     const biomedical = /\b(human|patient|clinical|mice|mouse|mammal\w*|drug discovery|alzheimer\w*|dementia)\b/i.test(text);
-    return (!agriculture || biomedical) && itemMatchesPapersCoolTopic({ title: candidate.title, summary: text }, env);
+    const biologicalObject = /\b(ag[ei]ng|longevity|senescen\w*|geroscience|healthspan|epigenetic|methylation|dementia|alzheimer\w*|parkinson\w*|brain|mri|eeg|neuroimag\w*|neuron\w*|protein\w*|ligand\w*|drug\w*|molecul\w*|genom\w*|genetic\w*|transcriptom\w*|cell\w*|tissue\w*|clinical|patient\w*|tumou?r\w*|cancer\w*|organ\w*|disease\w*|physiolog\w*|patholog\w*)\b/i.test(text);
+    return biologicalObject && (!agriculture || biomedical) && itemMatchesPapersCoolTopic({ title: candidate.title, summary: text }, env);
 }
 
 export function getBioDailyMediaUrl(item) {
@@ -93,14 +94,14 @@ export function prepareBioDailyPlainEditingInput(markdown, sourceItems = []) {
         }
         return prefix + byUrl.get(url);
     });
-    // Thin sources need their original evidence, not another paraphrase of the draft.
-    const evidence = sourceItems.filter(text => typeof text === 'string' && text.length <= 1200 && [...byUrl.keys()].some(url => text.includes(url)))
+    // Verify against the selected source, not another paraphrase of the draft.
+    const evidence = sourceItems.filter(text => typeof text === 'string' && [...byUrl.keys()].some(url => text.includes(url)))
         .map(text => {
             let protectedText = text;
             for (const [url, id] of byUrl) protectedText = protectedText.replaceAll(url, id);
             return protectedText;
         });
-    if (evidence.length) prompt += '\n\n【短来源事实核查材料：仅核查已有条目，不新增新闻，不作为输出栏目】\n' + evidence.join('\n\n');
+    if (evidence.length) prompt += '\n\n【原始来源事实核查材料：仅核查已有条目，不新增新闻，不作为输出栏目】\n' + evidence.join('\n\n');
     return { prompt, references };
 }
 
