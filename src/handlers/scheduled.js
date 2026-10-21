@@ -2,15 +2,16 @@ import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, co
 import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
-import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationPromptStepZero";
-import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
+import { generateDailyMarkdownWithFallback } from '../dailyModelGeneration.js';
+import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
+import { getSystemPromptSummarizationStepThree, getBioDailySummaryReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
 import { generateWithSourceGate } from "../opportunitySourceGate.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
-import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, assertBioDailyBodySources, parseBioDailySummary, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../bioDailyMarkdown.js';
 import {
     buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
@@ -19,16 +20,6 @@ import {
 } from '../bioOpportunityUtils.js';
 import { createOrUpdateGitHubFile, getGitHubFileContent, getGitHubFileSha } from '../github.js';
 import { commitOpportunityRecords } from '../opportunityRecords.js';
-
-function normalizeSummaryLines(summaryText) {
-    if (!summaryText) return '';
-    const lines = String(summaryText)
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean);
-    if (lines.length <= 3) return summaryText.trim();
-    return lines.slice(-3).join('\n');
-}
 
 function shiftDate(dateStr, days) {
     const baseDate = new Date(`${dateStr}T00:00:00+08:00`);
@@ -305,23 +296,6 @@ async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt, sec
     return assertSafeGeoMarkdown(output.trim(), section);
 }
 
-async function generateScheduledMarkdownWithFallback(env, userPrompt, systemPrompt, label) {
-    let output = '';
-    try {
-        for await (const chunk of callChatAPIStream(env, userPrompt, systemPrompt)) {
-            output += chunk;
-        }
-        return output;
-    } catch (error) {
-        const message = String(error?.message || error);
-        if (!/(524|timeout|timed out|yielded no content|truncated|max_tokens)/i.test(message)) {
-            throw error;
-        }
-        console.warn(`[Scheduled][${label}] Stream generation failed, retrying non-stream: ${message}`);
-        return callChatAPI(env, userPrompt, systemPrompt);
-    }
-}
-
 async function commitBioSectionOutputs(env, dateStr, section, markdownContent, options) {
     const paths = buildBioSectionPaths(dateStr, section);
     const pageContent = buildBioSectionPageContent(dateStr, markdownContent, {
@@ -498,6 +472,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
     const dateStr = specifiedDate || getISODate();
     setFetchDate(dateStr);
     console.log(`[Scheduled] Starting daily automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
+    const diagnostics = { stage: 'sources', dailyModelRoute: env.DAILY_MODEL_ROUTE || 'primary' };
+    let previewDraft = '';
 
     try {
         // 1. Fetch Data
@@ -525,7 +501,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                             itemText = `News Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nContent Summary: ${stripHtml(item.details.content_html)}`;
                             break;
                         case 'project':
-                            itemText = `Project Name: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
+                            itemText = `Project Name: ${item.title}\nLast activity observed (not creation or release): ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
                             break;
                         case 'paper':
                             itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
@@ -589,9 +565,11 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         // 3. Generate Content (Call 2)
         console.log(`[Scheduled] Generating content...`);
         let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr);
-        let fullPromptForCall2_User = buildBioDailyCandidateBudget(selectedCandidates) + '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n';
+        let fullPromptForCall2_User = buildBioDailyCandidateBudget(selectedCandidates) + '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n' + getBioDailyReadabilityReminder();
+        diagnostics.stage = 'body';
+        diagnostics.bodyPromptCharacters = fullPromptForCall2_User.length + fullPromptForCall2_System.length;
         
-        let outputOfCall2 = await generateScheduledMarkdownWithFallback(
+        let outputOfCall2 = await generateDailyMarkdownWithFallback(
             env,
             fullPromptForCall2_User,
             fullPromptForCall2_System,
@@ -603,27 +581,34 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
         outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, selectedCandidates);
+        previewDraft = outputOfCall2;
 
-        // 4. Generate Summary (Call 3)
-        console.log(`[Scheduled] Generating summary...`);
+        // Generate the summary without rewriting the source-bearing body.
+        diagnostics.stage = 'body_validation';
+        assertBioDailyBodySources(outputOfCall2, selectedContentItems);
+        console.log(`[Scheduled] Generating three-line daily summary...`);
         let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
-        let fullPromptForCall3_User = outputOfCall2;
+        const draftMarkdown = outputOfCall2;
+        let fullPromptForCall3_User = outputOfCall2 + getBioDailySummaryReminder();
+        diagnostics.stage = 'summary';
+        diagnostics.summaryPromptCharacters = fullPromptForCall3_User.length + fullPromptForCall3_System.length;
         
-        let outputOfCall3 = await generateScheduledMarkdownWithFallback(
+        let outputOfCall3 = await generateDailyMarkdownWithFallback(
             env,
             fullPromptForCall3_User,
             fullPromptForCall3_System,
             'DailySummary'
         );
-        outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3);
-        outputOfCall3 = normalizeSummaryLines(outputOfCall3);
+        outputOfCall3 = String(outputOfCall3 || '').trim();
+        diagnostics.stage = 'validation';
+        const summary = parseBioDailySummary(outputOfCall3);
 
         // 5. Assemble Markdown
-        const dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, outputOfCall3, env);
+        const dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, summary, env);
         assertSafeGeoMarkdown(dailySummaryMarkdownContent, 'daily');
 
         if (options.dryRun) {
-            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent };
+            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent, draftMarkdown };
         }
 
         // 6. Commit to GitHub
@@ -668,7 +653,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
 
     } catch (error) {
         console.error(`[Scheduled] Error:`, error);
-        return { success: false, date: dateStr, error: error.message };
+        return { success: false, date: dateStr, error: error.message,
+            ...(options.dryRun ? { draftMarkdown: previewDraft, diagnostics: { ...diagnostics, sourceValidation: error.dailySourceDiagnostics, modelRoutes: error.modelRouteFailures || [] } } : {}) };
     }
 }
 

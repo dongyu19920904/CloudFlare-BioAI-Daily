@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "daily, opportunity-batch, opportunity, or project-opportunity"
+        description: "daily, opportunity-batch, opportunity, project-opportunity, probe-primary, or probe-backup"
         required: true
         default: "opportunity-batch"
         type: string
@@ -57,8 +57,9 @@ jobs:
 
           WORKER_BASE_URL="${WORKER_BASE_URL:-$DEFAULT_WORKER_BASE_URL}"
           if [[ -n "${INPUT_WORKER_URL:-}" ]]; then
-            if [[ "${INPUT_DRY_RUN:-false}" != "true" || "${INPUT_MODE:-}" != "daily" ]]; then
-              echo "Version URLs are allowed only for daily previews" >&2
+            if [[ "${INPUT_MODE:-}" != "probe-primary" && "${INPUT_MODE:-}" != "probe-backup" ]] &&
+               [[ "${INPUT_DRY_RUN:-false}" != "true" || "${INPUT_MODE:-}" != "daily" ]]; then
+              echo "Version URLs are allowed only for daily previews or bounded model probes" >&2
               exit 1
             fi
             if [[ ! "$INPUT_WORKER_URL" =~ ^https://([a-z0-9-]+-)?cloudflare-bioai-daily\.sabrinamisan090\.workers\.dev/?$ ]]; then
@@ -73,6 +74,19 @@ jobs:
           fi
           MODE="${INPUT_MODE:-opportunity-batch}"
           ASYNC_FLAG="${INPUT_ASYNC:-false}"
+
+          if [[ "$MODE" == "probe-primary" || "$MODE" == "probe-backup" ]]; then
+            if [[ "${INPUT_DRY_RUN:-false}" == "true" || "$ASYNC_FLAG" != "false" ]]; then
+              echo "Model probes require dry_run=false and async=false" >&2
+              exit 1
+            fi
+            ROUTE="${MODE#probe-}"
+            status="$(curl -sS --max-time 35 -X POST -H "x-test-trigger-secret: ${TRIGGER_SECRET}" -o model-probe.json -w "%{http_code}" "${WORKER_BASE_URL%/}/testModelConnection?route=${ROUTE}" || true)"
+            echo "Probe HTTP status: ${status:-000}"
+            node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync("model-probe.json","utf8"));console.log(JSON.stringify({ok:r.ok,route:r.route,requestedModel:r.requestedModel,status:r.status,timedOut:r.timedOut,error:r.error,milliseconds:r.milliseconds}));if(!r.ok)process.exitCode=1;'
+            [[ "$status" == "200" ]]
+            exit 0
+          fi
 
           case "$MODE" in
             daily)
@@ -114,7 +128,7 @@ jobs:
           echo "HTTP status: ${status:-000}"
           if [[ "${INPUT_DRY_RUN:-false}" == "true" ]]; then
             printf '%s' "$response" > preview.json
-            node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("preview.json","utf8")); if(!r.success || r.result?.dryRun!==true || !r.result?.markdown) throw new Error("Preview did not return a reviewed draft candidate"); fs.writeFileSync("preview.md",r.result.markdown); console.log(JSON.stringify({success:r.success,date:r.result.date,selectedCount:r.result.selectedCount,sourceCounts:r.result.sourceCounts,characters:r.result.markdown.length}));'
+            node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("preview.json","utf8")); if(r.result?.draftMarkdown) fs.writeFileSync("draft.md",r.result.draftMarkdown); if(!r.success || r.result?.dryRun!==true || !r.result?.markdown) throw new Error("Preview did not return a reviewed draft candidate"); fs.writeFileSync("preview.md",r.result.markdown); console.log(JSON.stringify({success:r.success,date:r.result.date,selectedCount:r.result.selectedCount,sourceCounts:r.result.sourceCounts,characters:r.result.markdown.length}));'
           else
             echo "Response:"
             echo "$response"
@@ -124,15 +138,26 @@ jobs:
             exit 1
           fi
 
-      - name: Upload private preview artifact
-        if: success() && inputs.dry_run
+      - name: Upload preview artifact
+        if: always() && inputs.dry_run
         uses: actions/upload-artifact@v4
         with:
           name: bioai-daily-preview
           path: |
             preview.md
             preview.json
+            draft.md
           retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload bounded probe result
+        if: always() && startsWith(inputs.mode, 'probe-')
+        uses: actions/upload-artifact@v4
+        with:
+          name: bioai-model-probe
+          path: model-probe.json
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Summary
         if: always()

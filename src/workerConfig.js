@@ -4,6 +4,7 @@ export const WORKER_CONFIG_DEFAULTS = Object.freeze({
   IMG_PROXY: "",
   OPEN_TRANSLATE: "false",
   ANTHROPIC_MAX_TOKENS: "8192",
+  DAILY_MODEL_ROUTE: "backup",
   ANTHROPIC_RETRY_MAX: "2",
   ANTHROPIC_RETRY_BASE_MS: "3000",
   OPENAI_BASE_URL: "https://code.newcli.com/codex/v1",
