@@ -2,6 +2,7 @@
 import { getISODate, escapeHtml, stripHtml, removeMarkdownCodeBlock, formatDateToChinese, convertEnglishQuotesToChinese, convertPlaceholdersToMarkdownImages} from '../helpers.js';
 import { getFromKV } from '../kv.js';
 import { callChatAPIStream } from '../chatapi.js';
+import { generateDailyMarkdownWithFallback } from '../dailyModelGeneration.js';
 import { generateGenAiPageHtml } from '../htmlGenerators.js';
 import { dataSources } from '../dataFetchers.js'; // Import dataSources
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
@@ -252,11 +253,7 @@ export async function handleGenAIContent(request, env) {
 
         console.log("Call 2 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall2_User.length);
         try {
-            let processedChunks = [];
-            for await (const chunk of callChatAPIStream({ ...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true }, fullPromptForCall2_User, fullPromptForCall2_System)) {
-                processedChunks.push(chunk);
-            }
-            outputOfCall2 = processedChunks.join('');
+            outputOfCall2 = await generateDailyMarkdownWithFallback(env, fullPromptForCall2_User, fullPromptForCall2_System, 'ManualDailyBody');
             if (!outputOfCall2 || outputOfCall2.trim() === "") throw new Error("Chat processing call returned empty content.");
             outputOfCall2 = removeMarkdownCodeBlock(outputOfCall2); // Clean the output
             outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
@@ -284,11 +281,7 @@ export async function handleGenAIContent(request, env) {
         let outputOfCall3 = null;
         console.log("Call 3 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall3_User.length);
         try {
-            let processedChunks = [];
-            for await (const chunk of callChatAPIStream({ ...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true }, fullPromptForCall3_User, fullPromptForCall3_System)) {
-                processedChunks.push(chunk);
-            }
-            outputOfCall3 = processedChunks.join('');
+            outputOfCall3 = await generateDailyMarkdownWithFallback(env, fullPromptForCall3_User, fullPromptForCall3_System, 'ManualDailyEditing');
             if (!outputOfCall3 || outputOfCall3.trim() === "") throw new Error("Chat processing call returned empty content.");
             outputOfCall3 = String(outputOfCall3 || '').trim();
             console.log("Call 3 (Processing Call 2 Output) successful. Output length:", outputOfCall3.length);

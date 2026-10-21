@@ -2,6 +2,7 @@ import { getISODate, formatDateToChinese, removeMarkdownCodeBlock, stripHtml, co
 import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
+import { generateDailyMarkdownWithFallback } from '../dailyModelGeneration.js';
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
 import { getSystemPromptDailyPlainEditing, getBioDailyEditingReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
@@ -295,24 +296,6 @@ async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt, sec
     return assertSafeGeoMarkdown(output.trim(), section);
 }
 
-async function generateScheduledMarkdownWithFallback(env, userPrompt, systemPrompt, label) {
-    const dailyEnv = { ...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true };
-    let output = '';
-    try {
-        for await (const chunk of callChatAPIStream(dailyEnv, userPrompt, systemPrompt)) {
-            output += chunk;
-        }
-        return output;
-    } catch (error) {
-        const message = String(error?.message || error);
-        if (!/(524|timeout|timed out|yielded no content|truncated|max_tokens)/i.test(message)) {
-            throw error;
-        }
-        console.warn(`[Scheduled][${label}] Stream generation failed, retrying non-stream: ${message}`);
-        return callChatAPI(dailyEnv, userPrompt, systemPrompt);
-    }
-}
-
 async function commitBioSectionOutputs(env, dateStr, section, markdownContent, options) {
     const paths = buildBioSectionPaths(dateStr, section);
     const pageContent = buildBioSectionPageContent(dateStr, markdownContent, {
@@ -585,7 +568,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         diagnostics.stage = 'body';
         diagnostics.bodyPromptCharacters = fullPromptForCall2_User.length + fullPromptForCall2_System.length;
         
-        let outputOfCall2 = await generateScheduledMarkdownWithFallback(
+        let outputOfCall2 = await generateDailyMarkdownWithFallback(
             env,
             fullPromptForCall2_User,
             fullPromptForCall2_System,
@@ -607,7 +590,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         diagnostics.stage = 'editing';
         diagnostics.editingPromptCharacters = fullPromptForCall3_User.length + fullPromptForCall3_System.length;
         
-        let outputOfCall3 = await generateScheduledMarkdownWithFallback(
+        let outputOfCall3 = await generateDailyMarkdownWithFallback(
             env,
             fullPromptForCall3_User,
             fullPromptForCall3_System,
