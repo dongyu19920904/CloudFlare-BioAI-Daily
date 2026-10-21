@@ -157,6 +157,17 @@ test('duplicate TOP sources are removed and remaining ranks/count stay truthful'
     assert.doesNotMatch(output, /### 2\./);
 });
 
+test('every source link in a merged story participates in cross-column deduplication', () => {
+    const input='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究和代码\n[论文](https://example.org/paper)与[仓库](https://github.com/example/brain)对应同一事件。\n\n## **⌘ 开源 TOP 项目**\n\n### 重复代码\n[仓库](https://github.com/example/brain?utm_source=test)又介绍一遍。\n\n### 独立项目\n[其他仓库](https://github.com/example/other)功能。';
+    const output=deduplicateBioDailyNews(input);
+    assert.doesNotMatch(output,/重复代码|又介绍一遍/);
+    assert.match(output,/研究和代码/);
+    assert.match(output,/独立项目/);
+    assert.match(output,/https:\/\/github.com\/example\/brain/);
+    assert.match(output,/https:\/\/example.org\/paper/);
+    assert.equal(deduplicateBioDailyNews(output),output);
+});
+
 test('TOP reading removes explicit cross-reference placeholders and repairs duplicate numbering', () => {
     const input = '## **🔥 今日焦点 TOP 10**\n\n### 1. 甲\n[甲](https://example.org/a)有新结果。\n\n### 2. 项目预留\n*见下方开源 TOP 项目*\n\n### 2. 乙\n[乙](https://example.org/b)尚未临床验证。\n\n### 3. 已报道\n（已在TOP 1详述，此处不重复。）\n\n## **⌘ 开源 TOP 项目**\n\n### 项目\n[仓库](https://github.com/example/project)可试用。';
     const output = deduplicateBioDailyNews(input);

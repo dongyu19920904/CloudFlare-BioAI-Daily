@@ -46,18 +46,20 @@ export function deduplicateBioDailyNews(markdown) {
         const [heading, ...items] = section.split(/(?=^###\s)/m);
         if (!items.length) return section;
         const kept = items.filter(item => {
-            const source = getReferencedSourceUrls(item)[0];
+            const sources = getReferencedSourceUrls(item);
             const prose = item.replace(/^###[^\n]*\n/, '').trim();
-            if (!source && /^(?:\*|（|\()?\s*(?:见下方|已在[^\n]{0,40}(?:详述|报道)|已预留)/.test(prose)) {
+            if (!sources.length && /^(?:\*|（|\()?\s*(?:见下方|已在[^\n]{0,40}(?:详述|报道)|已预留)/.test(prose)) {
                 return false;
             }
-            if (!source) return true;
-            const parsed = new URL(source);
-            parsed.hash = '';
-            for (const key of [...parsed.searchParams.keys()]) if (/^utm_|^(fbclid|gclid)$/i.test(key)) parsed.searchParams.delete(key);
-            const key = parsed.href.replace(/\/$/, '');
-            if (seen.has(key)) return false;
-            seen.add(key);
+            if (!sources.length) return true;
+            const keys = sources.map(source => {
+                const parsed = new URL(source);
+                parsed.hash = '';
+                for (const key of [...parsed.searchParams.keys()]) if (/^utm_|^(fbclid|gclid)$/i.test(key)) parsed.searchParams.delete(key);
+                return parsed.href.replace(/\/$/, '');
+            });
+            if (keys.some(key => seen.has(key))) return false;
+            for (const key of keys) seen.add(key);
             return true;
         });
         if (/TOP\s+\d+/i.test(heading) && kept.length) {
