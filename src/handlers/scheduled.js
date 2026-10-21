@@ -472,7 +472,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
     const dateStr = specifiedDate || getISODate();
     setFetchDate(dateStr);
     console.log(`[Scheduled] Starting daily automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
-    const diagnostics = { stage: 'sources' };
+    const diagnostics = { stage: 'sources', dailyModelRoute: env.DAILY_MODEL_ROUTE || 'primary' };
     let previewDraft = '';
 
     try {

@@ -27,3 +27,20 @@ test('a failed non-stream recovery is propagated without another loop',async()=>
     }),/still unavailable/);
     assert.equal(calls,1);
 });
+
+test('daily-only backup selection uses its own model and key without changing shared configuration',async()=>{
+    const env={USE_MODEL_PLATFORM:'ANTHROPIC',DAILY_MODEL_ROUTE:'backup',ANTHROPIC_API_BASE_URL:'https://primary.invalid',ANTHROPIC_BACKUP_API_BASE_URL:'https://backup.invalid',ANTHROPIC_API_KEY:'primary-test',ANTHROPIC_BACKUP_API_KEY:'backup-test',DEFAULT_ANTHROPIC_MODEL:'primary-model',DEFAULT_ANTHROPIC_BACKUP_MODEL:'backup-model'};
+    const output=await generateDailyMarkdownWithFallback(env,'sources','rules','test',{
+        stream:async function*(scoped){
+            assert.equal(scoped.DEFAULT_ANTHROPIC_MODEL,'backup-model');
+            assert.equal(scoped.ANTHROPIC_API_BASE_URL,'https://backup.invalid/v1/messages');
+            assert.equal(scoped.ANTHROPIC_API_KEY,'backup-test');
+            assert.equal(scoped.ANTHROPIC_BACKUP_API_KEY,'');
+            yield 'complete';
+        },
+    });
+    assert.equal(output,'complete');
+    assert.equal(env.DEFAULT_ANTHROPIC_MODEL,'primary-model');
+    assert.equal(env.ANTHROPIC_API_KEY,'primary-test');
+    await assert.rejects(()=>generateDailyMarkdownWithFallback({...env,ANTHROPIC_BACKUP_API_KEY:''},'sources','rules','test'),/not configured/);
+});

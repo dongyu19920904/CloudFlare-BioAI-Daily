@@ -1,9 +1,22 @@
-import {callChatAPI, callChatAPIStream} from './chatapi.js';
+import {callChatAPI, callChatAPIStream, resolveAnthropicConfig} from './chatapi.js';
 
 export async function generateDailyMarkdownWithFallback(env, userPrompt, systemPrompt, label, clients = {}) {
     const stream = clients.stream || callChatAPIStream;
     const nonStream = clients.nonStream || callChatAPI;
     const dailyEnv = {...env, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true};
+    if (String(env.USE_MODEL_PLATFORM).toUpperCase() === 'ANTHROPIC' && env.DAILY_MODEL_ROUTE === 'backup') {
+        const route = resolveAnthropicConfig(env).backup;
+        if (!route.messagesUrl || !route.modelName || !env.ANTHROPIC_BACKUP_API_KEY) {
+            throw new Error('Daily backup model route is not configured');
+        }
+        Object.assign(dailyEnv, {
+            ANTHROPIC_API_BASE_URL: route.messagesUrl,
+            ANTHROPIC_API_KEY: env.ANTHROPIC_BACKUP_API_KEY,
+            DEFAULT_ANTHROPIC_MODEL: route.modelName,
+            ANTHROPIC_BACKUP_API_KEY: '',
+        });
+        console.log(`[Daily][${label}] Using configured backup model: ${route.modelName}`);
+    }
     let output = '';
     try {
         for await (const chunk of stream(dailyEnv, userPrompt, systemPrompt)) output += chunk;
