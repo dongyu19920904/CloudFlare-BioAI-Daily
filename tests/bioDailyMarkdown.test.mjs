@@ -15,8 +15,13 @@ test('body source validation allows selection, but rejects missing or invented U
     const body = '## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n据[报道](https://example.org/study?a=1)，发现有待确认。';
     const sources = ['Source: https://example.org/study?a=1\nTitle: research', 'Unused: https://example.org/unused'];
     assert.doesNotThrow(() => assertBioDailyBodySources(body, sources));
+    assert.doesNotThrow(() => assertBioDailyBodySources(body, ['The source is https://example.org/study?a=1. More details.']));
+    assert.doesNotThrow(() => assertBioDailyBodySources(body, ['See https://example.org/study?a=1, for evidence.']));
     assert.throws(() => assertBioDailyBodySources(body.replace('?a=1', '?a=2'), sources), /source URL/);
-    assert.throws(() => assertBioDailyBodySources(body + '\n\n### 2. 无来源\n研究。', sources), /omitted a source/);
+    assert.throws(() => assertBioDailyBodySources(body + '\n\n### 2. 无来源\n研究。', sources), error => {
+        assert.deepEqual(error.dailySourceDiagnostics, {item:2,reason:'missing_source'});
+        return /omitted a source/.test(error.message);
+    });
     assert.throws(() => assertBioDailyBodySources('只有一句话。', sources), /TOP section/);
     assert.throws(() => assertBioDailyBodySources(body, ['https://example.org/study?a=12']), /source URL/);
 });

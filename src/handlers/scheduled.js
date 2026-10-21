@@ -473,6 +473,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
     setFetchDate(dateStr);
     console.log(`[Scheduled] Starting daily automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
     const diagnostics = { stage: 'sources' };
+    let previewDraft = '';
 
     try {
         // 1. Fetch Data
@@ -580,6 +581,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
         outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, selectedCandidates);
+        previewDraft = outputOfCall2;
 
         // Generate the summary without rewriting the source-bearing body.
         diagnostics.stage = 'body_validation';
@@ -652,7 +654,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
     } catch (error) {
         console.error(`[Scheduled] Error:`, error);
         return { success: false, date: dateStr, error: error.message,
-            ...(options.dryRun ? { diagnostics: { ...diagnostics, modelRoutes: error.modelRouteFailures || [] } } : {}) };
+            ...(options.dryRun ? { draftMarkdown: previewDraft, diagnostics: { ...diagnostics, sourceValidation: error.dailySourceDiagnostics, modelRoutes: error.modelRouteFailures || [] } } : {}) };
     }
 }
 

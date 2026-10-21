@@ -87,7 +87,11 @@ export function assertBioDailyBodySources(markdown, sourceItems = []) {
     const allowed = new Set();
     for (const text of sourceItems) {
         for (const match of String(text).matchAll(/https?:\/\/[^\s<>"']+/g)) {
-            try { allowed.add(new URL(match[0].replace(/[)\]，。；]+$/g, '')).href); } catch { /* Ignore malformed input URLs. */ }
+            const token = match[0].replace(/[)\]，。；]+$/g, '');
+            // Prose may end a URL with punctuation; retain the exact URL too.
+            for (const value of [token, token.replace(/[.,;:]+$/g, '')]) {
+                try { allowed.add(new URL(value).href); } catch { /* Ignore malformed input URLs. */ }
+            }
         }
     }
     const content = String(markdown || '');
@@ -96,10 +100,12 @@ export function assertBioDailyBodySources(markdown, sourceItems = []) {
     }
     const items = content.split(/(?=^###\s)/m).slice(1);
     if (!items.length) throw new Error('Daily body must contain sourced news items');
-    for (const item of items) {
+    for (const [index, item] of items.entries()) {
         const urls = getReferencedSourceUrls(item);
         if (!urls.length || urls.some(url => !allowed.has(url))) {
-            throw new Error('Daily body omitted a source or invented a source URL');
+            const error = new Error('Daily body omitted a source or invented a source URL');
+            error.dailySourceDiagnostics = { item: index + 1, reason: urls.length ? 'unknown_source' : 'missing_source' };
+            throw error;
         }
     }
 }

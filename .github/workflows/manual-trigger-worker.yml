@@ -128,7 +128,7 @@ jobs:
           echo "HTTP status: ${status:-000}"
           if [[ "${INPUT_DRY_RUN:-false}" == "true" ]]; then
             printf '%s' "$response" > preview.json
-            node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("preview.json","utf8")); if(!r.success || r.result?.dryRun!==true || !r.result?.markdown) throw new Error("Preview did not return a reviewed draft candidate"); fs.writeFileSync("preview.md",r.result.markdown); if(r.result.draftMarkdown) fs.writeFileSync("draft.md",r.result.draftMarkdown); console.log(JSON.stringify({success:r.success,date:r.result.date,selectedCount:r.result.selectedCount,sourceCounts:r.result.sourceCounts,characters:r.result.markdown.length}));'
+            node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("preview.json","utf8")); if(r.result?.draftMarkdown) fs.writeFileSync("draft.md",r.result.draftMarkdown); if(!r.success || r.result?.dryRun!==true || !r.result?.markdown) throw new Error("Preview did not return a reviewed draft candidate"); fs.writeFileSync("preview.md",r.result.markdown); console.log(JSON.stringify({success:r.success,date:r.result.date,selectedCount:r.result.selectedCount,sourceCounts:r.result.sourceCounts,characters:r.result.markdown.length}));'
           else
             echo "Response:"
             echo "$response"
@@ -138,7 +138,7 @@ jobs:
             exit 1
           fi
 
-      - name: Upload private preview artifact
+      - name: Upload preview artifact
         if: always() && inputs.dry_run
         uses: actions/upload-artifact@v4
         with:
