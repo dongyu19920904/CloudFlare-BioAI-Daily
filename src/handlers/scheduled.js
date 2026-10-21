@@ -489,6 +489,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
     const dateStr = specifiedDate || getISODate();
     setFetchDate(dateStr);
     console.log(`[Scheduled] Starting daily automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
+    const diagnostics = { stage: 'sources' };
 
     try {
         // 1. Fetch Data
@@ -581,6 +582,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         console.log(`[Scheduled] Generating content...`);
         let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr);
         let fullPromptForCall2_User = buildBioDailyCandidateBudget(selectedCandidates) + '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n' + getBioDailyReadabilityReminder();
+        diagnostics.stage = 'body';
+        diagnostics.bodyPromptCharacters = fullPromptForCall2_User.length + fullPromptForCall2_System.length;
         
         let outputOfCall2 = await generateScheduledMarkdownWithFallback(
             env,
@@ -600,6 +603,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         let fullPromptForCall3_System = getSystemPromptDailyPlainEditing();
         const editInput = prepareBioDailyPlainEditingInput(outputOfCall2);
         let fullPromptForCall3_User = editInput.prompt;
+        diagnostics.stage = 'editing';
+        diagnostics.editingPromptCharacters = fullPromptForCall3_User.length + fullPromptForCall3_System.length;
         
         let outputOfCall3 = await generateScheduledMarkdownWithFallback(
             env,
@@ -608,6 +613,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             'DailyPlainEditing'
         );
         outputOfCall3 = String(outputOfCall3 || '').trim();
+        diagnostics.stage = 'validation';
         const edited = parseBioDailyPlainEditingResult(outputOfCall3, outputOfCall2, editInput.references);
         outputOfCall2 = restoreBioDailySourceMedia(edited.body, selectedCandidates);
 
@@ -661,7 +667,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
 
     } catch (error) {
         console.error(`[Scheduled] Error:`, error);
-        return { success: false, date: dateStr, error: error.message };
+        return { success: false, date: dateStr, error: error.message,
+            ...(options.dryRun ? { diagnostics: { ...diagnostics, modelRoutes: error.modelRouteFailures || [] } } : {}) };
     }
 }
 
