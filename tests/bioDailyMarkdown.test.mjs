@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleBioDailyMarkdown, prepareBioDailyPlainEditingInput, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, assertBioDailyBodySources, parseBioDailySummary, prepareBioDailyPlainEditingInput, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
 import { getSystemPromptSummarizationStepOne } from '../src/prompt/summarizationPromptStepZero.js';
 
 test('daily assembly preserves source, evidence and media but removes the generated preamble', () => {
@@ -9,6 +9,23 @@ test('daily assembly preserves source, evidence and media but removes the genera
     assert.ok(output.endsWith(body));
     assert.equal((output.match(/## \*\*今日摘要\*\*/g) || []).length, 1);
     assert.doesNotMatch(output, /快速导航|旧前言|今日ai资讯|utm_campaign/);
+});
+
+test('body source validation allows selection, but rejects missing or invented URLs', () => {
+    const body = '## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n据[报道](https://example.org/study?a=1)，发现有待确认。';
+    const sources = ['Source: https://example.org/study?a=1\nTitle: research', 'Unused: https://example.org/unused'];
+    assert.doesNotThrow(() => assertBioDailyBodySources(body, sources));
+    assert.throws(() => assertBioDailyBodySources(body.replace('?a=1', '?a=2'), sources), /source URL/);
+    assert.throws(() => assertBioDailyBodySources(body + '\n\n### 2. 无来源\n研究。', sources), /omitted a source/);
+    assert.throws(() => assertBioDailyBodySources('只有一句话。', sources), /TOP section/);
+    assert.throws(() => assertBioDailyBodySources(body, ['https://example.org/study?a=12']), /source URL/);
+});
+
+test('summary parser accepts only three complete plain-text lines', () => {
+    assert.equal(parseBioDailySummary('```text\n研究新发现。\n另一项进展。\n结果仍需验证。\n```'), '研究新发现。\n另一项进展。\n结果仍需验证。');
+    assert.throws(() => parseBioDailySummary('只有一句。'), /three plain-text lines/);
+    assert.throws(() => parseBioDailySummary('甲\n乙\n丙\n## 正文'), /three plain-text lines/);
+    assert.throws(() => parseBioDailySummary('甲\n乙\n[新链接](https://invented.org)'), /three plain-text lines/);
 });
 
 test('plain editing extracts the complete short edition and preserves the source set', () => {

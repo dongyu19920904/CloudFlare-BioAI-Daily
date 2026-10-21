@@ -83,6 +83,36 @@ export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
     return result;
 }
 
+export function assertBioDailyBodySources(markdown, sourceItems = []) {
+    const allowed = new Set();
+    for (const text of sourceItems) {
+        for (const match of String(text).matchAll(/https?:\/\/[^\s<>"']+/g)) {
+            try { allowed.add(new URL(match[0].replace(/[)\]，。；]+$/g, '')).href); } catch { /* Ignore malformed input URLs. */ }
+        }
+    }
+    const content = String(markdown || '');
+    if (!/^##\s*\*{0,2}(?:🔥\s*)?今日焦点\s*TOP\s+\d+/m.test(content)) {
+        throw new Error('Daily body must contain a complete TOP section');
+    }
+    const items = content.split(/(?=^###\s)/m).slice(1);
+    if (!items.length) throw new Error('Daily body must contain sourced news items');
+    for (const item of items) {
+        const urls = getReferencedSourceUrls(item);
+        if (!urls.length || urls.some(url => !allowed.has(url))) {
+            throw new Error('Daily body omitted a source or invented a source URL');
+        }
+    }
+}
+
+export function parseBioDailySummary(markdown) {
+    const text = String(markdown || '').trim().replace(/^```(?:text|markdown)?\s*\n([\s\S]*?)\n```$/i, '$1');
+    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length !== 3 || lines.some(line => /^#|^[-*]\s|^\d+[.)]\s|https?:\/\/|```/.test(line))) {
+        throw new Error('Daily summary must contain exactly three plain-text lines');
+    }
+    return lines.join('\n');
+}
+
 export function prepareBioDailyPlainEditingInput(markdown, sourceItems = []) {
     const references = {};
     const byUrl = new Map();

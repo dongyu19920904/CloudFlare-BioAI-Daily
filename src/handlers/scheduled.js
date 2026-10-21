@@ -4,14 +4,14 @@ import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
 import { generateDailyMarkdownWithFallback } from '../dailyModelGeneration.js';
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
-import { getSystemPromptDailyPlainEditing, getBioDailyEditingReminder } from "../prompt/summarizationPromptStepThree";
+import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
 import { generateWithSourceGate } from "../opportunitySourceGate.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
-import { assembleBioDailyMarkdown, prepareBioDailyPlainEditingInput, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, assertBioDailyBodySources, parseBioDailySummary, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../bioDailyMarkdown.js';
 import {
     buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
@@ -581,28 +581,28 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
         outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, selectedCandidates);
 
-        // Reuse the summary call for a complete plain-language editorial pass.
-        console.log(`[Scheduled] Editing plain-language daily and summary...`);
-        let fullPromptForCall3_System = getSystemPromptDailyPlainEditing();
+        // Generate the summary without rewriting the source-bearing body.
+        diagnostics.stage = 'body_validation';
+        assertBioDailyBodySources(outputOfCall2, selectedContentItems);
+        console.log(`[Scheduled] Generating three-line daily summary...`);
+        let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
         const draftMarkdown = outputOfCall2;
-        const editInput = prepareBioDailyPlainEditingInput(outputOfCall2, selectedContentItems);
-        let fullPromptForCall3_User = editInput.prompt + getBioDailyEditingReminder();
-        diagnostics.stage = 'editing';
-        diagnostics.editingPromptCharacters = fullPromptForCall3_User.length + fullPromptForCall3_System.length;
+        let fullPromptForCall3_User = outputOfCall2;
+        diagnostics.stage = 'summary';
+        diagnostics.summaryPromptCharacters = fullPromptForCall3_User.length + fullPromptForCall3_System.length;
         
         let outputOfCall3 = await generateDailyMarkdownWithFallback(
             env,
             fullPromptForCall3_User,
             fullPromptForCall3_System,
-            'DailyPlainEditing'
+            'DailySummary'
         );
         outputOfCall3 = String(outputOfCall3 || '').trim();
         diagnostics.stage = 'validation';
-        const edited = parseBioDailyPlainEditingResult(outputOfCall3, outputOfCall2, editInput.references);
-        outputOfCall2 = restoreBioDailySourceMedia(edited.body, selectedCandidates);
+        const summary = parseBioDailySummary(outputOfCall3);
 
         // 5. Assemble Markdown
-        const dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, edited.summary, env);
+        const dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, summary, env);
         assertSafeGeoMarkdown(dailySummaryMarkdownContent, 'daily');
 
         if (options.dryRun) {

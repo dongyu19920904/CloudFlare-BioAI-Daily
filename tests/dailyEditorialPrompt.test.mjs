@@ -58,17 +58,29 @@ test('daily summary is plain Chinese, not a second technical abstract', () => {
   assert.match(prompt, /只使用正文已有的事实/);
 });
 
-test('scheduled and manual daily paths repeat the same brief after source material', () => {
+test('scheduled and manual paths share the writing brief and only summarize, never rewrite, the body', () => {
   assert.match(getBioDailyReadabilityReminder(), /最后一句保留科学限制/);
   for (const file of ['scheduled.js', 'genAIContent.js']) {
     const source = readFileSync(new URL(`../src/handlers/${file}`, import.meta.url), 'utf8');
     assert.match(source, /let fullPromptForCall2_User =[^\n]+\+ getBioDailyReadabilityReminder\(\)/);
-    assert.match(source, /let fullPromptForCall3_System = getSystemPromptDailyPlainEditing\(\)/);
-    assert.match(source, /parseBioDailyPlainEditingResult\(outputOfCall3, outputOfCall2, editInput\.references\)/);
-    assert.match(source, /prepareBioDailyPlainEditingInput\(outputOfCall2, selectedContentItems\)/);
-    assert.match(source, /editInput.prompt \+ getBioDailyEditingReminder\(\)/);
-    assert.doesNotMatch(source, /outputOfCall3 = removeMarkdownCodeBlock\(outputOfCall3\)/);
+    assert.match(source, /let fullPromptForCall3_System = getSystemPromptSummarizationStepThree\(\)/);
+    assert.match(source, /let fullPromptForCall3_User = outputOfCall2/);
+    assert.match(source, /assertBioDailyBodySources\(outputOfCall2, selectedContentItems\)/);
+    assert.match(source, /const summary = parseBioDailySummary\(outputOfCall3\)/);
+    assert.match(source, /assembleBioDailyMarkdown\(outputOfCall2, summary, env\)/);
+    assert.doesNotMatch(source, /getSystemPromptDailyPlainEditing|parseBioDailyPlainEditingResult|prepareBioDailyPlainEditingInput/);
   }
+});
+
+test('first-stage writing owns the factual and duplicate-event checks', () => {
+  const prompt = getSystemPromptSummarizationStepOne();
+  const reminder = getBioDailyReadabilityReminder();
+  assert.match(prompt, /同一模型的论文与代码仓库属于同一个事件/);
+  assert.match(prompt, /统计检验值、剂量梯度和多个次要量表分数/);
+  assert.match(prompt, /阴性结果仍用白话保留/);
+  assert.match(reminder, /入组不等于全部完成/);
+  assert.match(reminder, /相关不能写成准确测出/);
+  assert.match(reminder, /上传、界面、可视化、免费使用等功能不补/);
 });
 
 test('final edit cross-checks thin evidence and cannot invent project upload workflows', () => {
