@@ -58,7 +58,7 @@ export function addReferencedSourceMedia(body, dailyContent) {
     if (/!\[[^\]]*]\(/.test(body) || /<img\b/i.test(body)) return body;
     const images = selectReferencedSourceMedia(dailyContent, body);
     let result = body;
-    for (const [position, image] of images.entries()) {
+    for (const image of images) {
         const label = image.alt.replace(/[\[\]\n]/g, '').slice(0, 160);
         const figure = `[![${label}](${image.imageUrl})](${image.sourceUrl})`;
         const paragraphs = result.split(/\n\s*\n/);
@@ -71,14 +71,6 @@ export function addReferencedSourceMedia(body, dailyContent) {
             paragraphs.splice(index + 1, 0, figure);
             result = paragraphs.join('\n\n');
         } else {
-            if (position === 0) {
-                const opening = paragraphs.findIndex(paragraph => !/^\s*(?:#|>|[-*]|\d+\.)/.test(paragraph));
-                if (opening >= 0) {
-                    paragraphs.splice(opening + 1, 0, figure);
-                    result = paragraphs.join('\n\n');
-                    continue;
-                }
-            }
             const references = result.search(/^##\s+(?:参考资料|references)/im);
             result = references < 0 ? `${result.trim()}\n\n${figure}` : `${result.slice(0, references).trim()}\n\n${figure}\n\n${result.slice(references)}`;
         }

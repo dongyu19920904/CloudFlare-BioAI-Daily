@@ -56,3 +56,10 @@ test('reference-only citations get a source figure before references; multiple s
     const refs = [1, 2, 3].map(i => `[研究${i}](${source}${i})`).join('\n');
     assert.equal(selectReferencedSourceMedia(many, refs).length, 2);
 });
+
+test('a reference-only image never becomes an unrelated opening illustration', () => {
+    const draft = `开头在讲另一个研究。\n\n## 后面的研究\n\n这里再讨论来源研究。\n\n## 参考资料\n\n- [研究](${source})`;
+    const output = addReferencedSourceMedia(draft, daily);
+    assert.ok(output.indexOf('![来源配图') > output.indexOf('这里再讨论来源研究。'));
+    assert.ok(output.indexOf('![来源配图') < output.indexOf('## 参考资料'));
+});

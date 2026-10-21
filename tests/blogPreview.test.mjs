@@ -52,3 +52,19 @@ test('title-only repair keeps the original title context and body without extra 
     assert.equal(calls.length,4);
     for(const draft of result.results)assert.ok(draft.content.includes(body));
 });
+
+test('dry-run regenerates existing dated articles without touching GitHub or KV', async t => {
+    let calls = 0;
+    const paragraph = '想用 AI 完成一件小事，可以先说明需要什么结果。结果出来后，逐项看输入有没有用对，输出能不能打开。拿不准的地方先留着，不急着将它交给别人使用。';
+    const text = '让工具先做完一件具体的小事\n\n' + paragraph.repeat(7) + '\n\n## 参考资料\n\n- [研究](https://example.com/research)';
+    t.mock.method(globalThis, 'fetch', async (url, options = {}) => {
+        if (String(url).startsWith('https://api.github.com/')) assert.fail('dry-run checked or overwrote existing content');
+        if (String(url).startsWith('https://raw.githubusercontent.com/')) return new Response('# Claude 与衰老研究\n' + paragraph.repeat(7) + '\nhttps://example.com/research');
+        calls++;
+        return new Response(`data: ${JSON.stringify({type:'content_block_delta',delta:{type:'text_delta',text}})}\n\ndata: {"type":"message_stop"}\n\n`);
+    });
+    const result = await handleScheduledBlog({}, { USE_MODEL_PLATFORM:'ANTHROPIC', ANTHROPIC_API_BASE_URL:'https://model.invalid', ANTHROPIC_API_KEY:'placeholder', DEFAULT_ANTHROPIC_MODEL:'primary', GITHUB_TOKEN:'placeholder', GITHUB_REPO_OWNER:'owner', DATA_KV:{async put(){assert.fail('dry-run wrote status')}} }, {}, '2026-10-21', {dryRun:true});
+    assert.equal(result.success, true);
+    assert.equal(calls, 2);
+    assert.ok(result.results.every(item => item.status === 'preview'));
+});

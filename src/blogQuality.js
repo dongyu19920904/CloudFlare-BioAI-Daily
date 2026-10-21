@@ -1,7 +1,8 @@
 import knowledge from './prompt/blogAuthorKnowledge.json' with { type: 'json' };
+import { assessBlogReadability } from './blogReadability.js';
 
 const AI_SIGNAL_PATTERNS = [
-    /ChatGPT|GPT|OpenAI|Codex|Cursor|Claude|Gemini|Grok|Perplexity|MiniMax/i,
+    /ChatGPT|GPT|OpenAI|Codex|Cursor|Claude|Gemini|Grok|Perplexity|MiniMax|Graphify|AI\s*(?:编程|工具)/i,
     /agent|coding|IDE|API|模型|中转|镜像|账号|发卡|额度|客服|售后|教程|自动化|一人公司/i,
 ];
 
@@ -374,6 +375,7 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     if (blogType === 'ai-daily' && (
         /(?:拦住|拦下|减少|降低|避免)[^。！？\n]{0,12}(?:大半|大多数|一半|很大一部分)[^。！？\n]{0,30}(?:理解偏差|失误|返工|错误)/.test(text) ||
         /显著(?:减少|降低)[^。！？\n]{0,10}(?:失误率|错误率|返工)/.test(text) ||
+        /(?:准确率|正确率)[^。！？\n]{0,40}(?:高很多|大幅(?:提高|提升)|提升很多)/.test(text) ||
         /(?:不是|不在)模型(?:问题|能力|智商)[^。！？\n]{0,15}(?:是|在)(?:沟通|表达|理解|使用者)/.test(text)
     )) {
         severe.push('unsupported_tool_effectiveness_claim');
@@ -392,6 +394,9 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     }
 
     if (blogType === 'bioai-daily') {
+        if (/目前[^。！？\n]{0,12}没有[^。！？\n]{0,12}统一的?临床标准/.test(text) && !/统一的?临床标准/.test(dailyContent || '')) {
+            severe.push('unsupported_bio_generalization');
+        }
         if (/生物利用度[^。！？\n]{0,90}(?<!不|不能|未必|不足以)(?:意味着|说明|证明|也就是说|代表)[^。！？\n]{0,50}(?:(?:吞服|口服|服用)剂量|吞服的药物)[^。！？\n]{0,30}(?:进入|吸收)/.test(text)) {
             severe.push('unsupported_bioavailability_interpretation');
         }
@@ -439,6 +444,9 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
         severe.push(`severe_long_sentences:${longSentences.severe.length}`);
     }
 
+    const readability = assessBlogReadability(body);
+    severe.push(...readability.severe);
+    warnings.push(...readability.warnings);
     const qualification = qualifyDailyForPersonalBlog(dailyContent, blogType);
     if (!qualification.eligible) {
         severe.push(`source_not_eligible:${qualification.reason}`);
