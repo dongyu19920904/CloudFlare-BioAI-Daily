@@ -47,8 +47,9 @@ test('source evidence preserves full matching sources with the same protected li
 });
 
 test('generic cognitive-bias AI debate is not a biomedical paper candidate', () => {
-    assert.equal(isBioDailyPaperCandidate({title:'AI debate and cognitive bias',text:'LLM debate helps human judges correct biases and cognition in general tasks.'}),false);
+    assert.equal(isBioDailyPaperCandidate({title:'AI debate and cognitive bias',text:'Organizing LLM debate helps human judges correct biases and cognition in general tasks.'}),false);
     assert.equal(isBioDailyPaperCandidate({title:'AI brain MRI for cognitive aging',text:'A neural network estimates brain age from human MRI.'}),true);
+    assert.equal(isBioDailyPaperCandidate({title:'AI predicts biological ageing',text:'Machine learning measures ageing.'}),true);
 });
 
 test('plain editing protects long source and image URLs with reusable short references', () => {

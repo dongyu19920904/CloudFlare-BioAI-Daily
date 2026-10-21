@@ -7,7 +7,7 @@ export function isBioDailyPaperCandidate(candidate, env = {}) {
     const text = `${candidate.title || ''}\n${candidate.text || ''}`;
     const agriculture = /\b(potato|plantvillage|crop|farming|agricultur\w*|leaf disease)\b/i.test(text);
     const biomedical = /\b(human|patient|clinical|mice|mouse|mammal\w*|drug discovery|alzheimer\w*|dementia)\b/i.test(text);
-    const biologicalObject = /\b(ag[ei]ng|longevity|senescen\w*|geroscience|healthspan|epigenetic|methylation|dementia|alzheimer\w*|parkinson\w*|brain|mri|eeg|neuroimag\w*|neuron\w*|protein\w*|ligand\w*|drug\w*|molecul\w*|genom\w*|genetic\w*|transcriptom\w*|cell\w*|tissue\w*|clinical|patient\w*|tumou?r\w*|cancer\w*|organ\w*|disease\w*|physiolog\w*|patholog\w*)\b/i.test(text);
+    const biologicalObject = /\b(ag(?:e)?ing|longevity|senescen\w*|geroscience|healthspan|epigenetic|methylation|dementia|alzheimer\w*|parkinson\w*|brain|mri|eeg|neuroimag\w*|neuron\w*|protein\w*|ligand\w*|drug\w*|molecul\w*|genom\w*|genetic\w*|transcriptom\w*|cell\w*|tissue\w*|clinical|patient\w*|tumou?r\w*|cancer\w*|organs?|disease\w*|physiolog\w*|patholog\w*)\b/i.test(text);
     return biologicalObject && (!agriculture || biomedical) && itemMatchesPapersCoolTopic({ title: candidate.title, summary: text }, env);
 }
 
