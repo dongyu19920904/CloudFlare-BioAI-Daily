@@ -61,7 +61,8 @@ jobs:
             const date = report?.date || new Date().toISOString().slice(0, 10);
             const title = `[Personal blog] Publication incomplete ${date}`;
             const existing = await github.rest.issues.listForRepo({...context.repo, state:'open', per_page:100});
-            const body = `Personal blog recovery did not complete. BioAI daily/opportunity/project tasks were not triggered.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nMissing: ${(report?.missing || ['See run log']).join(', ')}`;
+            const invisible = report?.publication?.pages?.filter(page => !page.visible).map(page => `${page.url} (HTTP ${page.status ?? 'network error'})`) || [];
+            const body = `Personal blog publication did not complete. BioAI daily/opportunity/project tasks were not triggered.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nMissing repository files: ${(report?.missing || ['See run log']).join(', ') || 'none'}\n\nNot visible online: ${invisible.join(', ') || 'See run log'}\n\nGenerated complete: ${report?.generatedComplete ?? 'unknown'}. Check frontend deployment or Actions availability before retrying generation.`;
             const issue = existing.data.find(item => item.title === title);
             if (issue) await github.rest.issues.createComment({...context.repo, issue_number:issue.number, body});
             else await github.rest.issues.create({...context.repo, title, body});

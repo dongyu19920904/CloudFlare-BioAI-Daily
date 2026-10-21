@@ -18,6 +18,22 @@ export function validateWorkerUrl(value) {
     return url.origin;
 }
 
+export async function checkPublishedBlogs(date, fetcher = fetch) {
+    validateTargetDate(date);
+    const pages = [];
+    for (const type of ['ai-daily', 'bioai-daily']) {
+        const url = `https://yuyu.aivora.cn/posts/${type}-${date}/`;
+        try {
+            const response = await fetcher(url, { signal: AbortSignal.timeout(30000) });
+            const html = response.ok ? await response.text() : '';
+            pages.push({ type, url, status: response.status, visible: response.ok && !response.redirected && /<article\b[^>]*\bid=["']article["']/.test(html) });
+        } catch {
+            pages.push({ type, url, status: null, visible: false, reason: 'network_error' });
+        }
+    }
+    return { success: pages.every(page => page.visible), pages };
+}
+
 async function githubFileExists(path) {
     const response = await fetch(`https://api.github.com/repos/dongyu19920904/astro-paper/contents/${path}?ref=main`, {
         headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'personal-blog-guard', ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}) },
@@ -53,6 +69,11 @@ async function main() {
             for (const path of paths) if (!await githubFileExists(path)) report.missing.push(path);
             report.success = report.missing.length === 0;
         }
+    }
+    report.generatedComplete = report.missing.length === 0;
+    if (mode === 'publish' && report.generatedComplete) {
+        report.publication = await checkPublishedBlogs(date);
+        report.success = report.success && report.publication.success;
     }
     await writeFile('personal-blog-report.json', JSON.stringify(report, null, 2) + '\n');
     console.log(JSON.stringify({ ...report, results: report.results.map(({ content, ...item }) => item) }, null, 2));
