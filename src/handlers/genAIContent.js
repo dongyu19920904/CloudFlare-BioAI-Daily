@@ -6,7 +6,7 @@ import { generateGenAiPageHtml } from '../htmlGenerators.js';
 import { dataSources } from '../dataFetchers.js'; // Import dataSources
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
 import { getSystemPromptSummarizationStepTwo } from "../prompt/summarizationPromptStepTwo";
-import { getSystemPromptDailyPlainEditing } from "../prompt/summarizationPromptStepThree";
+import { getSystemPromptDailyPlainEditing, getBioDailyEditingReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptPodcastFormatting, getSystemPromptShortPodcastFormatting } from '../prompt/podcastFormattingPrompt.js';
 import { getSystemPromptDailyAnalysis } from '../prompt/dailyAnalysisPrompt.js'; // Import new prompt
 import { getDailyReportContent } from '../github.js'; // 导入 getDailyReportContent
@@ -279,8 +279,8 @@ export async function handleGenAIContent(request, env) {
         let dailySummaryMarkdownContent = '';
 
         let fullPromptForCall3_System = getSystemPromptDailyPlainEditing();
-        const editInput = prepareBioDailyPlainEditingInput(outputOfCall2);
-        let fullPromptForCall3_User = editInput.prompt;
+        const editInput = prepareBioDailyPlainEditingInput(outputOfCall2, selectedContentItems);
+        let fullPromptForCall3_User = editInput.prompt + getBioDailyEditingReminder();
         let outputOfCall3 = null;
         console.log("Call 3 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall3_User.length);
         try {

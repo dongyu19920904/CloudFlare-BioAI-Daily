@@ -3,7 +3,7 @@ import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
-import { getSystemPromptDailyPlainEditing } from "../prompt/summarizationPromptStepThree";
+import { getSystemPromptDailyPlainEditing, getBioDailyEditingReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
 import { generateWithSourceGate } from "../opportunitySourceGate.js";
@@ -601,8 +601,9 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         // Reuse the summary call for a complete plain-language editorial pass.
         console.log(`[Scheduled] Editing plain-language daily and summary...`);
         let fullPromptForCall3_System = getSystemPromptDailyPlainEditing();
-        const editInput = prepareBioDailyPlainEditingInput(outputOfCall2);
-        let fullPromptForCall3_User = editInput.prompt;
+        const draftMarkdown = outputOfCall2;
+        const editInput = prepareBioDailyPlainEditingInput(outputOfCall2, selectedContentItems);
+        let fullPromptForCall3_User = editInput.prompt + getBioDailyEditingReminder();
         diagnostics.stage = 'editing';
         diagnostics.editingPromptCharacters = fullPromptForCall3_User.length + fullPromptForCall3_System.length;
         
@@ -622,7 +623,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         assertSafeGeoMarkdown(dailySummaryMarkdownContent, 'daily');
 
         if (options.dryRun) {
-            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent };
+            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent, draftMarkdown };
         }
 
         // 6. Commit to GitHub

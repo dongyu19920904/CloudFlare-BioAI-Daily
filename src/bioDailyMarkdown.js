@@ -82,10 +82,10 @@ export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
     return result;
 }
 
-export function prepareBioDailyPlainEditingInput(markdown) {
+export function prepareBioDailyPlainEditingInput(markdown, sourceItems = []) {
     const references = {};
     const byUrl = new Map();
-    const prompt = String(markdown || '').replace(/(\]\()(https?:\/\/[^\s)]+)(?=[\s)])/g, (_match, prefix, url) => {
+    let prompt = String(markdown || '').replace(/(\]\()(https?:\/\/[^\s)]+)(?=[\s)])/g, (_match, prefix, url) => {
         if (!byUrl.has(url)) {
             const id = `BIOAI_REF_${byUrl.size + 1}`;
             byUrl.set(url, id);
@@ -93,6 +93,14 @@ export function prepareBioDailyPlainEditingInput(markdown) {
         }
         return prefix + byUrl.get(url);
     });
+    // Thin sources need their original evidence, not another paraphrase of the draft.
+    const evidence = sourceItems.filter(text => typeof text === 'string' && text.length <= 1200 && [...byUrl.keys()].some(url => text.includes(url)))
+        .map(text => {
+            let protectedText = text;
+            for (const [url, id] of byUrl) protectedText = protectedText.replaceAll(url, id);
+            return protectedText;
+        });
+    if (evidence.length) prompt += '\n\n【短来源事实核查材料：仅核查已有条目，不新增新闻，不作为输出栏目】\n' + evidence.join('\n\n');
     return { prompt, references };
 }
 

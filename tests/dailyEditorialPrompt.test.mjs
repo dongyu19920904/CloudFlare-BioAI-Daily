@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { getSystemPromptSummarizationStepOne } from "../src/prompt/summarizationPromptStepZero.js";
 import { getBioDailyReadabilityReminder } from "../src/prompt/summarizationPromptStepZero.js";
-import { getSystemPromptSummarizationStepThree, getSystemPromptDailyPlainEditing } from "../src/prompt/summarizationPromptStepThree.js";
+import { getSystemPromptSummarizationStepThree, getSystemPromptDailyPlainEditing, getBioDailyEditingReminder } from "../src/prompt/summarizationPromptStepThree.js";
 import { readFileSync } from 'node:fs';
 import { callChatAPI } from '../src/chatapi.js';
 
@@ -65,9 +65,19 @@ test('scheduled and manual daily paths repeat the same brief after source materi
     assert.match(source, /let fullPromptForCall2_User =[^\n]+\+ getBioDailyReadabilityReminder\(\)/);
     assert.match(source, /let fullPromptForCall3_System = getSystemPromptDailyPlainEditing\(\)/);
     assert.match(source, /parseBioDailyPlainEditingResult\(outputOfCall3, outputOfCall2, editInput\.references\)/);
-    assert.match(source, /prepareBioDailyPlainEditingInput\(outputOfCall2\)/);
+    assert.match(source, /prepareBioDailyPlainEditingInput\(outputOfCall2, selectedContentItems\)/);
+    assert.match(source, /editInput.prompt \+ getBioDailyEditingReminder\(\)/);
     assert.doesNotMatch(source, /outputOfCall3 = removeMarkdownCodeBlock\(outputOfCall3\)/);
   }
+});
+
+test('final edit cross-checks thin evidence and cannot invent project upload workflows', () => {
+  const prompt=getSystemPromptDailyPlainEditing();
+  assert.match(prompt,/原始素材.*优先于草稿/);
+  assert.match(prompt,/数据上传、脑区可视化、无需安装/);
+  assert.match(prompt,/阴性结果仍用白话保留/);
+  assert.match(getBioDailyEditingReminder(),/每行24-44字/);
+  assert.match(getBioDailyEditingReminder(),/术语解释不等于允许推断新事实/);
 });
 
 test('the existing summary call also edits the full daily without adding a third call', () => {

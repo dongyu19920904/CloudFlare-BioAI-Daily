@@ -31,6 +31,20 @@ test('only TOP news has ranking numbers, not following product or project headin
     assert.doesNotMatch(result,/### 11\./);
 });
 
+test('thin source evidence uses the same protected links without adding unrelated candidates', () => {
+    const original='## 今日焦点 TOP 1\n\n### 1. 工具\n\n[项目](https://github.com/test/age)';
+    const input=prepareBioDailyPlainEditingInput(original,[
+        'Project Name: age\nUrl: https://github.com/test/age\nDescription: estimates age',
+        'Project Name: unrelated\nUrl: https://github.com/test/other',
+        'Url: https://github.com/test/age\n'+'x'.repeat(1200),
+    ]);
+    assert.match(input.prompt,/短来源事实核查材料/);
+    assert.match(input.prompt,/Description: estimates age/);
+    assert.match(input.prompt,/Url: BIOAI_REF_1/);
+    assert.doesNotMatch(input.prompt,/unrelated|https:\/\//);
+    assert.equal(Object.keys(input.references).length,1);
+});
+
 test('plain editing protects long source and image URLs with reusable short references', () => {
     const original='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n据[报道](https://example.org/long-path?oc=5&x=123)，结果待核实。\n\n[![原图](https://example.org/a.jpg "原图")](https://example.org/long-path?oc=5&x=123)';
     const input=prepareBioDailyPlainEditingInput(original);
