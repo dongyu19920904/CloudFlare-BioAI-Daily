@@ -1,4 +1,4 @@
-import { callChatAPI } from './chatapi.js';
+import { callChatAPI, resolveAnthropicConfig } from './chatapi.js';
 
 // Bounded connectivity probe: no source fetching, publication, or KV writes.
 export async function probeModelConnection(env, route, callModel = callChatAPI) {
@@ -11,11 +11,16 @@ export async function probeModelConnection(env, route, callModel = callChatAPI) 
     }
 
     const model = models[route];
+    const config = resolveAnthropicConfig(env)[route];
+    const apiKey = route === 'backup' ? env.ANTHROPIC_BACKUP_API_KEY : env.ANTHROPIC_API_KEY;
+    if (!config.messagesUrl || !apiKey) return { ok: false, route, error: 'route_not_configured' };
     const started = Date.now();
     try {
         const scoped = {
             ...env,
             USE_MODEL_PLATFORM: 'ANTHROPIC',
+            ANTHROPIC_API_BASE_URL: config.messagesUrl,
+            ANTHROPIC_API_KEY: apiKey,
             DEFAULT_ANTHROPIC_MODEL: model,
             DEFAULT_ANTHROPIC_BACKUP_MODEL: model,
             ANTHROPIC_BACKUP_MODEL: model,
@@ -25,21 +30,25 @@ export async function probeModelConnection(env, route, callModel = callChatAPI) 
             OPENAI_FALLBACK_ENABLED: 'false',
             GEMINI_FALLBACK_ENABLED: 'false',
             ANTHROPIC_RETRY_MAX: '0',
-            ANTHROPIC_MAX_TOKENS: '64',
+            ANTHROPIC_MAX_TOKENS: '256',
+            ANTHROPIC_REQUEST_TIMEOUT_MS: '20000',
+            ANTHROPIC_NATIVE_SYSTEM_PROMPT: true,
         };
-        const answer = await callModel(scoped, 'Reply with exactly OK.');
+        const answer = await callModel(scoped, 'Reply with exactly OK.', 'Return only OK, without commentary.');
         return {
             ok: /^OK[.!！。]?$/i.test(String(answer).trim()),
             route,
             requestedModel: model,
             milliseconds: Date.now() - started,
         };
-    } catch {
+    } catch (error) {
         return {
             ok: false,
             route,
             requestedModel: model,
             error: 'model_call_failed',
+            status: Number.isInteger(error?.status) ? error.status : null,
+            timedOut: error?.name === 'AbortError',
             milliseconds: Date.now() - started,
         };
     }
