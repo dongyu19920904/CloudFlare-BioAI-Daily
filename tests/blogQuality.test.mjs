@@ -200,3 +200,16 @@ test('editorial checks reject invented operating duration and unsupported safety
         assert.ok(result.severe.includes(code));
     }
 });
+
+test('a personable opening cannot invent author habits or a costly coding mistake', () => {
+    for (const opening of [
+        '我有一个习惯：改动任何东西之前，先想会影响哪里。',
+        '不是谨慎，是因为吃过亏。改了一个函数名，跑起来才报错。',
+        '我踩过坑，所以这次建议先列出相关文件。',
+    ]) {
+        const result = validateBlogDraft({title:'改代码前先列出相关文件',body:opening,dailyContent:aiDaily,blogType:'ai-daily'});
+        assert.ok(result.severe.includes('unsupported_author_tool_routine'));
+    }
+    const judgment = validateBlogDraft({title:'改代码前先列出相关文件',body:'我在意的是改动会影响哪里，因为这决定下一步该检查什么。假设你改了函数名，需要检查调用它的地方。',dailyContent:aiDaily,blogType:'ai-daily'});
+    assert.equal(judgment.severe.includes('unsupported_author_tool_routine'), false);
+});
