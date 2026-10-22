@@ -59,3 +59,10 @@ test('plain language never licenses unsupported accuracy or field-wide clinical 
     const bio = validateBlogDraft({...base, blogType:'bioai-daily', body:'目前没有一个统一的临床标准。'.repeat(25)});
     assert.ok(bio.severe.includes('unsupported_bio_generalization'));
 });
+
+test('conversational openings do not invent learning history or impossible comparisons', () => {
+    const base = { title: '普通人怎样读懂新的研究结果', dailyContent: 'Claude 和脑年龄研究公开了方法。'.repeat(30), body: '具体事实和适用条件需要放在一起看。'.repeat(35) };
+    assert.ok(validateBlogDraft({ ...base, blogType: 'ai-daily', body: '刚开始用 AI 写代码的时候，我以为它什么都懂。后来才知道它也会猜。' + base.body }).severe.includes('unsupported_author_tool_routine'));
+    assert.ok(validateBlogDraft({ ...base, blogType: 'bioai-daily', body: 'AI 看扫描，比你自己填的年龄还准。' + base.body }).severe.includes('unsupported_age_comparison'));
+    assert.ok(!validateBlogDraft({ ...base, blogType: 'bioai-daily', body: '不能说模型比自己填的年龄更准。' + base.body }).severe.includes('unsupported_age_comparison'));
+});

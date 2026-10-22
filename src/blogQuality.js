@@ -385,6 +385,12 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     if (UNSUPPORTED_AUTHOR_TOOL_ROUTINE_PATTERNS.some(pattern => pattern.test(text))) {
         severe.push('unsupported_author_tool_routine');
     }
+    if (/刚开始[^。！？\n]{0,45}我以为|我(?:起初|以前|原来)[^。！？\n]{0,30}以为|后来(?:我)?才知道/.test(text) && !severe.includes('unsupported_author_tool_routine')) {
+        severe.push('unsupported_author_tool_routine');
+    }
+    if (blogType === 'bioai-daily' && text.split(/[。！？\n]/).some(sentence => /比[^。！？\n]{0,15}(?:自己填|自己报|身份证)[^。！？\n]{0,12}(?:更?准|准确)/.test(sentence) && !/不能|不是|并不|不代表|并非/.test(sentence))) {
+        severe.push('unsupported_age_comparison');
+    }
     if (blogType === 'ai-daily' && (
         /(?:拦住|拦下|减少|降低|避免)[^。！？\n]{0,12}(?:大半|大多数|一半|很大一部分)[^。！？\n]{0,30}(?:理解偏差|失误|返工|错误)/.test(text) ||
         /显著(?:减少|降低)[^。！？\n]{0,10}(?:失误率|错误率|返工)/.test(text) ||
