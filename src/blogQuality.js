@@ -176,7 +176,7 @@ function removeTableOfContents(markdown) {
 export function normalizeGeneratedMarkdown(markdown, allowedUrls = []) {
     const parts = removeTableOfContents(markdown).split(/(^##\s+参考资料\s*$)/m);
     if (parts.length >= 3) {
-        parts[2] = parts[2].replace(/^(\s*(?:[-*]|\d+\.)?\s*)(https?:\/\/[^\s<>]+)\s*$/gm, (line, prefix, url) => {
+        parts[2] = parts[2].replace(/^([^\n[]*?)(https?:\/\/[^\s<>]+)\s*$/gm, (line, prefix, url) => {
             const cleaned = cleanUrl(url);
             return isAllowedUrl(cleaned, allowedUrls) ? `${prefix}[来源原文](${cleaned})` : line;
         });

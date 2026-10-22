@@ -8,6 +8,7 @@ test('a bare approved reference becomes a real link without inventing a source',
     const url = 'https://arxiv.org/abs/2610.28411';
     const result = normalizeGeneratedMarkdown('文章正文。\n\n## 参考资料\n\n- ' + url, [url]);
     assert.ok(result.includes(`[来源原文](${url})`));
+    assert.ok(normalizeGeneratedMarkdown('## 参考资料\n- 论文摘要：' + url, [url]).includes(`[来源原文](${url})`));
     assert.equal(normalizeGeneratedMarkdown(result, [url]), result);
     assert.ok(!normalizeGeneratedMarkdown('## 参考资料\nhttps://unapproved.invalid/research', [url]).includes('[来源原文]'));
 });

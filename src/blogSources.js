@@ -1,7 +1,7 @@
 import { extractUrls } from './blogQuality.js';
 
 const MAX_BYTES = 256 * 1024;
-const MAX_CHARS = 16000;
+const MAX_CHARS = 6000;
 
 export function resolveBlogSource(url) {
     let parsed;
@@ -69,8 +69,9 @@ export async function buildBlogSourceContext(material, env = {}, fetcher = fetch
             const raw = await readLimited(response);
             const text = source.kind === 'abstract' ? await readAbstract(raw) : raw;
             if (text.trim().length < 100 || source.kind === 'readme' && /^\s*(?:<!doctype\s+html|<html[\s>])/i.test(text)) throw new Error('source_not_readable');
-            const truncated = text.length > MAX_CHARS;
-            const excerpt = truncated ? `${text.slice(0, 11000)}\n[中间部分省略，不得推断缺失内容不存在]\n${text.slice(-5000)}` : text;
+            const prose = source.kind === 'readme' ? text.replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm, '[安装与代码示例省略]').split('\n').filter(line => !/^\s*(?:<|!\[)/.test(line)).join('\n') : text;
+            const truncated = prose !== text || prose.length > MAX_CHARS;
+            const excerpt = prose.length > MAX_CHARS ? `${prose.slice(0, 4000)}\n[中间部分省略，不得推断缺失内容不存在]\n${prose.slice(-2000)}` : prose;
             const accessRestricted = source.kind === 'readme' && text.split(/\n\s*\n/).some(paragraph =>
                 /weights?|checkpoints?|our model/i.test(paragraph) && /by request|request.{0,50}access|access.{0,50}request|apply for access|approval|approved/i.test(paragraph));
             receipts.push({ url: source.url, kind: source.kind, status: 'read', truncated, accessRestricted, text: excerpt });
