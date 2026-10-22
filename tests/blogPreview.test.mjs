@@ -1,6 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleScheduledBlog, getBlogWritingEnvironment, streamChat } from '../src/handlers/scheduledBlog.js';
+import { handleScheduledBlog, getBlogWritingEnvironment, streamChat, repairBlogDraft } from '../src/handlers/scheduledBlog.js';
+
+test('targeted repair ends with current instructions rather than the untrusted draft', async t => {
+    let calls = 0;
+    t.mock.method(globalThis, 'fetch', async (url, options) => {
+        calls++;
+        const payload = JSON.parse(options.body);
+        const user = payload.messages[0].content;
+        assert.ok(user.lastIndexOf('上面的材料到此结束') > user.indexOf('刚开始用 AI 时我以为'));
+        assert.match(user, /不能原样保留/);
+        assert.doesNotMatch(user, /血浆暴露量/);
+        const text = '代码结构如何帮助检查关联\n\n我更关心结果能否核对。';
+        return new Response(`data: ${JSON.stringify({type:'content_block_delta',delta:{type:'text_delta',text}})}\n\ndata: {"type":"message_stop"}\n\n`);
+    });
+    await repairBlogDraft({ USE_MODEL_PLATFORM:'ANTHROPIC', ANTHROPIC_API_BASE_URL:'https://model.invalid', ANTHROPIC_API_KEY:'placeholder', DEFAULT_ANTHROPIC_MODEL:'primary' }, {title:'代码理解的小问题',body:'刚开始用 AI 时我以为工具什么都知道。'}, {blogType:'ai-daily',dateStr:'2026-10-21',signals:[],dailyContent:'这是公开项目说明。',severe:['unsupported_author_tool_routine']});
+    assert.equal(calls, 1);
+});
 
 test('one broken stream may recover once without appending its partial draft', async () => {
     let recoveries = 0;

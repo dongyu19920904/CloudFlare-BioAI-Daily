@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectBlogWritingMaterial } from '../src/blogTopic.js';
+import { selectBlogWritingMaterial, getBlogReaderBrief } from '../src/blogTopic.js';
+
+test('the reader question separates age estimates from classification and code use from benchmarks', () => {
+    assert.match(getBlogReaderBrief('Brain2Vec 在脑年龄与五项分类任务上评估。', 'bioai-daily'), /不同任务/);
+    assert.match(getBlogReaderBrief('Codex 代码库中的相关关系。', 'ai-daily'), /怎样弄清还会影响哪些地方/);
+    assert.doesNotMatch(getBlogReaderBrief('健康研究的新结果。', 'bioai-daily'), /脑年龄|冻结嵌入/);
+});
 import { qualifyDailyForPersonalBlog } from '../src/blogQuality.js';
 
 test('AI writing prefers an actionable tool over opening MAU commentary', () => {
