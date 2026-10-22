@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleBioDailyMarkdown, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, assertBioDailyBodySources, parseBioDailySummary, prepareBioDailyPlainEditingInput, parseBioDailyPlainEditingResult, buildBioDailyCandidateBudget, readBioDailyPreviewCache, restoreBioDailySourceMedia, isBioDailyPaperCandidate, deduplicateBioDailyNews } from '../src/bioDailyMarkdown.js';
 import { getSystemPromptSummarizationStepOne } from '../src/prompt/summarizationPromptStepZero.js';
 
 test('daily assembly preserves source, evidence and media but removes the generated preamble', () => {
@@ -9,6 +9,80 @@ test('daily assembly preserves source, evidence and media but removes the genera
     assert.ok(output.endsWith(body));
     assert.equal((output.match(/## \*\*今日摘要\*\*/g) || []).length, 1);
     assert.doesNotMatch(output, /快速导航|旧前言|今日ai资讯|utm_campaign/);
+});
+
+test('body source validation allows selection, but rejects missing or invented URLs', () => {
+    const body = '## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n据[报道](https://example.org/study?a=1)，发现有待确认。';
+    const sources = ['Source: https://example.org/study?a=1\nTitle: research', 'Unused: https://example.org/unused'];
+    assert.doesNotThrow(() => assertBioDailyBodySources(body, sources));
+    assert.doesNotThrow(() => assertBioDailyBodySources(body, ['The source is https://example.org/study?a=1. More details.']));
+    assert.doesNotThrow(() => assertBioDailyBodySources(body, ['See https://example.org/study?a=1, for evidence.']));
+    assert.throws(() => assertBioDailyBodySources(body.replace('?a=1', '?a=2'), sources), /source URL/);
+    assert.throws(() => assertBioDailyBodySources(body + '\n\n### 2. 无来源\n研究。', sources), error => {
+        assert.deepEqual(error.dailySourceDiagnostics, {item:2,reason:'missing_source'});
+        return /omitted a source/.test(error.message);
+    });
+    assert.throws(() => assertBioDailyBodySources('只有一句话。', sources), /TOP section/);
+    assert.throws(() => assertBioDailyBodySources(body, ['https://example.org/study?a=12']), /source URL/);
+});
+
+test('summary parser accepts only three complete plain-text lines', () => {
+    assert.equal(parseBioDailySummary('```text\n研究新发现。\n另一项进展。\n结果仍需验证。\n```'), '研究新发现。\n另一项进展。\n结果仍需验证。');
+    assert.throws(() => parseBioDailySummary('只有一句。'), /three plain-text lines/);
+    assert.throws(() => parseBioDailySummary('甲\n乙\n丙\n## 正文'), /three plain-text lines/);
+    assert.throws(() => parseBioDailySummary('甲\n乙\n[新链接](https://invented.org)'), /three plain-text lines/);
+});
+
+test('plain editing extracts the complete short edition and preserves the source set', () => {
+    const original = '## **🔥 今日焦点 TOP 1**\n\n### 1. 原稿\n[媒体报道](https://example.org/study)研究较复杂。';
+    const body = '## **🔥 今日焦点 TOP 1**\n\n### 1. 小鼠研究有新发现\n据[报道](https://example.org/study)，小鼠中观察到变化，还不能推到人体。';
+    const edited = parseBioDailyPlainEditingResult('## **今日摘要**\n\n```\n事实。\n变化。\n限制。\n```\n\n' + body, original);
+    assert.equal(edited.body, body);
+    assert.equal(edited.summary, '事实。\n变化。\n限制。');
+    assert.deepEqual(parseBioDailyPlainEditingResult('```markdown\n## **今日摘要**\n\n```text\n事实。\n变化。\n限制。\n```\n\n' + body + '\n```', original), edited);
+    assert.throws(() => parseBioDailyPlainEditingResult('只有三句话。', original), /complete body/);
+    assert.throws(() => parseBioDailyPlainEditingResult('## **今日摘要**\n```\n甲\n乙\n丙\n```\n' + body.replace('example.org', 'invented.org'), original), /source URL/);
+    assert.throws(() => parseBioDailyPlainEditingResult('## **今日摘要**\n```\n甲\n乙\n丙\n```\n## **🔥 今日焦点 TOP 1**\n### 1. 无来源\n没有链接。', original), /source URL/);
+});
+
+test('only TOP news has ranking numbers, not following product or project headings', () => {
+    const input='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n[报道](https://example.org/a)结果。\n\n## **⌘ 开源 TOP 项目**\n\n### 11. 工具\n[仓库](https://github.com/example/tool)用途。';
+    const result=deduplicateBioDailyNews(input);
+    assert.match(result,/### 1\. 研究/);
+    assert.match(result,/### 工具/);
+    assert.doesNotMatch(result,/### 11\./);
+});
+
+test('source evidence preserves full matching sources with the same protected links', () => {
+    const original='## 今日焦点 TOP 1\n\n### 1. 工具\n\n[项目](https://github.com/test/age)';
+    const input=prepareBioDailyPlainEditingInput(original,[
+        'Project Name: age\nUrl: https://github.com/test/age\nDescription: estimates age',
+        'Project Name: unrelated\nUrl: https://github.com/test/other',
+        'Url: https://github.com/test/age\nFull evidence: '+'x'.repeat(1200),
+    ]);
+    assert.match(input.prompt,/原始来源事实核查材料/);
+    assert.match(input.prompt,/Full evidence: x{1200}/);
+    assert.match(input.prompt,/Description: estimates age/);
+    assert.match(input.prompt,/Url: BIOAI_REF_1/);
+    assert.doesNotMatch(input.prompt,/unrelated|https:\/\//);
+    assert.equal(Object.keys(input.references).length,1);
+});
+
+test('generic cognitive-bias AI debate is not a biomedical paper candidate', () => {
+    assert.equal(isBioDailyPaperCandidate({title:'AI debate and cognitive bias',text:'Organizing LLM debate helps human judges correct biases and cognition in general tasks.'}),false);
+    assert.equal(isBioDailyPaperCandidate({title:'AI brain MRI for cognitive aging',text:'A neural network estimates brain age from human MRI.'}),true);
+    assert.equal(isBioDailyPaperCandidate({title:'AI predicts biological ageing',text:'Machine learning measures ageing.'}),true);
+});
+
+test('plain editing protects long source and image URLs with reusable short references', () => {
+    const original='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究\n据[报道](https://example.org/long-path?oc=5&x=123)，结果待核实。\n\n[![原图](https://example.org/a.jpg "原图")](https://example.org/long-path?oc=5&x=123)';
+    const input=prepareBioDailyPlainEditingInput(original);
+    assert.doesNotMatch(input.prompt,/https?:/);
+    assert.equal(Object.keys(input.references).length,2);
+    const response='## **今日摘要**\n```\n甲\n乙\n丙\n```\n'+input.prompt;
+    const edited=parseBioDailyPlainEditingResult(response,original,input.references);
+    assert.equal(edited.body,original);
+    assert.throws(()=>parseBioDailyPlainEditingResult(response.replace('BIOAI_REF_1','BIOAI_REF_999'),original,input.references),/invented a source reference/);
 });
 
 test('assembly keeps optional columns and does not manufacture unavailable material', () => {
@@ -81,6 +155,17 @@ test('duplicate TOP sources are removed and remaining ranks/count stay truthful'
     const output = deduplicateBioDailyNews('## **🔥 今日焦点 TOP 2**\n\n### 1. 甲\n[甲](https://example.org/a)\n\n### 2. 又甲\n[甲](https://example.org/a)');
     assert.match(output, /TOP 1/);
     assert.doesNotMatch(output, /### 2\./);
+});
+
+test('every source link in a merged story participates in cross-column deduplication', () => {
+    const input='## **🔥 今日焦点 TOP 1**\n\n### 1. 研究和代码\n[论文](https://example.org/paper)与[仓库](https://github.com/example/brain)对应同一事件。\n\n## **⌘ 开源 TOP 项目**\n\n### 重复代码\n[仓库](https://github.com/example/brain?utm_source=test)又介绍一遍。\n\n### 独立项目\n[其他仓库](https://github.com/example/other)功能。';
+    const output=deduplicateBioDailyNews(input);
+    assert.doesNotMatch(output,/重复代码|又介绍一遍/);
+    assert.match(output,/研究和代码/);
+    assert.match(output,/独立项目/);
+    assert.match(output,/https:\/\/github.com\/example\/brain/);
+    assert.match(output,/https:\/\/example.org\/paper/);
+    assert.equal(deduplicateBioDailyNews(output),output);
 });
 
 test('TOP reading removes explicit cross-reference placeholders and repairs duplicate numbering', () => {

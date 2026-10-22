@@ -2,15 +2,16 @@
 import { getISODate, escapeHtml, stripHtml, removeMarkdownCodeBlock, formatDateToChinese, convertEnglishQuotesToChinese, convertPlaceholdersToMarkdownImages} from '../helpers.js';
 import { getFromKV } from '../kv.js';
 import { callChatAPIStream } from '../chatapi.js';
+import { generateDailyMarkdownWithFallback } from '../dailyModelGeneration.js';
 import { generateGenAiPageHtml } from '../htmlGenerators.js';
 import { dataSources } from '../dataFetchers.js'; // Import dataSources
-import { getSystemPromptSummarizationStepOne } from "../prompt/summarizationPromptStepZero";
+import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
 import { getSystemPromptSummarizationStepTwo } from "../prompt/summarizationPromptStepTwo";
-import { getSystemPromptSummarizationStepThree } from "../prompt/summarizationPromptStepThree";
+import { getSystemPromptSummarizationStepThree, getBioDailySummaryReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptPodcastFormatting, getSystemPromptShortPodcastFormatting } from '../prompt/podcastFormattingPrompt.js';
 import { getSystemPromptDailyAnalysis } from '../prompt/dailyAnalysisPrompt.js'; // Import new prompt
 import { getDailyReportContent } from '../github.js'; // 导入 getDailyReportContent
-import { assembleBioDailyMarkdown, getBioDailyMediaUrl, restoreBioDailySourceMedia } from '../bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, assertBioDailyBodySources, parseBioDailySummary, getBioDailyMediaUrl, restoreBioDailySourceMedia } from '../bioDailyMarkdown.js';
 
 export async function handleGenAIPodcastScript(request, env) {
     let dateStr;
@@ -179,7 +180,7 @@ export async function handleGenAIContent(request, env) {
                         itemText = `News Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nContent Summary: ${stripHtml(item.details.content_html)}`;
                         break;
                     case 'project':
-                        itemText = `Project Name: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
+                        itemText = `Project Name: ${item.title}\nLast activity observed (not creation or release): ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
                         break;
                     case 'paper':
                         itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
@@ -248,15 +249,11 @@ export async function handleGenAIContent(request, env) {
         // Call 2: Process outputOfCall1
         let outputOfCall2 = null;
         let fullPromptForCall2_System = getSystemPromptSummarizationStepOne(dateStr); // Re-using summarization prompt for now
-        let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n'; // Input for Call 2 is output of Call 1
+        let fullPromptForCall2_User = '\n\n------\n\n'+selectedContentItems.join('\n\n------\n\n')+'\n\n------\n\n' + getBioDailyReadabilityReminder();
 
         console.log("Call 2 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall2_User.length);
         try {
-            let processedChunks = [];
-            for await (const chunk of callChatAPIStream(env, fullPromptForCall2_User, fullPromptForCall2_System)) {
-                processedChunks.push(chunk);
-            }
-            outputOfCall2 = processedChunks.join('');
+            outputOfCall2 = await generateDailyMarkdownWithFallback(env, fullPromptForCall2_User, fullPromptForCall2_System, 'ManualDailyBody');
             if (!outputOfCall2 || outputOfCall2.trim() === "") throw new Error("Chat processing call returned empty content.");
             outputOfCall2 = removeMarkdownCodeBlock(outputOfCall2); // Clean the output
             outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
@@ -278,25 +275,23 @@ export async function handleGenAIContent(request, env) {
 
         let dailySummaryMarkdownContent = '';
 
-        let fullPromptForCall3_System = getSystemPromptSummarizationStepThree(); // Re-using summarization prompt for now
-        let fullPromptForCall3_User = outputOfCall2; // Input for Call 2 is output of Call 1
+        assertBioDailyBodySources(outputOfCall2, selectedContentItems);
+        let fullPromptForCall3_System = getSystemPromptSummarizationStepThree();
+        let fullPromptForCall3_User = outputOfCall2 + getBioDailySummaryReminder();
         let outputOfCall3 = null;
         console.log("Call 3 to Chat (Processing Call 1 Output): User prompt length:", fullPromptForCall3_User.length);
         try {
-            let processedChunks = [];
-            for await (const chunk of callChatAPIStream(env, fullPromptForCall3_User, fullPromptForCall3_System)) {
-                processedChunks.push(chunk);
-            }
-            outputOfCall3 = processedChunks.join('');
+            outputOfCall3 = await generateDailyMarkdownWithFallback(env, fullPromptForCall3_User, fullPromptForCall3_System, 'ManualDailySummary');
             if (!outputOfCall3 || outputOfCall3.trim() === "") throw new Error("Chat processing call returned empty content.");
-            outputOfCall3 = removeMarkdownCodeBlock(outputOfCall3); // Clean the output
+            outputOfCall3 = String(outputOfCall3 || '').trim();
             console.log("Call 3 (Processing Call 2 Output) successful. Output length:", outputOfCall3.length);
         } catch (error) {
             console.error("Error in Chat API Call 3 (Processing Call 2 Output):", error);
             const errorHtml = generateGenAiPageHtml(env, '生成AI日报出错(摘要)', `<p><strong>Failed during processing of summarized content:</strong> ${escapeHtml(error.message)}</p>${error.stack ? `<pre>${escapeHtml(error.stack)}</pre>` : ''}`, dateStr, true, selectedItemsParams, fullPromptForCall3_System, fullPromptForCall3_User);
             return new Response(errorHtml, { status: 500, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         }
-        dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, outputOfCall3, env);
+        const summary = parseBioDailySummary(outputOfCall3);
+        dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, summary, env);
 
         const successHtml = generateGenAiPageHtml(
             env, 

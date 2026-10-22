@@ -266,7 +266,8 @@ function canUseAnthropicFallback(env) {
 }
 
 function canUseOpenAIFallback(env) {
-    return Boolean(getOpenAIBaseUrl(env) && env.OPENAI_API_KEY);
+    const disabled = /^(false|0|off|no)$/i.test(String(env.OPENAI_FALLBACK_ENABLED ?? '').trim());
+    return !disabled && Boolean(getOpenAIBaseUrl(env) && env.OPENAI_API_KEY);
 }
 
 function getAnthropicRequestTimeoutMs(env) {
@@ -336,8 +337,10 @@ async function postAnthropicWithBaseUrlFallback(env, payload) {
     const debugLog = (message, meta) => console.warn(`[Anthropic retry] ${message}`, meta || {});
 
     let lastError = null;
+    const routeFailures = [];
     for (let index = 0; index < routes.length; index++) {
         const route = routes[index];
+        const started = Date.now();
         const url = route.messagesUrl;
         const effectivePayload = {
             ...payload,
@@ -360,6 +363,13 @@ async function postAnthropicWithBaseUrlFallback(env, payload) {
             return response;
         } catch (error) {
             lastError = error;
+            routeFailures.push({
+                role: route.role,
+                status: Number.isInteger(error?.status) ? error.status : null,
+                kind: error?.name === 'AbortError' ? 'timeout' : Number.isInteger(error?.status) ? 'http_error' : 'network_error',
+                milliseconds: Date.now() - started,
+            });
+            error.modelRouteFailures = routeFailures;
             const hasNext = index < routes.length - 1;
             if (!hasNext || !shouldTryNextAnthropicRoute(error)) {
                 throw error;
@@ -1225,8 +1235,11 @@ async function callAnthropicChatAPI(env, promptText, systemPromptText = null) {
     };
 
     if (systemPromptText && systemPromptText.trim() !== '') {
-        // Anthropic 涓浆涓嶆敮鎸?system 鍙傛暟锛屽皢鍏惰瀺鍏?user 娑堟伅
-        payload.messages[0].content = `${systemPromptText}\n\n${promptText}`;
+        if (env.ANTHROPIC_NATIVE_SYSTEM_PROMPT === true) {
+            payload.system = systemPromptText;
+        } else {
+            payload.messages[0].content = `${systemPromptText}\n\n${promptText}`;
+        }
     }
 
     try {
