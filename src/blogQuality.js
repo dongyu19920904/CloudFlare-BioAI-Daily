@@ -174,7 +174,14 @@ function removeTableOfContents(markdown) {
 }
 
 export function normalizeGeneratedMarkdown(markdown, allowedUrls = []) {
-    const withoutToc = removeTableOfContents(markdown);
+    const parts = removeTableOfContents(markdown).split(/(^##\s+参考资料\s*$)/m);
+    if (parts.length >= 3) {
+        parts[2] = parts[2].replace(/^(\s*(?:[-*]|\d+\.)?\s*)(https?:\/\/[^\s<>]+)\s*$/gm, (line, prefix, url) => {
+            const cleaned = cleanUrl(url);
+            return isAllowedUrl(cleaned, allowedUrls) ? `${prefix}[来源原文](${cleaned})` : line;
+        });
+    }
+    const withoutToc = parts.join('');
     return withoutToc
         .replace(/!\[([^\]]*)]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']+["'])?\)/gi, (match, alt, url) => {
             const cleanedUrl = cleanUrl(url);
@@ -327,10 +334,9 @@ function countMainSiteLinks(markdown) {
 }
 
 export function classifyLongSentences(markdown) {
-    const text = stripMarkdown(markdown);
-    const sentences = text
-        .split(/(?<=[。！？!?])/)
-        .map(sentence => sentence.trim())
+    const sentences = String(markdown || '')
+        .split(/\n\s*\n|(?<=[。！？!?])/)
+        .map(sentence => stripMarkdown(sentence))
         .filter(Boolean);
 
     const warnings = sentences.filter(sentence => sentence.length >= 90 && sentence.length < 170);
@@ -339,11 +345,18 @@ export function classifyLongSentences(markdown) {
     return { warnings, severe };
 }
 
-export function validateBlogDraft({ title, body, dailyContent, blogType, allowedUrls = [], dateStr = null }) {
+export function validateBlogDraft({ title, body, dailyContent, blogType, allowedUrls = [], dateStr = null, sourceReceipts = [] }) {
     const severe = [];
     const warnings = [];
     const normalizedAllowedUrls = [...new Set([...allowedUrls, ...extractUrls(dailyContent)])];
     const text = stripMarkdown(body);
+
+    if (sourceReceipts.some(source => source.status === 'read' && source.accessRestricted) &&
+        text.split(/[。！？\n]/).some(sentence =>
+            /(?:权重|检查点)[^。！？\n]{0,15}(?:已开源|已经开源|完全开源|自由下载|无需申请|直接下载|任意下载)/.test(sentence) &&
+            !/不能|不是|不等于|并非|不代表|不意味着|误写|说法|并未/.test(sentence))) {
+        severe.push('source_access_overclaim');
+    }
 
     if (!title || title.trim().length < 6 || title.length > 34) {
         severe.push('bad_title_length');

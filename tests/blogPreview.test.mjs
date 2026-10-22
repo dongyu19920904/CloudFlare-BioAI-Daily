@@ -1,6 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleScheduledBlog } from '../src/handlers/scheduledBlog.js';
+import { handleScheduledBlog, getBlogWritingEnvironment, streamChat } from '../src/handlers/scheduledBlog.js';
+
+test('one broken stream may recover once without appending its partial draft', async () => {
+    let recoveries = 0;
+    const clients = {
+        async *stream(env) {
+            assert.equal(env.ANTHROPIC_MAX_TOKENS, 6000);
+            yield 'discard this partial draft';
+            throw new Error('Network connection lost.');
+        },
+        async nonStream() { recoveries++; return 'complete replacement'; },
+    };
+    assert.equal(await streamChat({}, 'input', 'system', clients), 'complete replacement');
+    assert.equal(recoveries, 1);
+    await assert.rejects(streamChat({}, 'input', 'system', { ...clients, async *stream() { throw new Error('HTTP 401'); } }), /401/);
+    assert.equal(recoveries, 1);
+});
+
+test('personal writing can use the configured backup without mutating other tasks or leaking keys', () => {
+    const env = Object.freeze({ USE_MODEL_PLATFORM: 'ANTHROPIC', ANTHROPIC_API_BASE_URL: 'https://primary.invalid', ANTHROPIC_API_KEY: 'primary-key', DEFAULT_ANTHROPIC_MODEL: 'primary', ANTHROPIC_BACKUP_API_BASE_URL: 'https://backup.invalid', ANTHROPIC_BACKUP_API_KEY: 'backup-key', DEFAULT_ANTHROPIC_BACKUP_MODEL: 'backup' });
+    const selected = getBlogWritingEnvironment(env);
+    assert.equal(selected.DEFAULT_ANTHROPIC_MODEL, 'backup');
+    assert.equal(selected.ANTHROPIC_API_KEY, 'backup-key');
+    assert.equal(selected.ANTHROPIC_API_BASE_URL, 'https://backup.invalid/v1/messages');
+    assert.equal(selected.ANTHROPIC_BACKUP_API_KEY, '');
+    assert.equal(env.DEFAULT_ANTHROPIC_MODEL, 'primary');
+    assert.equal(getBlogWritingEnvironment({ ...env, BLOG_MODEL_ROUTE: 'primary' }).DEFAULT_ANTHROPIC_MODEL, 'primary');
+});
 
 test('preview repairs one refusal on the configured backup and never writes files or KV', async t => {
     const paragraph = '我经营爱窝啦 AI 账号店，也在尝试 AI 一人公司。客服与教程的解释成本，让我更关心工具是否稳定交付。公开研究的阶段与实际项目效果需要分别看待。';

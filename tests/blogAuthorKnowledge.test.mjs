@@ -9,7 +9,7 @@ import { callChatAPIStream } from '../src/chatapi.js';
 
 test('production blog prompt loads dated public knowledge without old financial state', () => {
     const knowledge = getBlogAuthorKnowledge();
-    assert.match(knowledge, /核对至 2026-10-05/);
+    assert.match(knowledge, /核对至 2026-10-22/);
     assert.match(knowledge, /没有与这次触发材料直接匹配/);
     for (const type of ['ai-daily', 'bioai-daily']) {
         const prompt = getBlogPrompt(type);
@@ -65,7 +65,7 @@ test('both blog jobs consume current knowledge and publish with no extra model c
             const prompt = `${payload.system}\n${payload.messages[0].content}`;
             assert.match(payload.system, /个人博客写作内核/);
             assert.doesNotMatch(payload.messages[0].content, /个人博客写作内核/);
-            assert.match(prompt, /核对至 2026-10-05/);
+            assert.match(prompt, /核对至 2026-10-22/);
             assert.equal(containsUnapprovedFinancialDetail(prompt), false);
             calls.push(payload);
             const chunk = { type: 'content_block_delta', delta: { type: 'text_delta', text: output } };

@@ -4,6 +4,13 @@ import { readFileSync } from 'node:fs';
 import { assessBlogReadability } from '../src/blogReadability.js';
 import { getBlogPrompt } from '../src/prompt/blogPrompt.js';
 import { validateBlogDraft } from '../src/blogQuality.js';
+import { classifyLongSentences } from '../src/blogQuality.js';
+
+test('separate paragraphs do not merge into a false severe sentence', () => {
+    const result = classifyLongSentences(('一段没有句末标点但不长的说明'.repeat(5) + '\n\n').repeat(4));
+    assert.equal(result.severe.length, 0);
+    assert.equal(classifyLongSentences('这'.repeat(180)).severe.length, 1);
+});
 
 test('isolated technical words and ordinary explanations never require a repair', () => {
     assert.deepEqual(assessBlogReadability('MRI 就是磁共振成像，用来观察身体内部。你可以先了解这张图拍到了什么。').severe, []);
