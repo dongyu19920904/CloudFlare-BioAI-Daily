@@ -213,3 +213,16 @@ test('a personable opening cannot invent author habits or a costly coding mistak
     const judgment = validateBlogDraft({title:'改代码前先列出相关文件',body:'我在意的是改动会影响哪里，因为这决定下一步该检查什么。假设你改了函数名，需要检查调用它的地方。',dailyContent:aiDaily,blogType:'ai-daily'});
     assert.equal(judgment.severe.includes('unsupported_author_tool_routine'), false);
 });
+
+test('source labels and unspecified research improvements are not accuracy guarantees', () => {
+    const cases = [
+        ['ai-daily','EXTRACTED 表示直接从代码里读出来，因此可以直接信。','unsupported_extracted_certainty'],
+        ['bioai-daily','训练起点不同，结果差很多，所以这个年龄值离客观指标很远。','unsupported_bio_effect_size'],
+    ];
+    for (const [blogType,body,code] of cases) {
+        const result = validateBlogDraft({title:'先看清数字和标记在说什么',body,dailyContent:aiDaily,blogType});
+        assert.ok(result.severe.includes(code));
+    }
+    const qualified = validateBlogDraft({title:'先看清数字和标记在说什么',body:'EXTRACTED 表示提取来源，不代表准确性保证，应回到文件核对。',dailyContent:aiDaily,blogType:'ai-daily'});
+    assert.equal(qualified.severe.includes('unsupported_extracted_certainty'), false);
+});

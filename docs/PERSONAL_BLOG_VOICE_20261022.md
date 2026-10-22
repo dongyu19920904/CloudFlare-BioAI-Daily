@@ -1,6 +1,6 @@
 # Personal Blog Voice and Source Handling
 
-Scope: the two personal-blog jobs in `scheduledBlog.js`. BioAI daily and opportunity generation, schedules, model routes and resource bindings are unchanged.
+Scope: the two personal-blog jobs in `scheduledBlog.js`. BioAI daily and opportunity generation and their model routes are unchanged. Schedules and resource bindings are unchanged; the local personal-blog route choice is described below.
 
 ## Editorial Contract
 
@@ -27,5 +27,7 @@ The dated author knowledge includes the verified October 22 publication recovery
 ## Acceptance
 
 Read the complete real-model preview, not just its success flag. Check the opening, useful takeaway, term explanations, important facts, access conditions, source relevance and unrecorded first-person claims. Use the existing production version as rollback, compare its bindings/runtime/schedules before promotion, and never deploy an old repository baseline over unrelated work.
+
+First-person current judgments are distinct from unsupported habits or remembered mistakes. The latter fail the existing severe gate. Extraction labels describe provenance, not a correctness guarantee; an unspecified research improvement must not become a large effect or an inference about clinical validity. The rule checks are deliberately partial: they cannot establish the truth or quality of every future sentence.
 
 Research and detailed implementation evidence are maintained with the project analysis. Representative references include [Baoyu](https://baoyu.io/blog/2026-02-19/ai-writing-beyond-prompts), [Simon Willison](https://simonwillison.net/2024/Oct/17/video-scraping/), [Ethan Mollick](https://www.oneusefulthing.org/p/getting-started-with-ai-good-enough), and [humanizer](https://github.com/blader/humanizer). They inform editorial principles, not copied prose or borrowed author experiences. Unreadable X posts are not claimed as verified popularity measurements.

@@ -401,6 +401,12 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     )) {
         severe.push('unsupported_tool_effectiveness_claim');
     }
+    if (blogType === 'ai-daily' && /(?:EXTRACTED|直接从代码[^。！？\n]{0,10}(?:读|提取))[^。！？\n]{0,180}(?:可以直接信|无需核对|不用核对|不需要核对)/i.test(text)) {
+        severe.push('unsupported_extracted_certainty');
+    }
+    if (blogType === 'bioai-daily' && /(?:训练|初始化|起点)[^。！？\n]{0,80}(?:结果差很多|差别巨大|大幅提升)/.test(text)) {
+        severe.push('unsupported_bio_effect_size');
+    }
     if (/(?:经营|卖(?:\s*AI\s*)?账号)[^。！？\n]{0,15}(?:这一年多|[一二两三四五六七八九十\d]+年(?:多|来))/.test(text)) {
         severe.push('unsupported_author_business_duration');
     }
