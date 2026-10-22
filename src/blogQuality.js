@@ -50,7 +50,7 @@ const MODEL_FAILURE_PATTERNS = [
     /I'm designed to help with software engineering|outside (?:that|my) scope|clarify my role here/i,
     /AI assistant built for general writing|rather than me writing the briefing/i,
     /I\s+(?:can(?:not|'t)|won't)\s+(?:discuss|help|comply|assist)/i,
-    /(?:无法|不能|不便)(?:讨论|回答|协助|提供)(?:这个|该|上述)?/,
+    /(?:我(?:目前|暂时|现在)?|(?:^|\n)\s*(?:抱歉[，,]?\s*)?)(?:无法|不能|不便)(?:讨论|回答|协助|提供)(?:这个|该|上述)?/m,
     /(?:Kiro\s*是我|我是\s*(?:Kiro|Claude|ChatGPT|Gemini|一个由\s*Amazon\s*开发的\s*AI\s*助手))/i,
     /(?:I\s+am|I'm)\s+(?:Kiro|Claude|ChatGPT|Gemini|an?\s+AI\s+assistant)/i,
     /现在来写这篇博客[：:]?/,

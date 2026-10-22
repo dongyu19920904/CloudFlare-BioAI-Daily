@@ -201,6 +201,13 @@ test('editorial checks reject invented operating duration and unsupported safety
     }
 });
 
+test('limits of a research result are not an assistant refusing to answer', () => {
+    assert.equal(containsModelFailure('摘要报告的是训练效果的改善，这些结果不能回答某一个具体的人是否健康。'), false);
+    assert.equal(containsModelFailure('这张图无法提供没有解析到的依赖，不代表不存在。'), false);
+    assert.equal(containsModelFailure('我暂时无法回答这个问题。'), true);
+    assert.equal(containsModelFailure('抱歉，无法提供上述内容。'), true);
+});
+
 test('a personable opening cannot invent author habits or a costly coding mistake', () => {
     for (const opening of [
         '我有一个习惯：改动任何东西之前，先想会影响哪里。',
