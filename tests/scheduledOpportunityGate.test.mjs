@@ -192,7 +192,7 @@ for (const [section, handler] of [
     assert.doesNotMatch(state.calls[0], /Published: 2026-10-25/);
     assert.match(state.calls[0], /未明确提供的 README/);
     const page = state.writes.find(item => item.path.endsWith(`${date}.md`));
-    assert.match(page.content, /\n\n### /);
+    assert.match(page.content, /\r?\n\r?\n### /);
     const document = JSON.parse(state.writes[0].content);
     assert.equal(document.report_date, date);
     assert.equal(document.report_section, section);
