@@ -3,6 +3,7 @@ import { getISODate, escapeHtml, stripHtml, removeMarkdownCodeBlock, formatDateT
 import { getFromKV } from '../kv.js';
 import { callChatAPIStream } from '../chatapi.js';
 import { generateDailyMarkdownWithFallback } from '../dailyModelGeneration.js';
+import { enrichBioDailySourceMedia } from '../bioDailySourceMedia.js';
 import { generateGenAiPageHtml } from '../htmlGenerators.js';
 import { dataSources } from '../dataFetchers.js'; // Import dataSources
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
@@ -199,7 +200,7 @@ export async function handleGenAIContent(request, env) {
                 
                 if (itemText) {
                     selectedContentItems.push(itemText);
-                    selectedMedia.push({ url: item.url, title: item.title, mediaUrl: getBioDailyMediaUrl(item) });
+                    selectedMedia.push({ url: item.url, title: item.title, mediaUrl: getBioDailyMediaUrl(item), contentHtml: item.details?.content_html || '' });
                     validItemsProcessedCount++;
                 }
             } else {
@@ -257,7 +258,8 @@ export async function handleGenAIContent(request, env) {
             if (!outputOfCall2 || outputOfCall2.trim() === "") throw new Error("Chat processing call returned empty content.");
             outputOfCall2 = removeMarkdownCodeBlock(outputOfCall2); // Clean the output
             outputOfCall2 = convertPlaceholdersToMarkdownImages(outputOfCall2);
-            outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, selectedMedia);
+            const sourceMedia = await enrichBioDailySourceMedia(outputOfCall2, selectedMedia);
+            outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, sourceMedia.candidates);
             console.log("Call 2 (Processing Call 1 Output) successful. Output length:", outputOfCall2.length);
         } catch (error) {
             console.error("Error in Chat API Call 2 (Processing Call 1 Output):", error);

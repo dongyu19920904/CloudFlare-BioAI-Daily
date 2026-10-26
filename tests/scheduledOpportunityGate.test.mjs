@@ -230,6 +230,38 @@ test('daily with an unclosed block fails before any publication write', async t 
   assert.ok(state.calls.length <= 2, 'no new daily repair/polishing call');
 });
 
+test('daily restores a matching institution image with two model calls and four publication writes', async t => {
+  const state = setup(t, [columnFixture('daily'), '小鼠研究提供了观察线索。\n项目用途是整理研究笔记。\n两者都不能作为人体效果证明。']);
+  state.materials = structuredClone(columnMaterials);
+  state.materials.news[0].details.content_html += '<a href="https://news.mit.edu/2026/mouse-study-1026">研究机构介绍</a>';
+  const requests = [];
+  globalThis.fetch = async url => {
+    requests.push(url);
+    return new Response('<meta property="og:image" content="https://news.mit.edu/sites/default/files/images/202610/mouse-study.jpg">', { headers: { 'content-type': 'text/html' } });
+  };
+  const result = await scheduled.handleScheduledDaily({}, { ...env, DAILY_DEDUPE_DAYS: '1' }, {}, date);
+  assert.equal(result.success, true);
+  assert.equal(state.calls.length, 2, 'image repair must not add a polishing call');
+  assert.equal(state.writes.length, 4);
+  assert.deepEqual(requests, ['https://news.mit.edu/2026/mouse-study-1026']);
+  assert.match(state.writes[0].content, /mouse-study\.jpg/);
+  assert.match(state.writes[0].content, /24 只小鼠|24只小鼠/);
+  assert.match(state.writes[0].content, /8 周|8周/);
+  assert.match(state.writes[0].content, /没有人体效果证据/);
+});
+
+test('image metadata outage cannot prevent a valid daily from publishing', async t => {
+  const state = setup(t, [columnFixture('daily'), '小鼠研究提供了观察线索。\n项目用途是整理研究笔记。\n两者都不能作为人体效果证明。']);
+  state.materials = structuredClone(columnMaterials);
+  state.materials.news[0].details.content_html += '<a href="https://news.mit.edu/2026/mouse-study-1026">研究机构介绍</a>';
+  globalThis.fetch = async () => { throw new Error('fixture image metadata timeout'); };
+  const result = await scheduled.handleScheduledDaily({}, { ...env, DAILY_DEDUPE_DAYS: '1' }, {}, date);
+  assert.equal(result.success, true);
+  assert.equal(state.calls.length, 2);
+  assert.equal(state.writes.length, 4);
+  assert.doesNotMatch(state.writes[0].content, /!\[/);
+});
+
 test('structural failure uses the existing bounded correction and cannot publish after two failures', async t => {
   const malformed = `${columnFixture('opportunity')}\n\`\`\`text\n未闭合的代码。`;
   const state = setup(t, [malformed, malformed]);

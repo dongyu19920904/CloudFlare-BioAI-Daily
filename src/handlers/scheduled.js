@@ -3,6 +3,7 @@ import { fetchAllData, dataSources } from '../dataFetchers.js';
 import { storeInKV, getFromKV } from '../kv.js';
 import { callChatAPI, callChatAPIStream } from '../chatapi.js';
 import { generateDailyMarkdownWithFallback } from '../dailyModelGeneration.js';
+import { enrichBioDailySourceMedia } from '../bioDailySourceMedia.js';
 import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } from "../prompt/summarizationPromptStepZero";
 import { getSystemPromptSummarizationStepThree, getBioDailySummaryReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
@@ -12,7 +13,7 @@ import { formatApprovedBioReport } from "../bioReportPresentation.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
-import { assembleBioDailyMarkdown, assertBioDailyBodySources, parseBioDailySummary, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate } from '../bioDailyMarkdown.js';
+import { assembleBioDailyMarkdown, assertBioDailyBodySources, parseBioDailySummary, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate, getBioDailyReadabilityDiagnostics } from '../bioDailyMarkdown.js';
 import {
     buildBioSectionMonthIndexContent,
     buildBioSectionPageContent,
@@ -545,6 +546,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                             sourceType: item.type || sourceType,
                             hasMedia: Boolean(itemHasMedia),
                             mediaUrl: getBioDailyMediaUrl(item),
+                            contentHtml: item.details?.content_html || '',
                             publishedDate: item.published_date,
                             url: item.url,
                             title: item.title,
@@ -596,7 +598,10 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         // 替换错误的域名链接
         outputOfCall2 = replaceIncorrectDomainLinks(outputOfCall2, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aivora.cn');
         outputOfCall2 = normalizeDailyBody(outputOfCall2);
-        outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, selectedCandidates);
+        const sourceMedia = await enrichBioDailySourceMedia(outputOfCall2, selectedCandidates);
+        diagnostics.media = sourceMedia.diagnostics;
+        console.log(`[Scheduled] Source image metadata: ${JSON.stringify(sourceMedia.diagnostics)}.`);
+        outputOfCall2 = restoreBioDailySourceMedia(outputOfCall2, sourceMedia.candidates);
         previewDraft = outputOfCall2;
 
         // Generate the summary without rewriting the source-bearing body.
@@ -625,11 +630,13 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
             section: 'daily', validate: text => assertSafeGeoMarkdown(text, 'daily'),
         });
         const dailySummaryMarkdownContent = presentation.markdown;
+        const readability = getBioDailyReadabilityDiagnostics(dailySummaryMarkdownContent);
+        console.log(`[Scheduled] Daily readability: ${JSON.stringify(readability)}.`);
         const presentationInfo = { status: presentation.status, version: presentation.version, warnings: presentation.warnings };
         assertSafeGeoMarkdown(dailySummaryMarkdownContent, 'daily');
 
         if (options.dryRun) {
-            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent, draftMarkdown, presentation: presentationInfo };
+            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent, draftMarkdown, presentation: presentationInfo, readability, media: sourceMedia.diagnostics };
         }
 
         // 6. Commit to GitHub

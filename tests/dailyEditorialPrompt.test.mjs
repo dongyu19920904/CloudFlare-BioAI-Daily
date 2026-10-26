@@ -30,13 +30,24 @@ test('daily writing teaches core concepts without hiding scientific limits', () 
   assert.match(prompt, /一项有信息量的发现或方法细节/);
   assert.match(prompt, /样本量、观察时长和关键结果/);
   assert.match(prompt, /不设最多两组的硬上限/);
-  assert.match(prompt, /150-230/);
+  assert.match(prompt, /110-180/);
+  assert.doesNotMatch(prompt, /150-230|1-3 个有学习价值/);
   assert.match(prompt, /让读者知道点开能继续学什么/);
   assert.match(prompt, /不能捏造 URL、搜索地址/);
   assert.match(prompt, /不能把指标下降说成患病风险下降或延寿比例/);
   assert.match(prompt, /目前只在小鼠中看到效果，还不能说明对人也有效/);
   assert.match(prompt, /不额外加粗术语、数字或整句/);
   assert.match(prompt, /不机械截断|不为满足字数机械截断/);
+});
+
+test('daily and legacy editing agree on the concise, source-linked news brief', () => {
+  for (const prompt of [getSystemPromptSummarizationStepOne(), getBioDailyReadabilityReminder(), getSystemPromptDailyPlainEditing(), getBioDailyEditingReminder()]) {
+    assert.match(prompt, /110-180/);
+    assert.match(prompt, /3-4/);
+    assert.match(prompt, /一个核心概念/);
+    assert.match(prompt, /不机械截断|不为满足字数机械截断/);
+    assert.doesNotMatch(prompt, /150-230/);
+  }
 });
 
 test('both generation and editing retain learning detail rather than enforce tiny caps', () => {

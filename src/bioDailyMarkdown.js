@@ -1,6 +1,7 @@
 import { insertAd } from './ad.js';
 import { insertFoot } from './foot.js';
 import { addReferencedSourceMedia, getReferencedSourceUrls } from './blogMedia.js';
+import { safeBioDailyImage } from './bioDailySourceMedia.js';
 import { itemMatchesPapersCoolTopic } from './dataSources/longevity-rss.js';
 
 export function isBioDailyPaperCandidate(candidate, env = {}) {
@@ -12,19 +13,35 @@ export function isBioDailyPaperCandidate(candidate, env = {}) {
 }
 
 export function getBioDailyMediaUrl(item) {
-    return item?.details?.imageUrl || item?.imageUrl ||
-        String(item?.details?.content_html || '').match(/<img\b[^>]*\ssrc=["']([^"']+)["']/i)?.[1] || '';
+    const urls = [item?.details?.imageUrl, item?.imageUrl];
+    for (const tag of String(item?.details?.content_html || '').match(/<img\b[^>]*>/gi) || []) {
+        if (/\b(?:width|height)=["']?[01](?:["'\s>])/i.test(tag)) continue;
+        for (const match of tag.matchAll(/\s(?:data-src|src)=["']([^"']+)["']/gi)) urls.push(match[1]);
+    }
+    return urls.map(safeBioDailyImage).find(Boolean) || '';
 }
 
 export function restoreBioDailySourceMedia(markdown, candidates) {
     const label = value => String(value || '来源配图').replace(/[\[\]\n]/g, ' ').trim();
-    const context = candidates.filter(item => item.url && item.mediaUrl).map(item =>
-        `### ${label(item.title)}\n\n[${label(item.title)}](${item.url})\n\n![${label(item.title)}](${item.mediaUrl})`
-    ).join('\n\n');
+    const available = candidates.filter(item => item.url && safeBioDailyImage(item.mediaUrl));
     const faq = markdown.search(/^##\s*\*{0,2}(?:❓\s*)?相关问题/m);
     const body = faq < 0 ? markdown : markdown.slice(0, faq);
     const tail = faq < 0 ? '' : markdown.slice(faq);
-    return body.split(/(?=^###\s)/m).map(block => addReferencedSourceMedia(block, context)).join('') + tail;
+    let count = (body.match(/!\[/g) || []).length;
+    const seen = new Set([...body.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)/g)].map(match => match[1]));
+    return body.split(/(?=^###\s)/m).map(block => {
+        if (count >= 4) return block;
+        const urls = new Set(getReferencedSourceUrls(block));
+        const image = available.find(item => urls.has(item.url) && !seen.has(item.mediaUrl));
+        if (!image) return block;
+        const context = `### ${label(image.title)}\n\n[${label(image.title)}](${image.url})\n\n![${label(image.title)}](${image.mediaUrl})`;
+        const repaired = addReferencedSourceMedia(block, context);
+        const images = [...repaired.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)/g)];
+        if (!images.length || images.some(match => seen.has(match[1]))) return block;
+        for (const match of images) seen.add(match[1]);
+        count += images.length;
+        return repaired;
+    }).join('') + tail;
 }
 
 export async function readBioDailyPreviewCache(kv, date, categories) {
@@ -119,6 +136,19 @@ export function parseBioDailySummary(markdown) {
         throw new Error('Daily summary must contain exactly three plain-text lines');
     }
     return lines.join('\n');
+}
+
+export function getBioDailyReadabilityDiagnostics(markdown) {
+    const body = String(markdown).split(/^##\s*\*{0,2}(?:❓\s*)?相关问题/m)[0];
+    const lengths = body.split(/(?=^###\s)/m).filter(block => /^###\s/.test(block)).map(block => {
+        const prose = block.replace(/^###[^\n]*\n/, '').replace(/^##[^\n]*$/gm, '')
+            .replace(/\[!\[[^\]]*\]\([^\n]*?\)\]\([^\n]*?\)/g, '')
+            .replace(/!\[[^\]]*\]\([^\n]*?\)/g, '')
+            .replace(/\[([^\]]+)\]\([^\n]*?\)/g, '$1').replace(/<[^>]*>/g, '');
+        return (prose.match(/\p{Script=Han}/gu) || []).length;
+    });
+    return { items: lengths.length, meanHan: lengths.length ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length) : 0,
+        overlong: lengths.flatMap((han, index) => han > 220 ? [{ item: index + 1, han }] : []) };
 }
 
 export function prepareBioDailyPlainEditingInput(markdown, sourceItems = []) {
