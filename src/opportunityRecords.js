@@ -25,7 +25,7 @@ function extractField(body, label) {
   return match ? normalizeText(match[1]) : "";
 }
 
-function canonicalUrl(raw) {
+export function canonicalUrl(raw) {
   try {
     const url = new URL(raw.replace(/[.,;，。；]+$/, ""));
     if (!["https:", "http:"].includes(url.protocol)) return null;
@@ -43,8 +43,8 @@ function canonicalUrl(raw) {
   }
 }
 
-function extractUrls(value) {
-  return [...new Set((value.match(URL_PATTERN) || []).map(canonicalUrl).filter(Boolean))];
+export function extractUrls(value) {
+  return [...new Set((String(value || "").match(URL_PATTERN) || []).map(canonicalUrl).filter(Boolean))];
 }
 
 function findMainSection(markdown, section) {
@@ -99,7 +99,7 @@ export function extractOpportunityRecords(markdown, { date, section = "opportuni
     if (seen.has(opportunityId)) continue;
     seen.add(opportunityId);
     const riskFlags = [];
-    if (/治疗|诊断|逆转|延长寿命|痴呆|医疗|患者|轻咨询|免疫衰老|胸腺|自测|自评|自检|风险评分|症状清单/.test(`${title} ${body}`)) riskFlags.push("health_claim_review");
+    if (/治疗|诊断|逆转|延长寿命|痴呆|医疗|患者|轻咨询|免疫衰老|胸腺/.test(`${title} ${body}`)) riskFlags.push("health_claim_review");
     if (/\d+(?:\.\d+)?\s*元|阅读量|点赞|付费|收入/.test(body)) riskFlags.push("commercial_hypothesis");
     const hasRepository = sourceUrls.some((value) => /^https:\/\/github\.com\/[^/]+\/[^/]+/i.test(value));
     const state = !sourceUrls.length ? "missing_source" : hasRepository ? "needs_repository_check" : "needs_primary_source";

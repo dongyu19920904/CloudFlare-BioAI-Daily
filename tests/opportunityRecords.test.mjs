@@ -24,6 +24,11 @@ const sample = `## 先看信号
 - 不属于主推
 `;
 
+test('technical self-checks alone do not create a health review flag', () => {
+  const [record] = extractOpportunityRecords('## 今日主推\n### 工具安装教程\n- 证据来源：https://example.org/tool\n- 可交付物：软件自测、接口自检。', { date: '2026-10-26' });
+  assert.ok(!record.risk_flags.includes('health_claim_review'));
+});
+
 test("extracts only today's two promoted opportunities with stable distinct IDs", () => {
   const options = { date: "2026-09-26", section: "opportunity" };
   const first = extractOpportunityRecords(sample, options);
