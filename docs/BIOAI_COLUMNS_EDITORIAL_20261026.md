@@ -120,4 +120,4 @@ $env:BIOAI_FIXTURE_OUTPUT_DIR = 'D:\CodexCache\artifacts\bioai-columns-editorial
 2. 旧手动编辑 UI 的 `genAIContent`/commit helper 仍有全局中英文引号转换，本轮未改共享 helper。三栏 scheduled/test-trigger 保存路径已覆盖，不能把它扩大成所有手动编辑路径的完整字符保真承诺。
 3. 保留原文的现有科学门禁不能自动证明研究事实或付费意愿；新增规则是 prompt 约束，不是完整语义审稿器。没有真实来源或证据时继续阻断/待核，不用“空报告”掩盖风险主推。
 4. 后端基于 `265b7b07`，前端基于 `bd056cdc`，不含协调任务 A 的个人博客新提交 `4e858c82`；本分支不碰其所有权文件。统一整合必须保留 A 的修改，不能独立用旧部署版本覆盖共享 Worker。
-5. 两个分支只保留本地提交；未推送、未部署、未重跑 Actions、未修改线上内容。最终 commit 与路径另记交接单。发布后的三接口需同 date、`sync=1`；商机入口必须 `mode=opportunity`；密钥仅安全请求头传入，检查 HTTP + `result.success` + 实际页面/records + `presentation`，不能只看 `selectedCount`。
+5. 两个分支只保留本地提交；未推送、未部署、未重跑 Actions、未修改线上内容。最终 commit 与路径另记交接单。发布后的三接口需同 date、`sync=1`；商机入口必须 `mode=opportunity`。实际 `src/index.js` 当前只接受 `key` 查询参数，不支持密钥请求头；本轮不改认证路由。验收脚本应从进程环境读取密钥、在内存构造请求，不输出完整 URL、不写终端历史或浏览器地址栏，禁用请求 URL 日志并避免分享链接。检查 HTTP + `result.success` + 实际页面/records + `presentation`，不能只看 `selectedCount`。查询参数仍有上游访问日志泄露风险；若需支持请求头，应另行审查入口并补认证测试，不能把尚未实现的方式写成可用。
