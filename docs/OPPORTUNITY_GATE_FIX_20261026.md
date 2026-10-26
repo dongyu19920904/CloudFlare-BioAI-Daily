@@ -5,10 +5,10 @@
 - 后端：`dongyu19920904/CloudFlare-BioAI-Daily`；内容目标：`dongyu19920904/BioAI-Daily-Web`。
 - 基线：远端 main `c7e78e557872b1d7aae01e3fbc7abcd428bd90e2`。
 - 修复工作区：`D:\GitHub\_worktrees\bioai-opportunity-gate-20261026`，分支 `codex/bioai-opportunity-gate-20261026`。
-- 原始工作区存在其他分支及未提交修改，未改动、覆盖或合并这些内容。本次修复整理为上述独立分支的一次本地提交；未推送。
+- 原始工作区存在其他分支及未提交修改，未改动、覆盖或合并这些内容。修复提交 `0a0bab1d34acb95c97852504bcbaff802ccc6384` 已在后续明确部署授权后推送至后端 main 并部署，回执见文末。
 - 已查阅当前任务 AGENTS.md、PROJECT_CHARTER.md、相关维护/测试规范；目标仓库与相关父目录未发现额外 AGENTS.md。
 - 已只读检查 [Issue #72](https://github.com/dongyu19920904/CloudFlare-BioAI-Daily/issues/72) 和 [Issue #73](https://github.com/dongyu19920904/CloudFlare-BioAI-Daily/issues/73)。
-- 本轮未部署、未触发线上生成、未运行 GitHub Actions、未修改线上内容，测试未调用付费模型。
+- 初次本地修复阶段未部署、未触发线上生成、未运行 GitHub Actions、未修改线上内容，测试未调用付费模型。后续收到“确认部署”后只执行推送、部署与非生成冒烟；真实生成验收尚未授权或执行。
 
 ## 根因与证据边界
 
@@ -73,7 +73,7 @@ Node 会提示仓库未声明 ESM 类型，这是原有模块布局告警，不�
 
 ## 后续部署后验收（本轮未执行）
 
-以下操作会生成并写入内容，须在另行授权部署后执行，不属于上述离线测试。
+以下操作会生成并写入内容。修复已经部署，但真实生成验收仍须另行授权，不属于上述离线测试或本次部署验收。
 
 三个请求使用**相同 date**（例如 `2026-10-26`），均用 `sync=1`，密钥通过内存中的 `key` 参数传入。当前接口只实现 query key，不能假设支持 Bearer。不要把含 key 的完整 URL 粘贴到浏览器、终端历史或日志。
 
@@ -149,7 +149,7 @@ for (const [mode, path] of targets) {
 - 健康判断仍是保守规则，不是医疗语义验证器；复杂或含糊措辞可能被拦截或未覆盖，应依据新增脱敏定位扩充固定测试，不能关闭门禁。
 - 白名单保证链接来自输入，不证明论文有效性、链接与主张语义对应、临床有效性或商业可行性；科学核验状态仍保持未验证。
 - 门禁前零写入不等于 GitHub 多文件事务。通过门禁后，后续页面写入若失败，可能留下已写 records，仍返回失败；本次不重构发布事务。
-- Actions 修改只做了结构回归测试；本机未执行 jq 或 Actions。需后续授权部署及运行环境验证，当前未重跑任何线上流程。
+- Actions 修改只做了结构回归测试；本机未执行 jq，未手动重跑生成或自愈 Actions。后续部署推送自然触发了既有离线 CI 且成功，但该 CI 不等于执行自愈工作流或真实生成。
 - `docs/SELF_HEAL_GUARD.md` 是历史旧说明，包含过时的 cron/默认密钥描述；当前行为以代码和本文为准，本次未扩大为全面文档重写。
 
 ## 下一步交付记录
@@ -159,3 +159,24 @@ for (const [mode, path] of targets) {
 - 本轮不修改运行代码或测试，仅更新本文并整理本地提交，因此复用上一轮 261 项测试通过的结果，未声称本轮重新运行。
 - 按新增 `C:/Users/dongy/.codex/skills/security-audit/SKILL.md` guidance 模式进行静态复核；其 Universal execution safety 要求的操作系统级禁网、只读源代码/工具链、白名单环境及资源限制未在本机验证齐全，故本轮不执行目标代码，也不以 fetch mock 代替 OS 沙箱。本记录不是完整安全审计或动态验证通过证明。
 - 提交前检查 Git hooks 配置及 hooks 目录，只有未启用的 `.sample` 示例；仅暂存本次修复、测试与本文。通过 `git diff --cached --check` 后提交，提交后确认工作区状态及文件清单。
+
+## 已授权部署回执
+
+用户后续明确回复“确认部署”。沿用先前边界，仅授权推送后端和部署，不将其扩大为真实模型调用、生成内容或手动重跑自愈流程。
+
+- 修复提交：[0a0bab1d](https://github.com/dongyu19920904/CloudFlare-BioAI-Daily/commit/0a0bab1d34acb95c97852504bcbaff802ccc6384)，已通过 SSH 正常快进推送到 main，没有强推、重写历史或修改前端源码。
+- 推送自然触发既有 [Opportunity Records CI 40253948788](https://github.com/dongyu19920904/CloudFlare-BioAI-Daily/actions/runs/40253948788)，结果 success；没有手动重跑任何工作流。
+- Worker：`cloudflare-bioai-daily`，地址 [Worker 登录页](https://cloudflare-bioai-daily.sabrinamisan090.workers.dev/login)。
+- 新版本：`6fb8f974-2860-4c54-b9c8-05965397d539`，tag `opportunity-gate-0a0bab1d`。
+- 生产部署 ID：`87181041-eaa6-4175-be1f-e3b84a9db3c4`，UTC `2026-10-26T01:24:24.596994Z`，即北京时间 2026-10-26 09:24:24；Cloudflare API 确认该版本独占 100% 流量。
+- 旧生产版本保留为回滚点：`1d192309-f968-4cfe-bc22-3d53d017e1bf`。
+- 使用 Wrangler `versions upload` + `versions deploy`，不执行 `triggers deploy`。临时发布配置由当前生产元数据生成，而非用仓库配置覆盖生产；32 个普通变量、KV 和限流绑定按原值保留，7 个 Secret 沿用服务端值，没有读取或打印 Secret 内容。
+- 上传后、切流前及切流后均检查：41 个绑定名称、类型和可见配置完全一致；7 个 Secret 名称保留；运行兼容日期、兼容标志和 usage model 不变。
+- 三个实际 cron 原样保留：UTC `20 11 * * *`、`30 11 * * *`、`30 12 * * *`。按当前路由分别为 daily、opportunity、blog；project-opportunity 继续由既有 GitHub 自愈工作流检查并补全，不新增 cron，也不把 `30 12` 误称为项目商机触发器。
+- 线上非生成冒烟：GET `/login` 返回 200；不带密钥请求 `/testTriggerScheduled`、`/testTriggerScheduledOpportunity?mode=opportunity`、`/testTriggerScheduledProjectOpportunity` 均返回 401，尚未进入生成链路。
+- `BioAI-Daily-Web` main 在发布前后均为 `bd056cdcff3f8cce547e65e8cd74f22a9344870d`，无内容写入。本次没有带有效密钥触发生成，也没有调用模型短探针。
+- 部署产物和只读前后快照保留于 `D:\CodexCache\artifacts\bioai-opportunity-release-20261026`；逐次临时目录由缓存包装器清理。Wrangler 在本修复工作区产生的已跟踪账户名缓存变化单独恢复，不加入提交。
+
+回滚仅在确有回归并获得相应操作授权时使用：通过相同 D 盘缓存包装器执行 `wrangler versions deploy 1d192309-f968-4cfe-bc22-3d53d017e1bf@100 --config D:\CodexCache\artifacts\bioai-opportunity-release-20261026\wrangler-release.json --yes`，然后重新查询生产版本、绑定及 cron。该命令本次未执行。
+
+部署已经完成，不等于三份日报已经实际生成。后续需要对同一日期的三个模块做带密钥、`sync=1` 的真实生成验收时，必须先获得明确授权，再按上文同时核查 HTTP、`result.success`、实际 Markdown 与 records。
