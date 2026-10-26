@@ -18,7 +18,7 @@ import { buildAstroPaperFrontMatter } from '../utils/frontmatter.js';
 import { resolveBlogDate } from '../utils/blogDate.js';
 import { addReferencedSourceMedia } from '../blogMedia.js';
 import { selectBlogWritingMaterial, getBlogReaderBrief } from '../blogTopic.js';
-import { buildBlogSourceContext } from '../blogSources.js';
+import { buildBlogSourceContext, readBlogSource, resolveBlogSource } from '../blogSources.js';
 
 async function fetchDailyContent(repoOwner, repoName, dateStr) {
     const rawUrl = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/daily/${dateStr}.md`;
@@ -204,7 +204,7 @@ export function getBlogJobConfigs(dateStr) {
     ];
 }
 
-async function generateSingleBlog(env, dateStr, dailyContent, config, dryRun = false) {
+async function generateSingleBlog(env, dateStr, dailyContent, config, dryRun = false, knownReceipts = []) {
     console.log(`[ScheduledBlog] Generating ${config.type} blog for ${dateStr}...`);
 
     // Generated shopping FAQs are not independently sourced news facts.
@@ -220,7 +220,7 @@ async function generateSingleBlog(env, dateStr, dailyContent, config, dryRun = f
     }
 
     const originalMaterial = dailyContent;
-    const sourceContext = await buildBlogSourceContext(dailyContent, env);
+    const sourceContext = await buildBlogSourceContext(dailyContent, env, fetch, knownReceipts);
     dailyContent = sourceContext.material;
     const sourceReceipts = sourceContext.receipts;
     const allowedUrls = [...extractUrls(dailyContent), ...sourceReceipts.map(source => source.url), config.sourceUrl];
@@ -321,7 +321,7 @@ export function summarizeBlogResults(results) {
     };
 }
 
-export function buildCachedBlogSource(items, dateStr) {
+export function buildCachedBlogSource(items, dateStr, limit = 4) {
     if (!Array.isArray(items)) return '';
     const end = Date.parse(`${dateStr}T23:59:59+08:00`);
     const start = end - 5 * 86400000;
@@ -331,8 +331,9 @@ export function buildCachedBlogSource(items, dateStr) {
         const title = String(item?.title || '');
         const primary = /pubmed\.ncbi|pmc\.ncbi|clinicaltrials\.gov|doi\.org/.test(String(item?.url || ''));
         const research = /trial|study|AI-designed|autophagy|biomarker|dataset|机制|研究|试验|数据/i.test(title);
+        const aging = /longevity|aging|advanced age|older adults|elderly|healthspan|chronic kidney|senescen|衰老|长寿|高龄/i.test(title);
         const roundup = /award|summit|conference|finalist|M&A|exit math|奖项|会议|名单/i.test(title);
-        return Number(primary) * 3 + Number(research) * 2 - Number(roundup) * 3;
+        return Number(primary) * 3 + Number(research) * 2 + Number(aging) * 3 - Number(roundup) * 3;
     };
     for (const item of items.toSorted((a, b) => priority(b) - priority(a))) {
         if (!item || String(item.description || '').length < 500) continue;
@@ -349,23 +350,47 @@ export function buildCachedBlogSource(items, dateStr) {
         const excerpt = description.slice(0, 5000);
         const boundary = description.length > excerpt.length ? '\n\n[缓存摘录已截断，不能据此断言原文没有人体数据或其他证据。]' : '';
         selected.push(`## ${item.title}\n\n来源：[${item.source || item.title}](${url.href})\n原文发布时间：${item.published_date}\n\n${excerpt}${boundary}`);
-        if (selected.length === 4) break;
+        if (selected.length === limit) break;
     }
     return selected.length ? `# ${dateStr} 已采集的生命科学原始来源\n\n以下是当天缓存中的公开来源，发布日期按每条原文标注，不代表当日新发生。\n\n${selected.join('\n\n')}` : '';
 }
 
-async function recoverCachedBlogSource(env, dateStr) {
-    if (!env.DATA_KV?.get) return '';
+export async function recoverCachedBlogSource(env, dateStr, fetcher = fetch) {
+    if (!env.DATA_KV?.get) return { material: '', receipts: [], reason: 'cache_unavailable' };
     const items = await env.DATA_KV.get(`${dateStr}-news`, 'json');
-    return buildCachedBlogSource(items, dateStr);
+    if (!Array.isArray(items) || items.length === 0) return { material: '', receipts: [], reason: 'cache_empty', cachedItems: 0 };
+    const material = buildCachedBlogSource(items, dateStr);
+    if (material) return { material, receipts: [], cachedItems: items.length };
+
+    const end = Date.parse(`${dateStr}T23:59:59+08:00`);
+    const start = end - 5 * 86400000;
+    const enriched = [...items];
+    const receipts = [];
+    const seen = new Set();
+    for (const [index, item] of items.entries()) {
+        const published = Date.parse(item?.published_date || '');
+        if (!item?.title || !Number.isFinite(published) || published < start || published > end || containsModelFailure(`${item.title}\n${item.description || ''}`)) continue;
+        const source = resolveBlogSource(item.url);
+        if (source?.kind !== 'article' || seen.has(source.url)) continue;
+        seen.add(source.url);
+        const receipt = await readBlogSource(source, {}, fetcher);
+        receipts.push(receipt);
+        if (receipt.status === 'read' && receipt.text.length >= 500) enriched[index] = { ...item, url: source.url, description: receipt.text };
+        if (receipts.length === 2) break;
+    }
+    const recovered = buildCachedBlogSource(enriched, dateStr, 1);
+    return { material: recovered, receipts, cachedItems: items.length, ...(recovered ? {} : { reason: 'cache_filtered_no_usable_source' }) };
 }
 
 export async function handleScheduledBlog(event, env, ctx, specifiedDate = null, options = {}) {
     const dateStr = resolveBlogDate(specifiedDate, getISODate());
     console.log(`[ScheduledBlog] Starting blog generation for ${dateStr}`);
 
+    const configs = getBlogJobConfigs(dateStr);
+    if (options.previewType && (!options.dryRun || !configs.some(config => config.type === options.previewType))) throw new Error('previewType requires a valid blog type and dryRun');
+    const jobs = options.previewType ? configs.filter(config => config.type === options.previewType) : configs;
     const results = [];
-    for (const config of getBlogJobConfigs(dateStr)) {
+    for (const config of jobs) {
         try {
             const filePath = `src/data/blog/${config.filePrefix}-${dateStr}.md`;
             if (!options.dryRun && await getGitHubFileSha(getBlogEnvironment(env), filePath)) {
@@ -379,8 +404,10 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null,
             );
 
             let sourceRecovered = false;
+            let recovery = null;
             if (config.type === 'bioai-daily' && (!dailyContent || containsModelFailure(dailyContent))) {
-                dailyContent = await recoverCachedBlogSource(env, dateStr);
+                recovery = await recoverCachedBlogSource(env, dateStr);
+                dailyContent = recovery.material;
                 sourceRecovered = Boolean(dailyContent);
             }
 
@@ -389,11 +416,12 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null,
                     type: config.type,
                     status: 'skipped',
                     reason: 'content not found',
+                    ...(recovery ? { sourceDiagnostics: { reason: recovery.reason, cachedItems: recovery.cachedItems, sources: recovery.receipts.map(receipt => ({ url: receipt.url, status: receipt.status, reason: receipt.reason, characters: receipt.characters })) } } : {}),
                 });
                 continue;
             }
 
-            const result = await generateSingleBlog(env, dateStr, dailyContent, sourceRecovered ? { ...config, sourceUrl: null } : config, options.dryRun === true);
+            const result = await generateSingleBlog(env, dateStr, dailyContent, sourceRecovered ? { ...config, sourceUrl: null } : config, options.dryRun === true, recovery?.receipts || []);
             results.push({ type: config.type, sourceRecovered, ...result });
         } catch (error) {
             console.error(`[ScheduledBlog] ${config.type} failed:`, error);
@@ -406,7 +434,7 @@ export async function handleScheduledBlog(event, env, ctx, specifiedDate = null,
     }
 
     const summary = summarizeBlogResults(results);
-    const previewComplete = results.length === 2 && results.every(item => ['preview', 'existing'].includes(item.status));
+    const previewComplete = results.length === jobs.length && results.every(item => ['preview', 'existing'].includes(item.status));
     const result = { ...summary, ...(options.dryRun ? { success: previewComplete, dryRun: true } : {}), date: dateStr, results };
     if (!options.dryRun) await writeBlogStatus(env, dateStr, result);
 

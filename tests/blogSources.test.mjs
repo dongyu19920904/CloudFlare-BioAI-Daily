@@ -89,7 +89,7 @@ test('access contradiction uses the existing severe gate without blocking correc
 test('source enrichment is personal-blog-only and does not add a model stage', () => {
     const blog = readFileSync(new URL('../src/handlers/scheduledBlog.js', import.meta.url), 'utf8');
     assert.equal((blog.match(/draft = await repairBlogDraft/g) || []).length, 1);
-    assert.ok(blog.includes('await buildBlogSourceContext(dailyContent, env)'));
+    assert.ok(blog.includes('await buildBlogSourceContext(dailyContent, env, fetch, knownReceipts)'));
     for (const path of ['scheduled.js', 'genAIContent.js']) {
         const source = readFileSync(new URL('../src/handlers/' + path, import.meta.url), 'utf8');
         assert.doesNotMatch(source, /blogSources|blogReadability|blogTopic/);
