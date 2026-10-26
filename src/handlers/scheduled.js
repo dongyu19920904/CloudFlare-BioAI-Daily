@@ -7,7 +7,8 @@ import { getSystemPromptSummarizationStepOne, getBioDailyReadabilityReminder } f
 import { getSystemPromptSummarizationStepThree, getBioDailySummaryReminder } from "../prompt/summarizationPromptStepThree";
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
-import { generateWithSourceGate } from "../opportunitySourceGate.js";
+import { generateWithSourceGate, assessOpportunitySourceGate } from "../opportunitySourceGate.js";
+import { formatApprovedBioReport } from "../bioReportPresentation.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
@@ -249,12 +250,17 @@ function formatOpportunityPromptItem(item, sourceType) {
     return [
         `Type: ${effectiveSourceType}`,
         `Title: ${item?.title || 'N/A'}`,
-        `Published: ${item?.published_date || 'N/A'}`,
+        effectiveSourceType === 'project'
+            ? `Last activity observed (not creation or release): ${item?.published_date || 'N/A'}`
+            : `Published: ${item?.published_date || 'N/A'}`,
         `Source: ${item?.source || 'N/A'}`,
         `Url: ${item?.url || 'N/A'}`,
         item?.description ? `Description: ${truncatePromptText(item.description, 400)}` : '',
         details.length ? details.join('\n') : '',
         contentText ? `Content: ${contentText}` : '',
+        effectiveSourceType === 'project'
+            ? '证据范围：未明确提供的 README、许可证、数据入口、依赖和安装结果均待核查；不能从项目名或 description 补写功能、商用许可或试跑成功。'
+            : '需求边界：研究或新闻事实不是用户需求/付费证明；没有用户反馈材料时，机会判断只能写成待验证假设。',
     ].filter(Boolean).join('\n');
 }
 
@@ -367,11 +373,16 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
         return { success: false, date: dateStr, reason: 'no_items' };
     }
 
-    const markdownContent = await generateWithSourceGate(
+    const approvedMarkdown = await generateWithSourceGate(
         (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioOpportunity(dateStr), 'opportunity'),
         `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
         { date: dateStr, section: 'opportunity' }
     );
+    const presentation = formatApprovedBioReport(approvedMarkdown, {
+        section: 'opportunity',
+        validate: text => assessOpportunitySourceGate(text, { date: dateStr, section: 'opportunity', allowedSourceUrls: promptInput }).publishable,
+    });
+    const markdownContent = presentation.markdown;
     const records = await commitOpportunityRecords(env, dateStr, 'opportunity', markdownContent, {
         getSha: getGitHubFileSha,
         getContent: getGitHubFileContent,
@@ -385,7 +396,7 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
         homeLinkTitle: '商机日报',
     });
 
-    return { success: true, date: dateStr, selectedCount: selectedItems.length, paths, records };
+    return { success: true, date: dateStr, selectedCount: selectedItems.length, paths, records, presentation: { status: presentation.status, version: presentation.version, warnings: presentation.warnings } };
 }
 
 async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData) {
@@ -405,11 +416,16 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
         return { success: false, date: dateStr, reason: 'no_items' };
     }
 
-    const markdownContent = await generateWithSourceGate(
+    const approvedMarkdown = await generateWithSourceGate(
         (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioProjectOpportunity(dateStr), 'project-opportunity'),
         `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
         { date: dateStr, section: 'project-opportunity' }
     );
+    const presentation = formatApprovedBioReport(approvedMarkdown, {
+        section: 'project-opportunity',
+        validate: text => assessOpportunitySourceGate(text, { date: dateStr, section: 'project-opportunity', allowedSourceUrls: promptInput }).publishable,
+    });
+    const markdownContent = presentation.markdown;
     const records = await commitOpportunityRecords(env, dateStr, 'project-opportunity', markdownContent, {
         getSha: getGitHubFileSha,
         getContent: getGitHubFileContent,
@@ -423,7 +439,7 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
         homeLinkTitle: '项目商机',
     });
 
-    return { success: true, date: dateStr, selectedCount: selectedItems.length, paths, records };
+    return { success: true, date: dateStr, selectedCount: selectedItems.length, paths, records, presentation: { status: presentation.status, version: presentation.version, warnings: presentation.warnings } };
 }
 
 export async function handleScheduledOpportunity(event, env, ctx, specifiedDate = null, preloadedData = null) {
@@ -604,11 +620,16 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         const summary = parseBioDailySummary(outputOfCall3);
 
         // 5. Assemble Markdown
-        const dailySummaryMarkdownContent = assembleBioDailyMarkdown(outputOfCall2, summary, env);
+        const approvedMarkdown = assembleBioDailyMarkdown(outputOfCall2, summary, env);
+        const presentation = formatApprovedBioReport(approvedMarkdown, {
+            section: 'daily', validate: text => assertSafeGeoMarkdown(text, 'daily'),
+        });
+        const dailySummaryMarkdownContent = presentation.markdown;
+        const presentationInfo = { status: presentation.status, version: presentation.version, warnings: presentation.warnings };
         assertSafeGeoMarkdown(dailySummaryMarkdownContent, 'daily');
 
         if (options.dryRun) {
-            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent, draftMarkdown };
+            return { success: true, dryRun: true, date: dateStr, selectedCount: selectedContentItems.length, sourceCounts: selectedStats, markdown: dailySummaryMarkdownContent, draftMarkdown, presentation: presentationInfo };
         }
 
         // 6. Commit to GitHub
@@ -649,7 +670,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         await createOrUpdateGitHubFile(env, homePath, homeContent, homeCommitMessage, existingHomeSha);
 
         console.log(`[Scheduled] Success!`);
-        return { success: true, date: dateStr, selectedCount: selectedContentItems.length };
+        return { success: true, date: dateStr, selectedCount: selectedContentItems.length, presentation: presentationInfo };
 
     } catch (error) {
         console.error(`[Scheduled] Error:`, error);

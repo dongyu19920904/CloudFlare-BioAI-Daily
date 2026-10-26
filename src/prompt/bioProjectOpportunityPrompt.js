@@ -1,4 +1,5 @@
 import { getGeoCitationGuidelines } from "./geoCitationGuidelines.js";
+import { getBioReportEditorialContract } from "./bioReportEditorial.js";
 
 export function getSystemPromptBioProjectOpportunity(reportDate = null) {
   const dateLabel =
@@ -39,6 +40,8 @@ export function getSystemPromptBioProjectOpportunity(reportDate = null) {
 - 项目机会不是论文摘要；必须回答“今天怎么试跑、怎么写内容、怎么沉淀成资料或工具”。
 
 ${getGeoCitationGuidelines("project")}
+
+${getBioReportEditorialContract("project-opportunity")}
 
 输出 Markdown，必须使用下面结构。总正文控制在 2400 个汉字以内；只保留 1 个有来源的今日优先项目，其余栏目各写最多 2 条。字段用短句填写，来源、许可证未知项和局限不能省略；不要靠增加条目数凑篇幅。若无合格项目，明确写“今日无符合筛选标准的项目”，不得硬推。
 

@@ -1,4 +1,5 @@
 import { getGeoCitationGuidelines } from "./geoCitationGuidelines.js";
+import { getBioReportEditorialContract } from "./bioReportEditorial.js";
 
 export function getSystemPromptBioOpportunity(reportDate = null) {
   const dateLabel =
@@ -43,6 +44,8 @@ export function getSystemPromptBioOpportunity(reportDate = null) {
 - 不要把“科研很前沿”当成商机；必须落到内容、资料、工具、服务或项目跟进的一种交付。
 
 ${getGeoCitationGuidelines("opportunity")}
+
+${getBioReportEditorialContract("opportunity")}
 
 输出 Markdown，必须使用下面结构。总正文控制在 2400 个汉字以内；只保留 1 个有来源的今日主推，其余栏目各写最多 2 条。字段用短句填写，证据与局限不能省略；不要靠增加条目数凑篇幅。若证据不足，宁可明确说明未筛出合格主推，也不要编造链接或疗效。
 注意：本栏目“未筛出合格主推”会返回未发布的 no_main_items，不等于成功发布空日报；不得用空报告掩盖已有的风险主推。

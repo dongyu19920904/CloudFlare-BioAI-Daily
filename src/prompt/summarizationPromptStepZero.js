@@ -1,4 +1,5 @@
 import { getGeoCitationGuidelines } from "./geoCitationGuidelines.js";
+import { getBioReportEditorialContract } from "./bioReportEditorial.js";
 
 export function getSystemPromptSummarizationStepOne(reportDate = null) {
     const date = typeof reportDate === "string" && reportDate.trim()
@@ -118,6 +119,8 @@ Stars、活跃时间仅在输入给出时写，不编造“今日新增 Stars”
 不得诊断个人、推荐用药或承诺延寿，不强行加入账号商品链接，不输出无依据的固定时间/概率趋势预测。
 
 ${getGeoCitationGuidelines("daily")}
+
+${getBioReportEditorialContract("daily")}
 
 ## 输出前自检
 
