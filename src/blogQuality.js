@@ -1,5 +1,6 @@
 import knowledge from './prompt/blogAuthorKnowledge.json' with { type: 'json' };
 import { assessBlogReadability } from './blogReadability.js';
+import { protectBlogMarkdownLiterals } from './blogMarkdown.js';
 
 const AI_SIGNAL_PATTERNS = [
     /ChatGPT|GPT|OpenAI|Codex|Cursor|Claude|Gemini|Grok|Perplexity|MiniMax|Graphify|AI\s*(?:编程|工具)/i,
@@ -176,7 +177,8 @@ function removeTableOfContents(markdown) {
 }
 
 export function normalizeGeneratedMarkdown(markdown, allowedUrls = []) {
-    const parts = removeTableOfContents(markdown).split(/(^##\s+参考资料\s*$)/m);
+    const literals = protectBlogMarkdownLiterals(markdown);
+    const parts = removeTableOfContents(literals.text).split(/(^##\s+参考资料\s*$)/m);
     if (parts.length >= 3) {
         parts[2] = parts[2].replace(/^([^\n[]*?)(https?:\/\/[^\s<>]+)\s*$/gm, (line, prefix, url) => {
             const cleaned = cleanUrl(url);
@@ -184,7 +186,7 @@ export function normalizeGeneratedMarkdown(markdown, allowedUrls = []) {
         });
     }
     const withoutToc = parts.join('');
-    return withoutToc
+    return literals.restore(withoutToc
         .replace(/!\[([^\]]*)]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']+["'])?\)/gi, (match, alt, url) => {
             const cleanedUrl = cleanUrl(url);
             const cleanedAlt = String(alt || '').trim() || '相关配图';
@@ -195,7 +197,7 @@ export function normalizeGeneratedMarkdown(markdown, allowedUrls = []) {
             return `![${cleanedAlt}](${cleanedUrl})`;
         })
         .replace(/\n{3,}/g, '\n\n')
-        .trim();
+        .trim());
 }
 
 export function deriveBlogDescription(markdown, fallbackTitle = '') {
@@ -350,6 +352,7 @@ export function classifyLongSentences(markdown) {
 export function validateBlogDraft({ title, body, dailyContent, blogType, allowedUrls = [], dateStr = null, sourceReceipts = [] }) {
     const severe = [];
     const warnings = [];
+    if (protectBlogMarkdownLiterals(body).unclosedFence) severe.push('unclosed_code_fence');
     const normalizedAllowedUrls = [...new Set([...allowedUrls, ...extractUrls(dailyContent)])];
     const text = stripMarkdown(body);
 
