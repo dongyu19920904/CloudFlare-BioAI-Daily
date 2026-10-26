@@ -434,8 +434,8 @@ export async function handleScheduledOpportunity(event, env, ctx, specifiedDate 
         const allUnifiedData = preloadedData || await fetchAndCacheScheduledData(env, dateStr, '[Scheduled][Opportunity]');
         return await generateAndCommitOpportunity(env, dateStr, allUnifiedData);
     } catch (error) {
-        console.error(`[Scheduled][Opportunity] Error:`, error);
-        return { success: false, date: dateStr, error: error.message };
+        console.error(`[Scheduled][Opportunity] Error:`, error.gateDiagnostics ? error.message : error);
+        return { success: false, date: dateStr, error: error.message, ...(error.gateDiagnostics ? { gate_diagnostics: error.gateDiagnostics } : {}) };
     }
 }
 
@@ -447,8 +447,8 @@ export async function handleScheduledProjectOpportunity(event, env, ctx, specifi
         const allUnifiedData = preloadedData || await fetchAndCacheScheduledData(env, dateStr, '[Scheduled][ProjectOpportunity]');
         return await generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData);
     } catch (error) {
-        console.error(`[Scheduled][ProjectOpportunity] Error:`, error);
-        return { success: false, date: dateStr, error: error.message };
+        console.error(`[Scheduled][ProjectOpportunity] Error:`, error.gateDiagnostics ? error.message : error);
+        return { success: false, date: dateStr, error: error.message, ...(error.gateDiagnostics ? { gate_diagnostics: error.gateDiagnostics } : {}) };
     }
 }
 

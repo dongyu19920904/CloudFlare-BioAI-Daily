@@ -113,6 +113,12 @@ jobs:
             if [[ ! "$status_code" =~ ^2[0-9][0-9]$ ]]; then
               return 1
             fi
+            if ! jq -e --arg date "$TARGET_DATE" --arg mode "$label" \
+              '.success == true and .result.success == true and .async == false and .date == $date and .result.date == $date and .mode == $mode' \
+              <<< "$response_body" >/dev/null 2>&1; then
+              echo "${label} did not confirm synchronous success for the requested date and mode"
+              return 1
+            fi
             return 0
           }
 
