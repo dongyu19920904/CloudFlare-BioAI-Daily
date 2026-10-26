@@ -69,7 +69,8 @@ export function getBlogWritingEnvironment(env) {
 }
 
 export async function streamChat(env, userPrompt, systemPrompt, clients = {}) {
-    const writingEnv = { ...getBlogWritingEnvironment(env), ANTHROPIC_NATIVE_SYSTEM_PROMPT: true, ANTHROPIC_MAX_TOKENS: Math.min(Number(env.ANTHROPIC_MAX_TOKENS) || 6000, 6000) };
+    const selected = getBlogWritingEnvironment(env);
+    const writingEnv = { ...selected, ANTHROPIC_NATIVE_SYSTEM_PROMPT: true, ANTHROPIC_MAX_TOKENS: Math.min(Number(env.ANTHROPIC_MAX_TOKENS) || 6000, 6000) };
     const stream = clients.stream || callChatAPIStream;
     const nonStream = clients.nonStream || callChatAPI;
     let output = '';
@@ -77,6 +78,13 @@ export async function streamChat(env, userPrompt, systemPrompt, clients = {}) {
         for await (const chunk of stream(writingEnv, userPrompt, systemPrompt)) output += chunk;
         return output;
     } catch (error) {
+        const primary = resolveAnthropicConfig(env).primary;
+        const chosen = resolveAnthropicConfig(writingEnv).primary;
+        const distinctPrimary = env.ANTHROPIC_API_KEY && primary.messagesUrl && (env.ANTHROPIC_API_KEY !== writingEnv.ANTHROPIC_API_KEY || primary.messagesUrl !== chosen.messagesUrl || primary.modelName !== chosen.modelName);
+        if (selected !== env && distinctPrimary && /Anthropic Chat API error \((?:401|403)\)/i.test(String(error?.message || error))) {
+            // A rejected backup may use the already configured primary once, never the same route again.
+            return nonStream({ ...env, ANTHROPIC_BACKUP_API_KEY: '', ANTHROPIC_NATIVE_SYSTEM_PROMPT: true, ANTHROPIC_MAX_TOKENS: writingEnv.ANTHROPIC_MAX_TOKENS }, userPrompt, systemPrompt);
+        }
         if (!/network connection lost|networkerror|fetch failed|terminated|econnreset|socket hang up/i.test(String(error?.message || error))) throw error;
         // Discard a broken stream; never concatenate two different article drafts.
         return nonStream(writingEnv, userPrompt, systemPrompt);

@@ -45,6 +45,19 @@ test('personal writing can use the configured backup without mutating other task
     assert.equal(getBlogWritingEnvironment({ ...env, BLOG_MODEL_ROUTE: 'primary' }).DEFAULT_ANTHROPIC_MODEL, 'primary');
 });
 
+test('an unauthorized blog backup may use a distinct configured primary once', async () => {
+    const env = Object.freeze({ USE_MODEL_PLATFORM:'ANTHROPIC',ANTHROPIC_API_BASE_URL:'https://primary.invalid',ANTHROPIC_API_KEY:'primary-key',DEFAULT_ANTHROPIC_MODEL:'primary',ANTHROPIC_BACKUP_API_BASE_URL:'https://backup.invalid',ANTHROPIC_BACKUP_API_KEY:'backup-key',DEFAULT_ANTHROPIC_BACKUP_MODEL:'backup' });
+    let calls = 0;
+    const clients = { async *stream(selected) { assert.equal(selected.ANTHROPIC_API_KEY,'backup-key'); throw new Error('Anthropic Chat API error (401)'); }, async nonStream(selected) { calls++; assert.equal(selected.ANTHROPIC_API_KEY,'primary-key'); assert.equal(selected.ANTHROPIC_BACKUP_API_KEY,''); assert.equal(selected.DEFAULT_ANTHROPIC_MODEL,'primary'); return 'complete primary draft'; } };
+    assert.equal(await streamChat(env,'input','system',clients),'complete primary draft');
+    assert.equal(calls,1);
+    assert.equal(env.ANTHROPIC_BACKUP_API_KEY,'backup-key');
+    await assert.rejects(streamChat(env,'input','system',{...clients,async nonStream(){calls++;throw new Error('Anthropic Chat API error (401)');}}),/401/);
+    assert.equal(calls,2);
+    const same = {...env,ANTHROPIC_BACKUP_API_BASE_URL:env.ANTHROPIC_API_BASE_URL,ANTHROPIC_BACKUP_API_KEY:env.ANTHROPIC_API_KEY,DEFAULT_ANTHROPIC_BACKUP_MODEL:env.DEFAULT_ANTHROPIC_MODEL};
+    await assert.rejects(streamChat(same,'input','system',{async *stream(){throw new Error('Anthropic Chat API error (403)');},async nonStream(){assert.fail('same unauthorized route retried');}}),/403/);
+});
+
 test('preview repairs one refusal on the configured backup and never writes files or KV', async t => {
     const paragraph = '我经营爱窝啦 AI 账号店，也在尝试 AI 一人公司。客服与教程的解释成本，让我更关心工具是否稳定交付。公开研究的阶段与实际项目效果需要分别看待。';
     const good = `让自动化先完成一次真实交付\n\n${Array(7).fill(paragraph).join('\n\n')}\n\n## 参考资料\n\n- [原始研究](https://example.com/research)`;
