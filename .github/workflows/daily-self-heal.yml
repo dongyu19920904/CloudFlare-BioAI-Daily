@@ -25,6 +25,10 @@ jobs:
       DEFAULT_WORKER_BASE_URL: https://cloudflare-bioai-daily.sabrinamisan090.workers.dev
 
     steps:
+      - name: Checkout recovery date resolver
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Check missing daily modules and auto-heal
         id: guard
         shell: bash
@@ -32,14 +36,12 @@ jobs:
           INPUT_TARGET_DATE: ${{ github.event.inputs.target_date }}
           WORKER_BASE_URL: ${{ vars.WORKER_BASE_URL }}
           TRIGGER_SECRET: ${{ secrets.TEST_TRIGGER_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
 
-          if [[ -n "${INPUT_TARGET_DATE:-}" ]]; then
-            TARGET_DATE="${INPUT_TARGET_DATE}"
-          else
-            TARGET_DATE="$(TZ=Asia/Shanghai date +%F)"
-          fi
+          TARGET_DATE="$(node scripts/self-heal-date.mjs "${INPUT_TARGET_DATE:-}" "$EVENT_NAME")"
+          echo "Execution time (UTC): $(date -u +%FT%TZ); recovery edition: $TARGET_DATE"
 
           if [[ ! "$TARGET_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
             echo "Invalid target date: $TARGET_DATE"

@@ -89,10 +89,26 @@ export function deduplicateBioDailyNews(markdown) {
     return sections.filter(Boolean).join('');
 }
 
+export function normalizeBioDailySectionOrder(markdown) {
+    const text = String(markdown || '');
+    const order = ['今日摘要', '今日焦点 TOP', '产品与功能更新', '前沿研究', '行业变化与个人影响', '开源 TOP 项目', '社媒精选', 'AI趣闻', '相关问题'];
+    const blocks = text.split(/(?=^##[ \t]+)/m);
+    const prefix = /^##[ \t]+/.test(blocks[0]) ? '' : blocks.shift();
+    const sections = blocks.map(block => {
+        const title = (block.match(/^##[ \t]+([^\r\n]+)/)?.[1] || '').replace(/\*\*/g, '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
+        const key = title.replace(/^(?:今日焦点|重磅)\s+TOP\s+\d+$/, '今日焦点 TOP');
+        return { block, rank: order.indexOf(key) };
+    });
+    // Unknown/duplicate headings remain visible to validation; never hide them.
+    if (sections.some(item => item.rank < 0) || new Set(sections.map(item => item.rank)).size !== sections.length) return text;
+    if (sections.every((item, index) => index === 0 || item.rank > sections[index - 1].rank)) return text;
+    return prefix + sections.sort((a, b) => a.rank - b.rank).map(item => item.block.trimEnd()).join('\n\n') + (text.endsWith('\n') ? '\n' : '');
+}
+
 export function assembleBioDailyMarkdown(markdown, summary, env = {}) {
     const content = String(markdown || '').trim();
     const top = /^##\s*\*{0,2}(?:🔥\s*)?(?:今日焦点|重磅)\s*TOP\s+\d+.*$/im.exec(content);
-    const body = deduplicateBioDailyNews(top ? content.slice(top.index) : content);
+    const body = normalizeBioDailySectionOrder(deduplicateBioDailyNews(top ? content.slice(top.index) : content));
     const lines = String(summary || '').replace(/^```(?:text|markdown)?\s*/i, '').replace(/\s*```$/i, '')
         .split(/\r?\n/).map(line => line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, '').trim()).filter(Boolean);
     const candidates = lines.length > 1 ? lines : (lines[0]?.match(/[^。！？!?]+[。！？!?]?/g) || []);

@@ -15,7 +15,7 @@ const replacements = new Map([
   `],
   [new URL('../src/dataFetchers.js', import.meta.url).href, `
     export const dataSources = {news:{}, paper:{}, project:{}, socialMedia:{}};
-    export async function fetchAllData() { return globalThis.__bioaiGateFixture.materials || {news:[],paper:[],project:[],socialMedia:[]}; }
+    export async function fetchAllData() { if(globalThis.__bioaiGateFixture.denyFreshFetch) throw new Error('Unexpected fresh source fetch'); return globalThis.__bioaiGateFixture.materials || {news:[],paper:[],project:[],socialMedia:[]}; }
   `],
   [new URL('../src/github.js', import.meta.url).href, `
     export async function getGitHubFileSha() { return null; }
@@ -99,6 +99,31 @@ test('a sourced software installation check publishes on the first attempt', asy
   assert.equal(state.calls.length, 1);
   assert.equal(state.writes.length, 4);
 });
+
+test('project generation protects original source IDs before the existing source and health gates', async t => {
+  const good = valid.replace('今日主推', '今日优先项目').replace('https://example.org/study', 'BIOAI_SOURCE_1');
+  const state = setup(t, [good]);
+  const result = await scheduled.handleScheduledProjectOpportunity({}, env, {}, date, materials);
+  assert.equal(result.success, true);
+  assert.match(state.calls[0], /BIOAI_SOURCE_1/);
+  assert.doesNotMatch(state.calls[0], /https:\/\/example.org\/study/);
+  assert.equal(result.records.count, 1);
+  assert.ok(state.writes.every(item => !item.content.includes('BIOAI_SOURCE_')));
+});
+
+for (const [section, handler] of [['opportunity', scheduled.handleScheduledOpportunity], ['project-opportunity', scheduled.handleScheduledProjectOpportunity]]) {
+  test(`${section} reuses only the complete requested-date cache without refetching all feeds`, async t => {
+    const state = setup(t, [valid.replace('今日主推', section === 'opportunity' ? '今日主推' : '今日优先项目')]);
+    state.denyFreshFetch = true;
+    const reads = [];
+    const cachedEnv = { DATA_KV: { get: async key => { reads.push(key); return JSON.stringify(key === `${date}-news` ? materials.news : []); }, put: async () => assert.fail('complete cache must not be rewritten') } };
+    const result = await handler({}, cachedEnv, {}, date);
+    assert.equal(result.success, true);
+    assert.equal(state.calls.length, 1);
+    assert.deepEqual(reads.sort(), ['news', 'paper', 'project', 'socialMedia'].map(type => `${date}-${type}`).sort());
+    assert.equal(state.writes.length, 4);
+  });
+}
 
 test('missing and fabricated main sources both fail twice without any publication writes', async t => {
   const state = setup(t, [valid.replace('https://example.org/study', '未提供'), valid.replace('/study', '/fabricated')]);

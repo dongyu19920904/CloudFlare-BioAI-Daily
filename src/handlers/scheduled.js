@@ -9,6 +9,7 @@ import { getSystemPromptSummarizationStepThree, getBioDailySummaryReminder } fro
 import { getSystemPromptBioOpportunity } from "../prompt/bioOpportunityPrompt.js";
 import { getSystemPromptBioProjectOpportunity } from "../prompt/bioProjectOpportunityPrompt.js";
 import { generateWithSourceGate, assessOpportunitySourceGate } from "../opportunitySourceGate.js";
+import { createOpportunitySourceReferences } from '../opportunitySourceReferences.js';
 import { formatApprovedBioReport } from "../bioReportPresentation.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
@@ -282,7 +283,9 @@ function buildOpportunityPromptInput(allUnifiedData, sourceOrder, caps) {
     };
 }
 
-async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt, section) {
+async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt, section, references) {
+    userPrompt = references.protect(userPrompt);
+    systemPrompt += '\n' + references.instructions;
     let output = '';
     try {
         for await (const chunk of callChatAPIStream(env, userPrompt, systemPrompt)) {
@@ -298,6 +301,7 @@ async function generateBioOpportunityMarkdown(env, userPrompt, systemPrompt, sec
     }
 
     output = removeMarkdownCodeBlock(output);
+    output = references.restore(output);
     output = convertPlaceholdersToMarkdownImages(output);
     output = replaceIncorrectDomainLinks(output, env.BOOK_LINK ? new URL(env.BOOK_LINK).hostname : 'news.aibioo.cn');
     return assertSafeGeoMarkdown(output.trim(), section);
@@ -374,9 +378,11 @@ async function generateAndCommitOpportunity(env, dateStr, allUnifiedData) {
         return { success: false, date: dateStr, reason: 'no_items' };
     }
 
+    const originalPrompt = `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`;
+    const references = createOpportunitySourceReferences(originalPrompt);
     const approvedMarkdown = await generateWithSourceGate(
-        (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioOpportunity(dateStr), 'opportunity'),
-        `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
+        (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioOpportunity(dateStr), 'opportunity', references),
+        originalPrompt,
         { date: dateStr, section: 'opportunity' }
     );
     const presentation = formatApprovedBioReport(approvedMarkdown, {
@@ -417,9 +423,11 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
         return { success: false, date: dateStr, reason: 'no_items' };
     }
 
+    const originalPrompt = `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`;
+    const references = createOpportunitySourceReferences(originalPrompt);
     const approvedMarkdown = await generateWithSourceGate(
-        (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioProjectOpportunity(dateStr), 'project-opportunity'),
-        `报告日期：${dateStr}\n\n素材如下：\n\n${promptInput}`,
+        (prompt) => generateBioOpportunityMarkdown(env, prompt, getSystemPromptBioProjectOpportunity(dateStr), 'project-opportunity', references),
+        originalPrompt,
         { date: dateStr, section: 'project-opportunity' }
     );
     const presentation = formatApprovedBioReport(approvedMarkdown, {
@@ -443,12 +451,27 @@ async function generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData)
     return { success: true, date: dateStr, selectedCount: selectedItems.length, paths, records, presentation: { status: presentation.status, version: presentation.version, warnings: presentation.warnings } };
 }
 
+async function loadOpportunitySources(env, dateStr, logPrefix) {
+    if (env.DATA_KV) {
+        try {
+            const entries = await Promise.all(Object.keys(dataSources).map(async type => [type, await getFromKV(env.DATA_KV, `${dateStr}-${type}`)]));
+            if (entries.every(([, items]) => Array.isArray(items)) && entries.some(([, items]) => items.length)) {
+                console.log(`${logPrefix} Reusing complete source cache for ${dateStr}; skipping duplicate fetch.`);
+                return Object.fromEntries(entries);
+            }
+        } catch (error) {
+            console.warn(`${logPrefix} Source cache unavailable; using existing fetch path: ${error.message}`);
+        }
+    }
+    return fetchAndCacheScheduledData(env, dateStr, logPrefix);
+}
+
 export async function handleScheduledOpportunity(event, env, ctx, specifiedDate = null, preloadedData = null) {
     const dateStr = specifiedDate || getISODate();
     setFetchDate(dateStr);
     console.log(`[Scheduled][Opportunity] Starting opportunity automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
     try {
-        const allUnifiedData = preloadedData || await fetchAndCacheScheduledData(env, dateStr, '[Scheduled][Opportunity]');
+        const allUnifiedData = preloadedData || await loadOpportunitySources(env, dateStr, '[Scheduled][Opportunity]');
         return await generateAndCommitOpportunity(env, dateStr, allUnifiedData);
     } catch (error) {
         console.error(`[Scheduled][Opportunity] Error:`, error.gateDiagnostics ? error.message : error);
@@ -461,7 +484,7 @@ export async function handleScheduledProjectOpportunity(event, env, ctx, specifi
     setFetchDate(dateStr);
     console.log(`[Scheduled][ProjectOpportunity] Starting project opportunity automation for ${dateStr}${specifiedDate ? ' (specified date)' : ''}`);
     try {
-        const allUnifiedData = preloadedData || await fetchAndCacheScheduledData(env, dateStr, '[Scheduled][ProjectOpportunity]');
+        const allUnifiedData = preloadedData || await loadOpportunitySources(env, dateStr, '[Scheduled][ProjectOpportunity]');
         return await generateAndCommitProjectOpportunity(env, dateStr, allUnifiedData);
     } catch (error) {
         console.error(`[Scheduled][ProjectOpportunity] Error:`, error.gateDiagnostics ? error.message : error);
