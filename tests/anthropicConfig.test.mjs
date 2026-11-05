@@ -35,7 +35,7 @@ test("RunToken base URL resolves to its Anthropic Messages endpoint", () => {
   const config = resolveAnthropicConfig({
     ANTHROPIC_API_BASE_URL: "https://www.runtoken.ai",
     ANTHROPIC_BACKUP_API_BASE_URL: "https://www.runtoken.ai",
-    DEFAULT_ANTHROPIC_MODEL: "claude-sonnet-5",
+    DEFAULT_ANTHROPIC_MODEL: "claude-sonnet-5-5",
     DEFAULT_ANTHROPIC_BACKUP_MODEL: "claude-opus-4-8",
   });
 
@@ -104,7 +104,7 @@ test("deployment config uses the enterprise endpoint for both Claude routes", ()
       new RegExp(`^${setting} = "https://www\\.runtoken\\.ai"$`, "m")
     );
   }
-  assert.match(config, /^DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"$/m);
+  assert.match(config, /^DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5-5"$/m);
   assert.match(
     config,
     /^DEFAULT_ANTHROPIC_BACKUP_MODEL = "claude-opus-4-8"$/m

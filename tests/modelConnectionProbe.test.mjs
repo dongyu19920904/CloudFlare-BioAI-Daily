@@ -7,7 +7,7 @@ import {
 } from '../src/modelConnectionProbe.js';
 
 const env = {
-    DEFAULT_ANTHROPIC_MODEL: 'claude-sonnet-5',
+    DEFAULT_ANTHROPIC_MODEL: 'claude-sonnet-5-5',
     DEFAULT_ANTHROPIC_BACKUP_MODEL: 'claude-opus-4-8',
     ANTHROPIC_API_BASE_URL: 'https://example.test',
     ANTHROPIC_API_KEY: 'test-key',
@@ -29,7 +29,7 @@ test('BioAI probes use a fixed prompt, small budget, and no fallback providers',
             assert.equal(scoped.ANTHROPIC_RETRY_MAX, '0');
             assert.equal(
                 scoped.DEFAULT_ANTHROPIC_MODEL,
-                route === 'backup' ? 'claude-opus-4-8' : 'claude-sonnet-5'
+                route === 'backup' ? 'claude-opus-4-8' : 'claude-sonnet-5-5'
             );
             assert.equal(scoped.DEFAULT_ANTHROPIC_BACKUP_MODEL, scoped.DEFAULT_ANTHROPIC_MODEL);
             assert.equal(scoped.OPENAI_FALLBACK_ENABLED, 'false');
