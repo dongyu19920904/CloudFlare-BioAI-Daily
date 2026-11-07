@@ -4,9 +4,18 @@ import { readFileSync } from 'node:fs';
 import { assessBlogNovelty, blogTextSimilarity, buildBlogHistoryContext, canonicalBlogSource, loadRecentBlogHistory, parseBlogHistory } from '../src/blogHistory.js';
 import { getBlogReaderBrief, selectBlogWritingMaterial } from '../src/blogTopic.js';
 import { handleScheduledBlog } from '../src/handlers/scheduledBlog.js';
+import { validateBlogDraft } from '../src/blogQuality.js';
 
 const old = { date: '2026-11-05', title: '改一个功能之前，先问 AI 它还会动哪里', body: '改代码之前，先知道这次改动会波及哪里。先让 AI 列出调用方，再回到文件核对。', sources: ['https://github.com/owner/coding'] };
 const article = `---\ntitle: '${old.title}'\npubDatetime: 2026-11-05T01:00:00Z\n---\n\n${old.body}\n\n## 参考资料\n- [项目](https://github.com/owner/coding?utm_source=rss)\n\n---\n> [日报](https://news.aivora.cn/2026-11/2026-11-05/)`;
+
+test('new-topic drafts still cannot invent past conversations or measured reliability', () => {
+    const source = 'AI 工具的公开项目说明。'.repeat(30);
+    for (const body of ['几个月前就听到有人说工具能找到漏洞。', '每次追问你怎么确认的，答案往往含糊。']) {
+        assert.ok(validateBlogDraft({ title: '先分清审计结果的确认状态', body, dailyContent: source, blogType: 'ai-daily' }).severe.includes('unsupported_author_tool_routine'));
+    }
+    assert.ok(validateBlogDraft({ title: '先分清审计结果的确认状态', body: '对 AI 来说执行起来反而更机械，更稳定。', dailyContent: source, blogType: 'ai-daily' }).severe.includes('unsupported_tool_effectiveness_claim'));
+});
 
 test('history parses generated frontmatter and actual references, not the daily footer', () => {
     const parsed = parseBlogHistory(article, old.date);
