@@ -52,13 +52,18 @@ async function main() {
     const missing = [];
     for (const path of paths) if (!await githubFileExists(path)) missing.push(path);
     let report = { date, mode, missing, success: missing.length === 0, results: [] };
-    if (missing.length) {
+    if (missing.length || mode === 'preview') {
         const base = validateWorkerUrl(process.env.BLOG_WORKER_URL || 'https://cloudflare-bioai-daily.sabrinamisan090.workers.dev');
         if (!process.env.TEST_TRIGGER_SECRET) throw new Error('Missing TEST_TRIGGER_SECRET');
         const url = new URL('/testTriggerBlog', base);
         url.searchParams.set('key', process.env.TEST_TRIGGER_SECRET);
         url.searchParams.set('date', date);
-        if (mode === 'preview') url.searchParams.set('dryRun', '1');
+        if (mode === 'preview') {
+            url.searchParams.set('dryRun', '1');
+            const type = process.env.BLOG_PREVIEW_TYPE || 'both';
+            if (!['both', 'ai-daily', 'bioai-daily'].includes(type)) throw new Error('Invalid preview blog type');
+            if (type !== 'both') url.searchParams.set('previewType', type);
+        }
         let response;
         try { response = await fetch(url, { signal: AbortSignal.timeout(600000) }); }
         catch { throw new Error('Blog-only trigger failed or timed out; do not blindly retry an in-flight generation'); }

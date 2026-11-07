@@ -49,13 +49,14 @@ test('history loading is bounded by column, past seven days, branch and fixed AP
         requests.push(url);
         assert.equal(new URL(url).host, 'api.github.com');
         assert.equal(new URL(url).searchParams.get('ref'), 'release');
-        assert.equal(options.redirect, 'error');
+        assert.equal(options.redirect, 'manual');
         if (requests.length === 1) return Response.json(['ai-daily-2026-10-30.md', 'ai-daily-2026-10-31.md', 'ai-daily-2026-11-05.md', 'ai-daily-2026-11-07.md', 'bioai-daily-2026-11-06.md'].map(name => ({ name })));
         return new Response(article);
     });
     assert.deepEqual(posts.map(post => post.date), ['2026-11-05', '2026-10-31']);
     assert.equal(requests.length, 3);
     await assert.rejects(loadRecentBlogHistory({ GITHUB_TOKEN: 'placeholder', GITHUB_REPO_OWNER: 'owner' }, 'ai-daily', '2026-11-07', async () => new Response('', { status: 503 })), /history unavailable/);
+    await assert.rejects(loadRecentBlogHistory({ GITHUB_TOKEN: 'placeholder', GITHUB_REPO_OWNER: 'owner' }, 'ai-daily', '2026-11-07', async () => new Response('', { status: 302, headers: { Location: 'https://other.invalid/' } })), /HTTP 302/);
 });
 
 test('history failure stays inside the personal blog job and does not call a model or publish', async t => {

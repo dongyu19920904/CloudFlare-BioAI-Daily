@@ -19,6 +19,11 @@ on:
         description: 'Optional approved version URL for preview only'
         type: string
         required: false
+      preview_type:
+        description: 'Preview one personal-blog column without running the other'
+        type: choice
+        options: [both, ai-daily, bioai-daily]
+        default: both
 
 concurrency:
   group: personal-blog-guard
@@ -41,6 +46,7 @@ jobs:
           TARGET_DATE: ${{ inputs.target_date }}
           BLOG_MODE: ${{ inputs.mode || 'publish' }}
           BLOG_WORKER_URL: ${{ inputs.mode == 'preview' && inputs.worker_url || '' }}
+          BLOG_PREVIEW_TYPE: ${{ inputs.mode == 'preview' && inputs.preview_type || 'both' }}
           TEST_TRIGGER_SECRET: ${{ secrets.TEST_TRIGGER_SECRET }}
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/personal-blog-guard.mjs

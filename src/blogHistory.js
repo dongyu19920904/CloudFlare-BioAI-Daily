@@ -29,7 +29,7 @@ export async function loadRecentBlogHistory(env, blogType, dateStr, fetcher = fe
     const branch = env.BLOG_REPO_BRANCH || 'main';
     const root = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/src/data/blog`;
     const headers = { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: 'application/vnd.github.raw+json', 'User-Agent': 'Personal-Blog-History/1.0' };
-    const list = await fetcher(`${root}?ref=${encodeURIComponent(branch)}`, { method: 'GET', headers: { ...headers, Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(10000), redirect: 'error' });
+    const list = await fetcher(`${root}?ref=${encodeURIComponent(branch)}`, { method: 'GET', headers: { ...headers, Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(10000), redirect: 'manual' });
     if (!list.ok) throw new Error(`Personal blog history unavailable: HTTP ${list.status}`);
     const files = await list.json();
     if (!Array.isArray(files)) throw new Error('Invalid personal blog history listing');
@@ -41,7 +41,7 @@ export async function loadRecentBlogHistory(env, blogType, dateStr, fetcher = fe
         .filter(file => file.date && file.date >= first && file.date < dateStr).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7);
     const posts = [];
     for (const file of recent) {
-        const response = await fetcher(`${root}/${encodeURIComponent(file.name)}?ref=${encodeURIComponent(branch)}`, { method: 'GET', headers, signal: AbortSignal.timeout(10000), redirect: 'error' });
+        const response = await fetcher(`${root}/${encodeURIComponent(file.name)}?ref=${encodeURIComponent(branch)}`, { method: 'GET', headers, signal: AbortSignal.timeout(10000), redirect: 'manual' });
         if (!response.ok) throw new Error(`Personal blog history read failed: HTTP ${response.status}`);
         const text = await response.text();
         if (text.length > 100000) throw new Error('Personal blog history file too large');
