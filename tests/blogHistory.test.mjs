@@ -36,11 +36,14 @@ test('a brand name alone does not force the same question or block a distinct to
 
 test('source replay is normalized and selection changes before spending a model call', () => {
     const code = '### Codex 编程工具\n\n' + '项目支持检查代码。'.repeat(30) + '\n[项目](https://github.com/owner/coding?utm_source=weekly#readme)';
-    const audio = '### AI 语音笔记工具\n\n' + '工具将语音整理成可检索的笔记，用户可以查看原始记录。'.repeat(15) + '\n[说明](https://example.org/audio)';
+    const audio = '### AI 语音笔记工具让原始记录可以随时找回\n\n' + '工具将语音整理成可检索的笔记，用户可以查看原始记录。'.repeat(15) + '\n[说明](https://example.org/audio)';
     assert.equal(selectBlogWritingMaterial(code + '\n\n' + audio, 'ai-daily', [old]), audio);
     assert.equal(selectBlogWritingMaterial(code, 'ai-daily', [old]), '');
     assert.equal(canonicalBlogSource('https://example.org/doc?id=3&utm_source=x#part'), 'https://example.org/doc?id=3');
     assert.ok(buildBlogHistoryContext([old]).includes(old.title));
+    const unqualified = '### 去 AI 味 Skill 的语料介绍\n\n' + '这项介绍没有提供具体工具和用法。'.repeat(25) + '\n[帖子](https://example.org/promotion)';
+    const qualified = audio;
+    assert.equal(selectBlogWritingMaterial(unqualified + '\n\n' + qualified, 'ai-daily', [old]), qualified);
 });
 
 test('history loading is bounded by column, past seven days, branch and fixed API host', async () => {

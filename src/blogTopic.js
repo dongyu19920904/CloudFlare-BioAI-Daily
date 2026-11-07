@@ -1,4 +1,4 @@
-import { containsModelFailure, extractUrls } from './blogQuality.js';
+import { containsModelFailure, extractUrls, qualifyDailyForPersonalBlog } from './blogQuality.js';
 import { blogAngle, canonicalBlogSource } from './blogHistory.js';
 
 export function getBlogReaderBrief(material, blogType) {
@@ -15,7 +15,7 @@ export function selectBlogWritingMaterial(dailyContent, blogType, recentPosts = 
     if (containsModelFailure(text)) return text;
     const blocks = text.split(/(?=^#{2,3}\s)/m).filter(block => /^#{2,3}\s/.test(block) && block.length >= 180 && extractUrls(block).length > 0);
     const used = new Set(recentPosts.flatMap(post => post.sources || []).map(canonicalBlogSource));
-    const scored = blocks.filter(block => !extractUrls(block).some(url => used.has(canonicalBlogSource(url)))).map((block, index) => {
+    const scored = blocks.filter(block => qualifyDailyForPersonalBlog(block, blogType).eligible && !extractUrls(block).some(url => used.has(canonicalBlogSource(url)))).map((block, index) => {
         const title = block.split('\n')[0];
         let score = 0;
         if (blogType === 'ai-daily') {
