@@ -1,5 +1,6 @@
 import { containsModelFailure, extractUrls, qualifyDailyForPersonalBlog } from './blogQuality.js';
 import { blogAngle, canonicalBlogSource } from './blogHistory.js';
+import { resolveBlogSource } from './blogSources.js';
 
 export function getBlogReaderBrief(material, blogType) {
     if (blogType === 'bioai-daily' && /脑年龄|脑龄|brain.?age/i.test(material)) {
@@ -22,6 +23,8 @@ export function selectBlogWritingMaterial(dailyContent, blogType, recentPosts = 
             if (/Claude Code|Codex|Cursor|Graphify|编程助手|开源工具|代码库/i.test(title)) score += 4;
             if (/AI|模型|工具|自动化|笔记|资料|搜索|图片|视频|语音|工作流/i.test(title)) score += 3;
             if (/操作|教程|工具|代码|项目|怎么|如何|工作流|截图/.test(block)) score += 3;
+            if (extractUrls(block).some(url => resolveBlogSource(url))) score += 4;
+            if (/质疑|怀疑|存疑|传言|传闻/.test(title)) score -= 8;
             if (/MAU|月活|日活|融资|估值|市值|排行榜|获奖|奖项|营收|峰会/i.test(title)) score -= 12;
         } else {
             if (/brain2vec|脑龄|脑年龄|生物年龄|衰老时钟|aging clock|AI|人工智能|开源|wearable|可穿戴/i.test(title)) score += 8;

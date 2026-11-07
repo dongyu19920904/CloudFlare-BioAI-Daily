@@ -44,6 +44,9 @@ test('source replay is normalized and selection changes before spending a model 
     const unqualified = '### 去 AI 味 Skill 的语料介绍\n\n' + '这项介绍没有提供具体工具和用法。'.repeat(25) + '\n[帖子](https://example.org/promotion)';
     const qualified = audio;
     assert.equal(selectBlogWritingMaterial(unqualified + '\n\n' + qualified, 'ai-daily', [old]), qualified);
+    const rumor = '### 用户质疑 ChatGPT 的底层模型\n\n' + '这是一次未经复现的猜测，工具没有官方说明。'.repeat(25) + '\n[帖子](https://example.org/rumor)';
+    const primary = '### AI 工具提供可读取的原始文档\n\n' + '开源项目提供工具说明，可以用来解释真实的工作流。'.repeat(15) + '\n[仓库](https://github.com/owner/notes)';
+    assert.equal(selectBlogWritingMaterial(rumor + '\n\n' + primary, 'ai-daily', [old]), primary);
 });
 
 test('history loading is bounded by column, past seven days, branch and fixed API host', async () => {
