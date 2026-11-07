@@ -42,7 +42,7 @@ test('normal prose keeps existing image and table-of-contents safeguards', () =>
 });
 
 test('versioned writing rules reach both real prompt variants without a new review stage', () => {
-    assert.equal(BLOG_WRITING_VERSION, '2026-10-26.1');
+    assert.equal(BLOG_WRITING_VERSION, '2026-11-07.1');
     for (const kind of ['ai-daily', 'bioai-daily']) {
         const prompt = getBlogPrompt(kind, '2026-10-26', []);
         assert.ok(prompt.includes(BLOG_WRITING_VERSION));

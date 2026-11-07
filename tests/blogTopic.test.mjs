@@ -4,7 +4,7 @@ import { selectBlogWritingMaterial, getBlogReaderBrief } from '../src/blogTopic.
 
 test('the reader question separates age estimates from classification and code use from benchmarks', () => {
     assert.match(getBlogReaderBrief('Brain2Vec 在脑年龄与五项分类任务上评估。', 'bioai-daily'), /不同任务/);
-    assert.match(getBlogReaderBrief('Codex 代码库中的相关关系。', 'ai-daily'), /怎样弄清还会影响哪些地方/);
+    assert.doesNotMatch(getBlogReaderBrief('Codex 代码库中的相关关系。', 'ai-daily'), /本篇唯一问题：让 AI 改一个功能之前/);
     assert.doesNotMatch(getBlogReaderBrief('健康研究的新结果。', 'bioai-daily'), /脑年龄|冻结嵌入/);
 });
 import { qualifyDailyForPersonalBlog } from '../src/blogQuality.js';

@@ -66,6 +66,7 @@ test('preview repairs one refusal on the configured backup and never writes file
     t.mock.method(globalThis, 'fetch', async (url, options={}) => {
         if (String(url).startsWith('https://api.github.com/')) {
             assert.equal(options.method, 'GET');
+            if (new URL(url).pathname.endsWith('/contents/src/data/blog')) return Response.json([]);
             return Response.json({message:'Not Found'}, {status:404});
         }
         if (String(url).startsWith('https://raw.githubusercontent.com/')) return new Response(daily);
@@ -90,6 +91,7 @@ test('title-only repair keeps the original title context and body without extra 
     t.mock.method(globalThis,'fetch',async(url,options={})=>{
         if(String(url).startsWith('https://api.github.com/')){
             assert.equal(options.method,'GET');
+            if(new URL(url).pathname.endsWith('/contents/src/data/blog'))return Response.json([]);
             return Response.json({message:'Not Found'},{status:404});
         }
         if(String(url).startsWith('https://raw.githubusercontent.com/'))return new Response('# Claude 和衰老临床研究\n'+paragraph.repeat(10)+'\nhttps://example.com/research');
@@ -114,6 +116,10 @@ test('dry-run regenerates existing dated articles without touching GitHub or KV'
     const paragraph = '想用 AI 完成一件小事，可以先说明需要什么结果。结果出来后，逐项看输入有没有用对，输出能不能打开。拿不准的地方先留着，不急着将它交给别人使用。';
     const text = '让工具先做完一件具体的小事\n\n' + paragraph.repeat(7) + '\n\n## 参考资料\n\n- [研究](https://example.com/research)';
     t.mock.method(globalThis, 'fetch', async (url, options = {}) => {
+        if (String(url).startsWith('https://api.github.com/') && new URL(url).pathname.endsWith('/contents/src/data/blog')) {
+            assert.equal(options.method, 'GET');
+            return Response.json([]);
+        }
         if (String(url).startsWith('https://api.github.com/')) assert.fail('dry-run checked or overwrote existing content');
         if (String(url).startsWith('https://raw.githubusercontent.com/')) return new Response('# Claude 与衰老研究\n' + paragraph.repeat(7) + '\nhttps://example.com/research');
         calls++;

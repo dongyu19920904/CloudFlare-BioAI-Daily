@@ -3,7 +3,7 @@ import { assessBlogReadability } from './blogReadability.js';
 import { protectBlogMarkdownLiterals } from './blogMarkdown.js';
 
 const AI_SIGNAL_PATTERNS = [
-    /ChatGPT|GPT|OpenAI|Codex|Cursor|Claude|Gemini|Grok|Perplexity|MiniMax|Graphify|AI\s*(?:编程|工具)/i,
+    /ChatGPT|GPT|OpenAI|Codex|Cursor|Claude|Gemini|Grok|Perplexity|MiniMax|Graphify|AI\s*(?:编程|工具|语音|图片|视频|笔记|搜索)/i,
     /agent|coding|IDE|API|模型|中转|镜像|账号|发卡|额度|客服|售后|教程|自动化|一人公司/i,
 ];
 

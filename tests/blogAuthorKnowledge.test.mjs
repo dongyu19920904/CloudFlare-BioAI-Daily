@@ -72,6 +72,7 @@ test('both blog jobs consume current knowledge and publish with no extra model c
             return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: {"type":"message_stop"}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
         }
         if (String(url).startsWith('https://api.github.com/')) {
+            if (new URL(url).pathname.endsWith('/contents/src/data/blog')) return Response.json([]);
             if (options.method === 'PUT') {
                 writes.push(JSON.parse(options.body));
                 return Response.json({ content: { sha: 'mock-committed' } });
