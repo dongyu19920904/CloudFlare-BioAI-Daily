@@ -102,8 +102,24 @@ node --require ./tests/helpers/deny-network.cjs scripts/check-papers-cool-source
 - [x] SSH 只读更新后确认基线 `12293852c652d569c6b175073994e0900e196d5e`，没有分叉；原始工作区及无关改动未合并。
 - [x] 核对现用 Cloudflare 账号 `e463a2527ad0aabaa97379e675219f82`、Worker `cloudflare-bioai-daily`、绑定 DATA_KV。上线前生产版本 `b1374a39-9d17-452e-8fc4-3b6cf0271f49`，41 个绑定包含 7 个 Secret，三个 cron 保持原样。
 - [x] 最终离线回归 343/343 通过，未调用模型。
-- [ ] 提交和正常快进推送本批 13 个文件，核对自动 CI。
-- [ ] 从生产元数据构建临时发布配置，upload 后比对绑定和运行兼容性，确认未切流后再 deploy；不执行 triggers deploy。
-- [ ] 回读 100% 生产版本、绑定、cron 和无需密钥的只读接口，核对内容仓库未被本轮改写。
+- [x] 提交和正常快进推送本批 13 个文件，核对自动 CI。
+- [x] 从生产元数据构建临时发布配置，upload 后比对绑定和运行兼容性，确认未切流后再 deploy；未执行 triggers deploy。
+- [x] 回读 100% 生产版本、绑定、cron 和无需密钥的只读接口，核对内容仓库未被本轮改写。
 
 发布前后的完整元数据与日志只保留在 `D:/CodexCache/artifacts/bioai-papers-source-20261109/`。不把临时发布配置、公共 RSS 原文、日志、凭据或模型费用预览加入 Git。
+
+### 正式发布回执
+
+- 代码提交：[3a98d9df88e5fa69a463de2ce6e292205cdf253c](https://github.com/dongyu19920904/CloudFlare-BioAI-Daily/commit/3a98d9df88e5fa69a463de2ce6e292205cdf253c)。SSH 正常快进推送至 `main`，未强推，未改原始工作区分支。
+- 推送自然触发的 [Opportunity Records CI 42533795832](https://github.com/dongyu19920904/CloudFlare-BioAI-Daily/actions/runs/42533795832) 已完成，结论 `success`；没有手动重跑 CI 或自愈流程。
+- 发布前以最终代码重放已保存的真实 cs.AI 订阅，结果仍是 198 → 16 → 10，外部请求 0。`cropped/cropping` 修复没有改变这一批素材的筛选结果。
+- 生产元数据生成的临时配置本地打包成功；通过 `versions upload` 上传，tag 为 `papers-bioai-3a98d9df`，新版本 `57a651a8-cc0b-46c8-b40d-65f9097564a2`。
+- 上传后切流前确认旧版本仍占 100%，新版本的 41 个绑定、7 个 Secret 名称及运行设置与旧版本完全一致。随后 `versions deploy ...@100` 正常切流，CLI 明确 `No non-versioned settings to sync`；没有部署或改写 triggers。
+- 正式部署 ID `c2d56297-3873-4577-b638-7db00b120728`；Cloudflare 时间 `2026-11-08T23:11:59.252246Z`，即北京时间 **2026-11-09 07:11:59**。发布后 API 回读确认新版本占 100%，绑定、运行兼容设置、三个 cron 原样保留。
+- 保留回滚版本 `b1374a39-9d17-452e-8fc4-3b6cf0271f49`，本轮没有执行回滚。后续回滚只针对本次 Worker 代码，不修改历史文章、KV 或其他项目。
+- 线上非生成检查：`GET /login` HTTP 200 且有登录表单；不带密钥请求 `/testTriggerScheduled`、`/testTriggerScheduledOpportunity?mode=opportunity`、`/testTriggerScheduledProjectOpportunity` 均为 HTTP 401 且返回 `Unauthorized`。没有发送有效触发密钥、没有调用 `/testModelConnection`，没有执行生成链路。
+- `BioAI-Daily-Web` 发布前后 HEAD 均为 `7bb0a96aa37274c0515c2b1c456f676da551f37a`，没有修改或发布前端及历史内容。
+
+发布证据：`release-tests.log`、`release.patch`、`release-source-replay.json`、`release-build.log`、`worker-upload.log`、`worker-deploy.log`、`BeforeDeploy.json`、`AfterDeploy.json`、`live-status.json`，均在上述 D 盘产物目录。生产配置快照只包含服务端可见的普通配置和 Secret 名称，无 Secret 值，未加入 Git。
+
+**验收边界**：此次证明代码已上线、原配置保持、入口及鉴权正常；HTTP 401 是鉴权检查成功，不是生成成功。没有在本轮调用付费模型、手动生成日报或写 records，不能据此宣布三份新日报已经生成。实际定时生成的文章质量、来源分布及连续跨日运行，仍需下一次真实任务的日志、Markdown 与 records 共同确认。
