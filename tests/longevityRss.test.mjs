@@ -11,6 +11,85 @@ import { getISODate, setFetchDate } from "../src/helpers.js";
 const originalFetch = globalThis.fetch;
 const originalFetchDate = getISODate();
 
+test('paper RSS diagnoses exclusions, preserves publication dates and dedupes before its cap', async () => {
+  const entry = (id, title, summary, dates) => `<entry><id>https://papers.cool/arxiv/${id}</id><title>${title}</title><summary>${summary}</summary>${dates}</entry>`;
+  const xml = `<feed>${[
+    entry('2611.00001', 'AI drug discovery', 'LLM agents design proteins.', '<published>2026-11-05</published><updated>2026-11-08</updated>'),
+    entry('2611.00001v2', 'AI drug discovery', 'LLM agents design proteins.', '<published>2026-11-05</published>'),
+    entry('2611.00002', 'AI aging clock', 'Machine learning predicts biological age.', '<published>2026-11-04</published>'),
+    entry('2611.00003', 'Robot cognition', 'Brain-inspired AI neural network manipulation.', '<published>2026-11-05</published>'),
+    entry('2611.00004', 'AI protein design', 'LLM designs proteins.', ''),
+    entry('2610.00005', 'AI protein design', 'LLM designs proteins.', '<published>2026-10-01</published><updated>2026-11-08</updated>'),
+  ].join('')}</feed>`;
+  globalThis.fetch = async () => new Response(xml);
+  setFetchDate('2026-11-09');
+  try {
+    const raw = await PapersCoolDataSource.fetch({ PAPERS_COOL_RSS_URLS: 'AI::https://papers.cool/arxiv/cs.AI/feed', PAPERS_COOL_MAX_ITEMS_PER_FEED: '2' });
+    assert.equal(raw.items.length, 2);
+    assert.match(raw.items[0].title, /aging clock/);
+    const feed = raw.diagnostics.feeds[0];
+    assert.equal(feed.fetched, 6);
+    assert.equal(feed.topicRejected, 1);
+    assert.equal(feed.dateRejected, 2);
+    assert.equal(feed.duplicates, 1);
+    assert.equal(feed.selected, 2);
+    const transformed = PapersCoolDataSource.transform(raw, 'paper');
+    const drug = transformed.find(item => item.title === 'AI drug discovery');
+    assert.equal(drug.published_date, '2026-11-05');
+    assert.equal(drug.details.updatedAt, '2026-11-08');
+  } finally {
+    globalThis.fetch = originalFetch;
+    setFetchDate(originalFetchDate);
+  }
+});
+
+test('one failed paper feed does not discard other feeds or exceed the configured feed count', async () => {
+  const requests = [];
+  globalThis.fetch = async url => {
+    requests.push(url);
+    if (url.endsWith('/q-bio/feed')) throw new Error('fixture offline');
+    return new Response('<feed><entry><title>AI drug discovery</title><id>https://papers.cool/arxiv/2611.00001</id><summary>LLM protein design.</summary><published>2026-11-05</published></entry></feed>');
+  };
+  setFetchDate('2026-11-09');
+  try {
+    const raw = await PapersCoolDataSource.fetch({ PAPERS_COOL_MAX_FEEDS_PER_RUN: '2' });
+    assert.equal(requests.length, 2);
+    assert.equal(raw.items.length, 1);
+    assert.equal(raw.diagnostics.feeds[0].status, 'error');
+  } finally {
+    globalThis.fetch = originalFetch;
+    setFetchDate(originalFetchDate);
+  }
+});
+
+test('paper RSS rejects oversized and non-feed responses without returning misleading items', async () => {
+  setFetchDate('2026-11-09');
+  try {
+    for (const body of ['<html>Temporary upstream error</html>', '<feed>' + 'x'.repeat(2 * 1024 * 1024) + '</feed>']) {
+      globalThis.fetch = async () => new Response(body);
+      const raw = await PapersCoolDataSource.fetch({ PAPERS_COOL_MAX_FEEDS_PER_RUN: '1' });
+      assert.deepEqual(raw.items, []);
+      assert.equal(raw.diagnostics.feeds[0].status, 'error');
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    setFetchDate(originalFetchDate);
+  }
+});
+
+test('explicit paper keyword restrictions still apply without admitting generic AI', async () => {
+  globalThis.fetch = async () => new Response('<feed><entry><title>AI drug discovery</title><id>https://papers.cool/arxiv/2611.00001</id><summary>LLM protein design.</summary><published>2026-11-05</published></entry></feed>');
+  setFetchDate('2026-11-09');
+  try {
+    const raw = await PapersCoolDataSource.fetch({ PAPERS_COOL_MAX_FEEDS_PER_RUN: '1', PAPERS_COOL_AI_KEYWORDS: 'custom-model', PAPERS_COOL_STRONG_KEYWORDS: 'custom-object' });
+    assert.deepEqual(raw.items, []);
+    assert.equal(raw.diagnostics.feeds[0].topicReasons.configured_keyword_filter, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    setFetchDate(originalFetchDate);
+  }
+});
+
 test('daily paper relevance rejects generic model pruning but retains biological methods', () => {
   assert.equal(itemMatchesPapersCoolTopic({ title: 'Your Transformer Is Secretly Elastic', summary: 'Retraining-free pruning for ImageNet vision and text encoders on A100 GPUs.' }, {}), false);
   assert.equal(itemMatchesPapersCoolTopic({ title: 'Neural Wasserstein Splines', summary: 'Neural network trajectory inference evaluated on single-cell benchmarks.' }, {}), true);
@@ -53,6 +132,8 @@ test("papers.cool Atom feed is filtered for BioAI relevance", async () => {
     assert.equal(items.length, 1);
     assert.equal(items[0].title, "Integrating gene regulatory priors into Transformer attention with scTransformer");
     assert.equal(items[0].source, "Papers.cool");
+    assert.equal(items[0].details.dateBasis, 'updated_only');
+    assert.match(PapersCoolDataSource.generateHtml(items[0]), /原始发表日期未知/);
     assert.match(items[0].details.content_html, /arxiv\.org\/pdf\/2606\.09558/);
   } finally {
     setFetchDate(originalFetchDate);

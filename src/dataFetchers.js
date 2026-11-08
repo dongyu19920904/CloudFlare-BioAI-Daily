@@ -18,6 +18,7 @@ import {
     PapersCoolDataSource,
 } from './dataSources/longevity-rss.js';
 import { applyLinuxDoPolicy, resolveLinuxDoPolicy } from './sourcePolicies.js';
+import { assessBioPaper, selectBioPapers, summarizePaperSources } from './bioPaperSelection.js';
 
 
 // Register data sources as arrays to support multiple sources per type
@@ -60,7 +61,12 @@ export async function fetchAndTransformDataForType(sourceType, env, foloCookie) 
 
     // Sort by published_date in descending order for each type
     // Priority: items with images/videos first, then by date
-    allUnifiedDataForType.sort((a, b) => {
+    if (sourceType === 'paper') {
+        const before = allUnifiedDataForType.length;
+        const topicCount = allUnifiedDataForType.filter(item => assessBioPaper(item).priority > 0).length;
+        allUnifiedDataForType = selectBioPapers(allUnifiedDataForType, { relevantOnly: true });
+        console.log(`[paper][pool] ${JSON.stringify({ input: before, topicRejected: before - topicCount, duplicates: topicCount - allUnifiedDataForType.length, retained: allUnifiedDataForType.length, sources: summarizePaperSources(allUnifiedDataForType) })}`);
+    } else allUnifiedDataForType.sort((a, b) => {
         // Check if items have media (images or videos)
         const aHasMedia = a.details?.content_html && /<img[^>]+>|<video[^>]+>/i.test(a.details.content_html);
         const bHasMedia = b.details?.content_html && /<img[^>]+>|<video[^>]+>/i.test(b.details.content_html);

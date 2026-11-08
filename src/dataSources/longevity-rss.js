@@ -1,4 +1,5 @@
 import { escapeHtml, formatDateToChineseWithTime, isDateWithinLastDays, stripHtml } from '../helpers.js';
+import { assessBioPaper, getArxivIdentity, selectBioPapers } from '../bioPaperSelection.js';
 
 const DEFAULT_PAPERS_COOL_FEEDS = [
     'Papers.cool q-bio::https://papers.cool/arxiv/q-bio/feed',
@@ -235,7 +236,7 @@ function splitSuperTechFansItem(item, feedName, feedUrl, env) {
     return items;
 }
 
-function parseFeedItems(xml, feedName, feedUrl, sourceKind, env) {
+function parseFeedItems(xml, feedName, feedUrl, sourceKind, env, diagnostics = null) {
     const input = String(xml || '');
     const isAtom = /<feed\b/i.test(input);
     const entryPattern = isAtom
@@ -245,19 +246,25 @@ function parseFeedItems(xml, feedName, feedUrl, sourceKind, env) {
     let match;
 
     while ((match = entryPattern.exec(input)) !== null) {
+        if (diagnostics) diagnostics.fetched += 1;
         const block = match[1];
         const title = extractTag(block, ['title']);
         const summary = extractTag(block, ['summary', 'content', 'content:encoded', 'description']);
         const link = isAtom
             ? (extractAttr(block, 'link', 'href') || extractTag(block, ['id']))
             : (extractTag(block, ['link']) || extractTag(block, ['guid']));
-        const publishedAt = extractTag(block, ['published', 'updated', 'pubDate', 'dc:date']) || new Date().toISOString();
+        const originalDate = extractTag(block, ['published', 'pubDate', 'dc:date']);
+        const updatedAt = extractTag(block, ['updated']);
+        const publishedAt = originalDate || updatedAt || (sourceKind === 'papers-cool' ? '' : new Date().toISOString());
         const authors = isAtom
             ? extractAllTags(block, ['name'])
             : extractAllTags(block, ['dc:creator', 'author']);
         const imageUrl = extractImageUrl(block) || extractImageUrl(summary);
 
-        if (!title || !link) continue;
+        if (!title || !link) {
+            if (diagnostics) diagnostics.invalid += 1;
+            continue;
+        }
 
         const item = {
             id: link,
@@ -265,6 +272,8 @@ function parseFeedItems(xml, feedName, feedUrl, sourceKind, env) {
             title,
             summary,
             date_published: publishedAt,
+            updatedAt,
+            dateBasis: originalDate ? 'published' : updatedAt ? 'updated_only' : 'missing',
             authors,
             source: feedName,
             feedUrl,
@@ -280,8 +289,15 @@ function parseFeedItems(xml, feedName, feedUrl, sourceKind, env) {
             continue;
         }
 
-        if (sourceKind === 'papers-cool' && !itemMatchesPapersCoolTopic(item, env)) {
-            continue;
+        if (sourceKind === 'papers-cool') {
+            const assessment = assessBioPaper(item);
+            const customKeywords = ['PAPERS_COOL_AI_KEYWORDS', 'PAPERS_COOL_BIO_KEYWORDS', 'PAPERS_COOL_STRONG_KEYWORDS'].some(key => String(env[key] || '').trim());
+            const reason = !assessment.priority ? assessment.reason : customKeywords && !itemMatchesPapersCoolTopic(item, env) ? 'configured_keyword_filter' : '';
+            if (reason) {
+                diagnostics.topicRejected += 1;
+                diagnostics.topicReasons[reason] = (diagnostics.topicReasons[reason] || 0) + 1;
+                continue;
+            }
         }
         items.push(item);
     }
@@ -289,7 +305,7 @@ function parseFeedItems(xml, feedName, feedUrl, sourceKind, env) {
     return items;
 }
 
-async function fetchText(url, env) {
+async function fetchText(url, env, maxBytes = 0) {
     const timeoutMs = parsePositiveInteger(env.DATA_SOURCE_FETCH_TIMEOUT_MS, 20000);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort('timeout'), timeoutMs);
@@ -304,7 +320,29 @@ async function fetchText(url, env) {
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
-        return await response.text();
+        if (!maxBytes || !response.body?.getReader) {
+            const text = await response.text();
+            if (maxBytes && new TextEncoder().encode(text).byteLength > maxBytes) throw new Error('Paper feed exceeds byte limit');
+            return text;
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let size = 0;
+        let text = '';
+        try {
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) return text + decoder.decode();
+                size += value.byteLength;
+                if (size > maxBytes) {
+                    await reader.cancel();
+                    throw new Error('Paper feed exceeds byte limit');
+                }
+                text += decoder.decode(value, { stream: true });
+            }
+        } finally {
+            reader.releaseLock();
+        }
     } finally {
         clearTimeout(timeoutId);
     }
@@ -345,6 +383,9 @@ function createRssDataSource(options) {
             const selectedFeeds = feeds.slice(0, maxFeeds);
             const allItems = [];
             const seen = new Set();
+            const diagnostics = sourceKind === 'papers-cool'
+                ? { configuredFeeds: feeds.length, requestedFeeds: selectedFeeds.length, feeds: [] }
+                : null;
 
             if (selectedFeeds.length === 0) {
                 console.warn(`${envKey} is not set. Skipping ${type} fetch.`);
@@ -352,30 +393,48 @@ function createRssDataSource(options) {
             }
 
             const feedResults = await Promise.all(selectedFeeds.map(async (feed) => {
+                const stats = diagnostics ? { feed: feed.name, status: 'ok', fetched: 0, invalid: 0, topicRejected: 0, topicReasons: {}, dateRejected: 0, updatedOnly: 0, duplicates: 0, capped: 0, selected: 0 } : null;
                 try {
-                    const xml = await fetchText(feed.url, env);
-                    const parsedItems = parseFeedItems(xml, feed.name, feed.url, sourceKind, env)
-                        .filter((item) => isDateWithinLastDays(item.date_published, filterDays))
-                        .slice(0, maxItemsPerFeed);
+                    const xml = await fetchText(feed.url, env, stats ? 2 * 1024 * 1024 : 0);
+                    if (stats && !/<(?:feed|rss)\b/i.test(xml)) throw new Error('Expected RSS or Atom feed');
+                    const parsed = parseFeedItems(xml, feed.name, feed.url, sourceKind, env, stats);
+                    const recent = parsed.filter((item) => isDateWithinLastDays(item.date_published, filterDays));
+                    const ranked = stats ? selectBioPapers(recent) : recent;
+                    const parsedItems = ranked.slice(0, maxItemsPerFeed);
+                    if (stats) {
+                        stats.dateRejected = parsed.length - recent.length;
+                        stats.updatedOnly = recent.filter(item => item.dateBasis === 'updated_only').length;
+                        stats.duplicates = recent.length - ranked.length;
+                        stats.capped = ranked.length - parsedItems.length;
+                        stats.selected = parsedItems.length;
+                    }
 
                     console.log(`[${type}] ${feed.name}: ${parsedItems.length} recent items.`);
-                    return parsedItems;
+                    return { items: parsedItems, stats };
                 } catch (error) {
                     console.warn(`[${type}] Failed to fetch ${feed.url}: ${error.message}`);
-                    return [];
+                    if (stats) stats.status = 'error';
+                    return { items: [], stats };
                 }
             }));
 
-            for (const parsedItems of feedResults) {
+            for (const { items: parsedItems, stats } of feedResults) {
                 for (const item of parsedItems) {
-                    const key = item.url || item.id || item.title;
-                    if (!key || seen.has(key)) continue;
+                    const key = (diagnostics && getArxivIdentity(item)) || item.url || item.id || item.title;
+                    if (!key || seen.has(key)) {
+                        if (stats) { stats.duplicates += 1; stats.selected -= 1; }
+                        continue;
+                    }
                     seen.add(key);
                     allItems.push(item);
                 }
+                if (diagnostics) {
+                    diagnostics.feeds.push(stats);
+                    console.log(`[papers-cool][funnel] ${JSON.stringify(stats)}`);
+                }
             }
 
-            return { items: allItems };
+            return diagnostics ? { items: selectBioPapers(allItems), diagnostics } : { items: allItems };
         },
 
         transform(rawData, sourceType) {
@@ -393,14 +452,17 @@ function createRssDataSource(options) {
                     content_html: buildContentHtml(item),
                     feedUrl: item.feedUrl,
                     imageUrl: item.imageUrl || '',
+                    ...(sourceKind === 'papers-cool' ? { updatedAt: item.updatedAt, dateBasis: item.dateBasis } : {}),
                 },
             }));
         },
 
         generateHtml(item) {
+            const dateLabel = sourceKind === 'papers-cool' && item.details?.dateBasis === 'updated_only'
+                ? '来源更新时间（原始发表日期未知）' : '发布时间';
             return `
                 <strong>${escapeHtml(item.title)}</strong><br>
-                <small>来源: ${escapeHtml(item.source || type)} | 发布时间: ${formatDateToChineseWithTime(item.published_date)}</small>
+                <small>来源: ${escapeHtml(item.source || type)} | ${dateLabel}: ${formatDateToChineseWithTime(item.published_date)}</small>
                 <div class="content-html">${item.details.content_html || ''}</div>
                 <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">阅读更多</a>
             `;

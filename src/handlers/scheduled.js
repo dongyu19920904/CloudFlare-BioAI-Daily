@@ -13,6 +13,7 @@ import { createOpportunitySourceReferences } from '../opportunitySourceReference
 import { formatApprovedBioReport } from "../bioReportPresentation.js";
 import { buildDailyContentWithFrontMatter, getYearMonth, updateHomeIndexContent, buildMonthDirectoryIndex } from '../contentUtils.js';
 import { resolveDailyPromptItemCap, selectDailyPromptCandidates } from '../dailyPromptSelection.js';
+import { assessBioPaper, getArxivIdentity, selectBioPapers, summarizePaperSources } from '../bioPaperSelection.js';
 import { assertSafeGeoMarkdown } from '../geoContentUtils.js';
 import { assembleBioDailyMarkdown, assertBioDailyBodySources, parseBioDailySummary, buildBioDailyCandidateBudget, readBioDailyPreviewCache, getBioDailyMediaUrl, restoreBioDailySourceMedia, isBioDailyPaperCandidate, getBioDailyReadabilityDiagnostics } from '../bioDailyMarkdown.js';
 import {
@@ -124,6 +125,7 @@ function getItemDedupeKeys(item) {
     return {
         url: normalizeDedupeUrl(item?.url),
         title: normalizeDedupeTitle(item?.title),
+        paperId: getArxivIdentity(item),
     };
 }
 
@@ -131,6 +133,7 @@ function hasDedupeMatch(item, dedupeKeys) {
     if (!dedupeKeys) return false;
     const keys = getItemDedupeKeys(item);
     if (keys.url && dedupeKeys.urls.has(keys.url)) return true;
+    if (keys.paperId && dedupeKeys.paperIds.has(keys.paperId)) return true;
     return keys.title && keys.title.length >= 24 && dedupeKeys.titles.has(keys.title);
 }
 
@@ -138,11 +141,12 @@ function addDedupeKeys(item, dedupeKeys) {
     if (!dedupeKeys) return;
     const keys = getItemDedupeKeys(item);
     if (keys.url) dedupeKeys.urls.add(keys.url);
+    if (keys.paperId) dedupeKeys.paperIds.add(keys.paperId);
     if (keys.title && keys.title.length >= 24) dedupeKeys.titles.add(keys.title);
 }
 
 async function buildRecentDedupeKeys(env, dateStr, categories, lookbackDays, logPrefix) {
-    const dedupeKeys = { urls: new Set(), titles: new Set() };
+    const dedupeKeys = { urls: new Set(), titles: new Set(), paperIds: new Set() };
     if (!env.DATA_KV || lookbackDays <= 0) return dedupeKeys;
 
     for (let offset = 1; offset <= lookbackDays; offset += 1) {
@@ -254,7 +258,7 @@ function formatOpportunityPromptItem(item, sourceType) {
         `Title: ${item?.title || 'N/A'}`,
         effectiveSourceType === 'project'
             ? `Last activity observed (not creation or release): ${item?.published_date || 'N/A'}`
-            : `Published: ${item?.published_date || 'N/A'}`,
+            : `${effectiveSourceType === 'paper' && item?.details?.dateBasis === 'updated_only' ? 'Source updated (original publication unknown)' : 'Published'}: ${item?.published_date || 'N/A'}`,
         `Source: ${item?.source || 'N/A'}`,
         `Url: ${item?.url || 'N/A'}`,
         item?.description ? `Description: ${truncatePromptText(item.description, 400)}` : '',
@@ -271,9 +275,18 @@ function buildOpportunityPromptInput(allUnifiedData, sourceOrder, caps) {
 
     for (const sourceType of sourceOrder) {
         const cap = caps[sourceType] || 0;
-        const items = (allUnifiedData[sourceType] || []).slice(0, cap);
+        const input = allUnifiedData[sourceType] || [];
+        const ranked = sourceType === 'paper' ? selectBioPapers(input, { relevantOnly: true }) : input;
+        const items = ranked.slice(0, cap);
+        if (sourceType === 'paper') {
+            const topicCount = input.filter(item => assessBioPaper(item).priority > 0).length;
+            console.log(`[paper][opportunity-selection] ${JSON.stringify({ input: input.length, topicRejected: input.length - topicCount, duplicates: topicCount - ranked.length, capped: ranked.length - items.length, selected: items.length, cap, sources: summarizePaperSources(items) })}`);
+        }
         for (const item of items) {
-            selectedItems.push(formatOpportunityPromptItem(item, sourceType));
+            selectedItems.push(formatOpportunityPromptItem(item, sourceType) + (sourceType === 'paper'
+                ? '\n证据边界：论文/预印本是研究素材，不是人体延寿效果或付费需求证明；只写原文明确的实验阶段与局限。'
+                    + (item.details?.dateBasis === 'updated_only' ? '\n日期边界：来源只提供更新时间，原始发表日期未知，不得宣称为当天新发表。' : '')
+                : ''));
         }
     }
 
@@ -544,7 +557,7 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                             itemText = `Project Name: ${item.title}\nLast activity observed (not creation or release): ${item.published_date}\nUrl: ${item.url}\nDescription: ${item.description}\nStars: ${item.details.totalStars}`;
                             break;
                         case 'paper':
-                            itemText = `Papers Title: ${item.title}\nPublished: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}`;
+                            itemText = `Papers Title: ${item.title}\n${item.details?.dateBasis === 'updated_only' ? 'Source updated (original publication unknown)' : 'Published'}: ${item.published_date}\nUrl: ${item.url}\nAbstract/Content Summary: ${stripHtml(item.details.content_html)}\n证据边界：论文/预印本只说明研究阶段的发现，不是人体延寿效果证明。`;
                             break;
                         case 'socialMedia':
                             itemText = `socialMedia Post by ${item.authors}：Published: ${item.published_date}\nUrl: ${item.url}\nContent: ${stripHtml(item.details.content_html)}`;
@@ -573,6 +586,8 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
                             publishedDate: item.published_date,
                             url: item.url,
                             title: item.title,
+                            description: item.description || stripHtml(item.details?.content_html || ''),
+                            source: item.source,
                         });
                     }
                 }
@@ -597,6 +612,11 @@ export async function handleScheduledDaily(event, env, ctx, specifiedDate = null
         }, {});
         console.log(`[Scheduled] Source stats before selection: ${JSON.stringify(sourceStats)}.`);
         console.log(`[Scheduled] Selected ${selectedContentItems.length} prompt items for daily generation: ${JSON.stringify(selectedStats)}.`);
+        const inputPapers = promptCandidates.filter(item => item.sourceType === 'paper');
+        const topicPapers = topicCandidates.filter(item => item.sourceType === 'paper');
+        const uniquePapers = selectBioPapers(topicPapers);
+        const selectedPapers = selectedCandidates.filter(item => item.sourceType === 'paper');
+        console.log(`[paper][daily-selection] ${JSON.stringify({ input: inputPapers.length, topicRejected: inputPapers.length - topicPapers.length, duplicates: topicPapers.length - uniquePapers.length, budgetDropped: uniquePapers.length - selectedPapers.length, selected: selectedPapers.length, sources: summarizePaperSources(selectedPapers) })}`);
 
         if (selectedContentItems.length === 0) {
             console.log(`[Scheduled] No items found. Skipping generation.`);

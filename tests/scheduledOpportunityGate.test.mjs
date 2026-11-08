@@ -201,6 +201,63 @@ const columnMaterials = {
   paper: [], socialMedia: [],
 };
 
+const paperMaterials = () => ({
+  ...structuredClone(columnMaterials),
+  paper: [
+    ...Array.from({ length: 5 }, (_, i) => ({ type: 'paper', title: `Robot cognition ${i}`, description: 'Brain-inspired neural network for robot reasoning.', url: `https://example.org/robot${i}`, details: { content_html: '<img src="https://example.org/robot.jpg">' } })),
+    { type: 'paper', title: 'RIVER enzyme evidence', description: 'LLM agents retrieve enzyme-reaction evidence on biochemical benchmarks.', url: 'https://papers.cool/arxiv/2611.07757', published_date: '2026-10-25', source: 'Papers.cool cs.AI', details: { content_html: 'LLM agents retrieve enzyme evidence. Benchmarks, not clinical validation.', dateBasis: 'updated_only' } },
+    { type: 'paper', title: 'RIVER revised duplicate', description: 'LLM enzyme discovery.', url: 'https://arxiv.org/abs/2611.07757v2', details: { content_html: 'LLM enzyme discovery.' } },
+  ],
+});
+
+for (const [section, handler] of [['opportunity', scheduled.handleScheduledOpportunity], ['project-opportunity', scheduled.handleScheduledProjectOpportunity]]) {
+  test(`${section}: cs.AI paper survives cached-input ranking and reaches validated records`, async t => {
+    const draft = valid.replace('今日主推', section === 'opportunity' ? '今日主推' : '今日优先项目').replace('https://example.org/study', 'BIOAI_SOURCE_2');
+    const state = setup(t, [draft]);
+    const input = paperMaterials();
+    input.project = [];
+    const cachedEnv = { DATA_KV: { get: async key => JSON.stringify(input[key.slice(date.length + 1)] || []), put: async () => assert.fail('no cache writes') } };
+    state.denyFreshFetch = true;
+    const result = await handler({}, cachedEnv, {}, date);
+    assert.equal(result.success, true);
+    assert.equal(state.calls.length, 1);
+    assert.match(state.calls[0], /RIVER enzyme evidence/);
+    assert.doesNotMatch(state.calls[0], /Robot cognition|RIVER revised duplicate/);
+    assert.match(state.calls[0], /Source updated \(original publication unknown\)/);
+    assert.equal(result.records.count, 1);
+    assert.deepEqual(JSON.parse(state.writes[0].content).opportunities[0].source_urls, ['https://papers.cool/arxiv/2611.07757']);
+  });
+}
+
+test('daily: cs.AI paper reaches the fixed-model preview with no writes or extra model calls', async t => {
+  const body = '## 今日焦点 TOP 1\n\n### 1. 智能体帮助查找酶研究证据\n\n[RIVER 研究素材](https://papers.cool/arxiv/2611.07757)使用大模型和生化工具检索酶与反应的关系。目前是基准评测结果，仍需后续实验验证，不是人体效果证明。';
+  const state = setup(t, [body, '酶研究提供检索线索。\n项目用途是整理研究笔记。\n两者都不是人体效果证明。']);
+  const input = paperMaterials();
+  const result = await scheduled.handleScheduledDaily({}, { ...env, DATA_KV: { get: async key => input[key.slice(date.length + 1)] || [], put: async () => assert.fail('no preview KV writes') } }, {}, date, { dryRun: true });
+  assert.equal(result.success, true);
+  assert.equal(state.calls.length, 2);
+  assert.match(state.calls[0], /RIVER enzyme evidence/);
+  assert.doesNotMatch(state.calls[0], /Robot cognition|RIVER revised duplicate/);
+  assert.match(state.calls[0], /Source updated \(original publication unknown\)/);
+  assert.equal(result.sourceCounts.paper, 1);
+  assert.match(result.markdown, /https:\/\/papers.cool\/arxiv\/2611.07757/);
+  assert.deepEqual(state.writes, []);
+});
+
+test('daily: recent paper identity blocks a version/link/title change without new KV reads', async t => {
+  const state = setup(t, [columnFixture('daily'), '研究提供观察线索。\n项目用途是整理研究笔记。\n两者都不是人体效果证明。']);
+  state.materials = paperMaterials();
+  const reads = [];
+  const cachedEnv = { ...env, DAILY_DEDUPE_DAYS: '1', DATA_KV: {
+    get: async key => { reads.push(key); return key === '2026-10-25-paper' ? JSON.stringify([{ url: 'https://arxiv.org/pdf/2611.07757v1.pdf', title: 'Different original paper title' }]) : null; },
+    put: async () => {},
+  } };
+  const result = await scheduled.handleScheduledDaily({}, cachedEnv, {}, date);
+  assert.equal(result.success, true);
+  assert.doesNotMatch(state.calls[0], /RIVER enzyme evidence|RIVER revised duplicate/);
+  assert.equal(reads.filter(key => key === '2026-10-25-paper').length, 1);
+});
+
 for (const [section, handler] of [
   ['opportunity', scheduled.handleScheduledOpportunity],
   ['project-opportunity', scheduled.handleScheduledProjectOpportunity],

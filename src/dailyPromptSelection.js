@@ -1,3 +1,5 @@
+import { assessBioPaper, getArxivIdentity, selectBioPapers } from './bioPaperSelection.js';
+
 function parsePositiveInteger(value, defaultValue) {
     const parsed = Number.parseInt(String(value ?? '').trim(), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
@@ -56,12 +58,23 @@ export function selectDailyPromptCandidates(candidates = [], env = {}, cap = 8) 
     const sourceOrder = ['news', 'paper', 'project', 'socialMedia'];
     const selected = [];
     const selectedKeys = new Set();
+    const selectedCounts = {};
+    const grouped = Object.fromEntries(sourceOrder.map(type => [type,
+        type === 'paper' ? selectBioPapers(candidates.filter(item => item.sourceType === type))
+            : sortCandidates(candidates.filter(item => item.sourceType === type)),
+    ]));
+    const paperReserve = Math.min(2, sourceCaps.paper, normalizedCap,
+        grouped.paper.filter(item => assessBioPaper(item).priority >= 2).length);
 
     const addCandidate = (candidate) => {
         if (!candidate || selected.length >= normalizedCap) return false;
-        const key = candidate.key || candidate.url || candidate.text;
+        const type = candidate.sourceType;
+        if ((selectedCounts[type] || 0) >= (sourceCaps[type] || 0)) return false;
+        const paperId = type === 'paper' && getArxivIdentity(candidate);
+        const key = paperId ? `arxiv:${paperId}` : candidate.key || candidate.url || candidate.text;
         if (!key || selectedKeys.has(key)) return false;
         selectedKeys.add(key);
+        selectedCounts[type] = (selectedCounts[type] || 0) + 1;
         selected.push(candidate);
         return true;
     };
@@ -69,22 +82,15 @@ export function selectDailyPromptCandidates(candidates = [], env = {}, cap = 8) 
     for (const sourceType of sourceOrder) {
         const sourceCap = sourceCaps[sourceType] || 0;
         if (sourceCap <= 0) continue;
-        const sourceCandidates = sortCandidates(
-            candidates.filter((candidate) => candidate?.sourceType === sourceType)
-        ).slice(0, sourceCap);
+        const availableCap = sourceType === 'news' ? Math.min(sourceCap, normalizedCap - paperReserve) : sourceCap;
+        const sourceCandidates = grouped[sourceType].slice(0, availableCap);
         for (const candidate of sourceCandidates) {
             addCandidate(candidate);
         }
     }
 
     if (selected.length < normalizedCap) {
-        const remaining = sortCandidates(candidates)
-            .filter((candidate) => {
-                const sourceType = candidate?.sourceType;
-                if (sourceType !== 'paper') return true;
-                const paperSelectedCount = selected.filter((item) => item.sourceType === 'paper').length;
-                return paperSelectedCount < sourceCaps.paper;
-            });
+        const remaining = sourceOrder.flatMap(type => grouped[type]);
         for (const candidate of remaining) {
             addCandidate(candidate);
         }

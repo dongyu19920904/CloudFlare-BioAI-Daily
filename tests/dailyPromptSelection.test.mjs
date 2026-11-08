@@ -74,3 +74,17 @@ test("selectDailyPromptCandidates keeps source variety", () => {
     ["news 1", "paper 1", "paper 2", "social 1"]
   );
 });
+
+test('tight daily budget reserves relevant papers without raising category or total caps', () => {
+  const news = Array.from({ length: 8 }, (_, i) => ({ key: `n${i}`, text: `news ${i}`, sourceType: 'news' }));
+  const papers = [
+    { key: 'generic', sourceType: 'paper', text: 'AI robot cognition', hasMedia: true },
+    { key: 'bio', sourceType: 'paper', title: 'AI drug discovery', text: 'LLM agents design proteins', url: 'https://papers.cool/arxiv/2611.07757' },
+    { key: 'duplicate', sourceType: 'paper', title: 'AI drug discovery', text: 'LLM agents design proteins', url: 'https://arxiv.org/abs/2611.07757v2' },
+  ];
+  const selected = selectDailyPromptCandidates([...news, ...papers], { DAILY_PAPER_ITEM_CAP: '1' }, 8);
+  assert.equal(selected.length, 8);
+  assert.equal(selected.filter(item => item.sourceType === 'paper').length, 1);
+  assert.notEqual(selected.find(item => item.sourceType === 'paper').key, 'generic');
+  assert.equal(selectDailyPromptCandidates(news, {}, 8).length, 8, 'no fabricated paper when none qualifies');
+});
