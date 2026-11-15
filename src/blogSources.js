@@ -14,8 +14,12 @@ export function resolveBlogSource(url) {
     }
     const paper = ['arxiv.org', 'papers.cool'].includes(parsed.hostname) && parsed.pathname.match(/^\/(?:abs|arxiv)\/(\d{4}\.\d{4,5}(?:v\d+)?)\/?$/);
     if (paper) return { url: `https://arxiv.org/abs/${paper[1]}`, endpoint: `https://arxiv.org/abs/${paper[1]}`, kind: 'abstract' };
+    const lifespan = parsed.hostname === 'lifespan.io' && parsed.pathname.match(/^\/([a-z0-9]+(?:-[a-z0-9]+)+)\/?$/);
+    if (lifespan && !lifespan[1].startsWith('wp-')) return { url: `https://lifespan.io/${lifespan[1]}/`, endpoint: `https://lifespan.io/wp-json/wp/v2/posts?slug=${encodeURIComponent(lifespan[1])}&_fields=link,content`, kind: 'article-json', selector: 'p, h2' };
     const article = parsed.hostname === 'claude.com' && /^\/resources\/articles\/[a-z0-9-]+\/?$/.test(parsed.pathname)
         ? 'main p, main h2, article p, article h2'
+        : parsed.hostname === 'www.sciencedaily.com' && /^\/releases\/\d{4}\/\d{2}\/\d{12}\.htm$/.test(parsed.pathname)
+        ? '#story_text p, #story_text h2'
         : parsed.hostname === 'www.news-medical.net' && /^\/news\/\d{8}\/[\w-]+\.aspx$/.test(parsed.pathname)
         ? '[itemprop="articleBody"] p'
         : parsed.hostname === 'medicalxpress.com' && /^\/news\/\d{4}-\d{2}-[\w-]+\.html$/.test(parsed.pathname)
@@ -65,7 +69,13 @@ export async function readBlogSource(source, env = {}, fetcher = fetch) {
         }
         const response = await fetcher(source.endpoint, { headers, redirect: 'manual', signal: AbortSignal.timeout(8000) });
         if (!response.ok || response.redirected) throw new Error(`source_http_${response.status}`);
-        const raw = await readLimited(response);
+        let raw = await readLimited(response);
+        if (source.kind === 'article-json') {
+            // Use the publisher's bounded public content API, not its oversized page shell.
+            const entries = JSON.parse(raw);
+            if (!Array.isArray(entries) || entries.length !== 1 || entries[0].content?.protected || resolveBlogSource(entries[0].link)?.url !== source.url || typeof entries[0].content?.rendered !== 'string') throw new Error('source_not_readable');
+            raw = entries[0].content.rendered;
+        }
         const text = source.kind === 'readme' ? raw : await readHtmlSource(raw, source.kind === 'abstract' ? 'h1.title, blockquote.abstract' : source.selector);
         if (text.trim().length < 100 || source.kind === 'readme' && /^\s*(?:<!doctype\s+html|<html[\s>])/i.test(text)) throw new Error('source_not_readable');
         const prose = source.kind === 'readme' ? text.replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm, '[安装与代码示例省略]').split('\n').filter(line => !/^\s*(?:<|!\[)/.test(line)).join('\n') : text;

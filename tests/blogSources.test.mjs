@@ -39,6 +39,34 @@ test('official Claude article paths are bounded and receive no repository creden
     assert.ok(!result.material.includes('never-forward'));
 });
 
+test('science news uses bounded public article content without widening source request budgets', async t => {
+    const lifespan = 'https://lifespan.io/longevity-supplement-improved-blood-vessels-in-a-human-trial/';
+    const science = 'https://www.sciencedaily.com/releases/2026/11/261114202130.htm';
+    assert.equal(resolveBlogSource(lifespan).kind, 'article-json');
+    assert.equal(resolveBlogSource(science).kind, 'article');
+    for (const url of ['http://lifespan.io/some-article/', 'https://lifespan.io.evil.test/some-article/', 'https://lifespan.io@127.0.0.1/some-article/', 'https://lifespan.io:444/some-article/', 'https://lifespan.io/wp-admin/', 'https://www.sciencedaily.com.evil.test/releases/2026/11/261114202130.htm', 'https://www.sciencedaily.com/account']) assert.equal(resolveBlogSource(url), null, url);
+    const before = globalThis.HTMLRewriter;
+    globalThis.HTMLRewriter = class {
+        on(selector, handler) { assert.ok(['p, h2', '#story_text p, #story_text h2'].includes(selector)); this.handler = handler; return this; }
+        transform() { return { text: async () => { this.handler.text({ text: 'Source findings with participant groups and documented limitations. '.repeat(5) }); return ''; } }; }
+    };
+    t.after(() => { if (before === undefined) delete globalThis.HTMLRewriter; else globalThis.HTMLRewriter = before; });
+    let calls = 0;
+    const result = await buildBlogSourceContext(`${lifespan}\n${science}\nhttps://github.com/example/third`, { GITHUB_TOKEN: 'never-forward' }, async (endpoint, options) => {
+        calls++;
+        assert.equal(options.headers.Authorization, undefined);
+        assert.equal(options.redirect, 'manual');
+        if (endpoint.startsWith('https://lifespan.io/')) return Response.json([{ link: lifespan, content: { protected: false, rendered: '<p>Trial results</p>' } }]);
+        return new Response('<div id="story_text"><p>Research findings</p></div>');
+    });
+    assert.equal(calls, 2);
+    assert.ok(result.receipts.every(receipt => receipt.status === 'read'));
+    for (const entries of [[], [{ link: 'https://lifespan.io/another-article/', content: { rendered: '<p>Wrong article</p>' } }], [{ link: lifespan, content: { protected: true, rendered: '<p>Private</p>' } }]]) {
+        const rejected = await buildBlogSourceContext(lifespan, {}, async () => Response.json(entries));
+        assert.equal(rejected.receipts[0].reason, 'source_not_readable');
+    }
+});
+
 test('primary model access conditions enter the actual writing input with provenance', async () => {
     const source = 'Our model is a research encoder. '.repeat(6) + '\n\nTo use our model, you need to apply for access to the model card.\n\nCode is public.';
     const calls = [];
