@@ -19,6 +19,26 @@ test('source requests are confined to repository READMEs and identified abstract
     for (const url of ['http://github.com/a/b', 'https://github.com.evil.test/a/b', 'https://github.com@127.0.0.1/a/b', 'https://github.com/a/b/issues/1', 'https://localhost/x', 'https://arxiv.org:444/abs/2610.28411', 'https://arxiv.org/abs/not-a-paper']) assert.equal(resolveBlogSource(url), null, url);
 });
 
+test('official Claude article paths are bounded and receive no repository credentials', async t => {
+    const url = 'https://claude.com/resources/articles/claude-meetings';
+    assert.equal(resolveBlogSource(url).kind, 'article');
+    for (const invalid of ['https://claude.com.evil.test/resources/articles/claude-meetings', 'https://claude.com@127.0.0.1/resources/articles/claude-meetings', 'https://claude.com:444/resources/articles/claude-meetings', 'http://claude.com/resources/articles/claude-meetings', 'https://claude.com/account']) assert.equal(resolveBlogSource(invalid), null);
+    const before = globalThis.HTMLRewriter;
+    globalThis.HTMLRewriter = class {
+        on(selector, handler) { assert.equal(selector, 'main p, main h2, article p, article h2'); this.handler = handler; return this; }
+        transform() { return { text: async () => { this.handler.element(); this.handler.text({ text: 'Google Meet support and Team and Enterprise beta availability. '.repeat(8) }); return ''; } }; }
+    };
+    t.after(() => { if (before === undefined) delete globalThis.HTMLRewriter; else globalThis.HTMLRewriter = before; });
+    const result = await buildBlogSourceContext(url, { GITHUB_TOKEN: 'never-forward' }, async (endpoint, options) => {
+        assert.equal(endpoint, url);
+        assert.equal(options.headers.Authorization, undefined);
+        assert.equal(options.redirect, 'manual');
+        return new Response('<main>source</main>');
+    });
+    assert.equal(result.receipts[0].status, 'read');
+    assert.ok(!result.material.includes('never-forward'));
+});
+
 test('primary model access conditions enter the actual writing input with provenance', async () => {
     const source = 'Our model is a research encoder. '.repeat(6) + '\n\nTo use our model, you need to apply for access to the model card.\n\nCode is public.';
     const calls = [];

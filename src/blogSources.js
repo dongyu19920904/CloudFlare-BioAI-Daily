@@ -14,7 +14,9 @@ export function resolveBlogSource(url) {
     }
     const paper = ['arxiv.org', 'papers.cool'].includes(parsed.hostname) && parsed.pathname.match(/^\/(?:abs|arxiv)\/(\d{4}\.\d{4,5}(?:v\d+)?)\/?$/);
     if (paper) return { url: `https://arxiv.org/abs/${paper[1]}`, endpoint: `https://arxiv.org/abs/${paper[1]}`, kind: 'abstract' };
-    const article = parsed.hostname === 'www.news-medical.net' && /^\/news\/\d{8}\/[\w-]+\.aspx$/.test(parsed.pathname)
+    const article = parsed.hostname === 'claude.com' && /^\/resources\/articles\/[a-z0-9-]+\/?$/.test(parsed.pathname)
+        ? 'main p, main h2, article p, article h2'
+        : parsed.hostname === 'www.news-medical.net' && /^\/news\/\d{8}\/[\w-]+\.aspx$/.test(parsed.pathname)
         ? '[itemprop="articleBody"] p'
         : parsed.hostname === 'medicalxpress.com' && /^\/news\/\d{4}-\d{2}-[\w-]+\.html$/.test(parsed.pathname)
             ? 'article.news-article .article-main p' : null;

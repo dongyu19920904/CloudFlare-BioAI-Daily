@@ -14,7 +14,24 @@ const daily = `## **焦点**\n\n${story('1. 本地模型', urls[0])}\n\n${story(
 test('actual preview wording cannot invent an earlier personal belief', () => {
     const base = { title: '几项研究回答了不同的问题', dailyContent: daily, blogType: 'bioai-daily' };
     assert.ok(validateBlogDraft({ ...base, body: '这件事我一直觉得可以单纯用意志力解释，直到看到这项研究。' }).severe.includes('unsupported_author_tool_routine'));
+    assert.ok(validateBlogDraft({ ...base, body: '以前我默认那是外部条件造成的，现在知道了原因。' }).severe.includes('unsupported_author_tool_routine'));
     assert.ok(!validateBlogDraft({ ...base, body: '我更在意这些结果能回答什么问题。' }).severe.includes('unsupported_author_tool_routine'));
+});
+
+test('actual preview unsupported causes, hardware additions and human titles are severe, not style scoring', () => {
+    const base = { title: '几件工具的适用条件需要分开看', dailyContent: '小鼠衰老和 AI 研究，显存要求 29GB。'.repeat(12), blogType: 'ai-daily' };
+    assert.ok(validateBlogDraft({ ...base, body: '因为 Anthropic 没有自己的语音识别模型，所以只支持一种平台。' }).severe.includes('unsupported_platform_cause'));
+    assert.ok(!validateBlogDraft({ ...base, body: 'Anthropic 没有自己的语音识别模型。', sourceReceipts: [{ status: 'read', url: 'https://claude.com/resources/articles/example', text: 'Anthropic does not have its own speech recognition model.' }] }).severe.includes('unsupported_platform_cause'));
+    for (const body of ['雷雳5是苹果的高速数据接口。', '单台 Mac 的内存大约是 192GB。']) assert.ok(validateBlogDraft({ ...base, body }).severe.includes('unsupported_hardware_fact'));
+    assert.ok(!validateBlogDraft({ ...base, body: '来源写的是 29 GB 显存要求，需要继续核对完整运行条件。' }).severe.includes('unsupported_hardware_fact'));
+    assert.ok(!validateBlogDraft({ ...base, body: '假设手头有一台 192GB 内存的机器，也不能仅凭内存就判断效果。' }).severe.includes('unsupported_hardware_fact'));
+    assert.ok(!validateBlogDraft({ ...base, body: '不能从平台范围推断 Anthropic 没有自己的语音识别模型。' }).severe.includes('unsupported_platform_cause'));
+    assert.ok(validateBlogDraft({ ...base, body: '调用 API 意味着数据出境。' }).severe.includes('unsupported_cloud_privacy_claim'));
+    assert.ok(!validateBlogDraft({ ...base, body: '调用 API 并不意味着数据出境，需要看实际的部署条件。' }).severe.includes('unsupported_cloud_privacy_claim'));
+    assert.ok(validateBlogDraft({ ...base, body: '这个模型没有第三方复测。' }).severe.includes('unsupported_absence_claim'));
+    assert.ok(!validateBlogDraft({ ...base, body: '这份摘要没有第三方复测的信息。' }).severe.includes('unsupported_absence_claim'));
+    assert.ok(validateBlogDraft({ ...base, blogType: 'bioai-daily', title: '年纪越大越不想动，原来不只是懒', body: '小鼠研究提供了一项线索。' }).severe.includes('unsupported_animal_to_human_title'));
+    assert.ok(validateBlogDraft({ ...base, blogType: 'bioai-daily', body: '现在没有临床标准规定这个指标应该怎么处理。' }).severe.includes('unsupported_bio_generalization'));
 });
 
 test('complete report and final column reach both actual writing prompts', () => {

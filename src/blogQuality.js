@@ -19,6 +19,7 @@ const FABRICATED_TODAY_EXPERIENCE_PATTERNS = [
 
 const UNSUPPORTED_AUTHOR_TOOL_ROUTINE_PATTERNS = [
     /我(?:一直|原先)[^。！？\n]{0,8}(?:觉得|以为|认定|认为)/,
+    /(?:以前|过去|起初|原先|最初|之前|从前)[^。！？\n]{0,10}我[^。！？\n]{0,10}(?:以为|认为|觉得|默认|相信|习惯)/,
     /我有(?:一|个|一个)[^。！？\n]{0,12}习惯/,
     /(?:我|是因为)[^。！？\n]{0,12}(?:吃过亏|踩过坑)/,
     /我(?:最常|通常|习惯)[^。！？\n]{0,25}(?:加|提示词|让\s*AI|使用|会在|丢|输入|交给)/i,
@@ -359,6 +360,27 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     if (protectBlogMarkdownLiterals(body).unclosedFence) severe.push('unclosed_code_fence');
     const normalizedAllowedUrls = [...new Set([...allowedUrls, ...extractUrls(dailyContent)])];
     const text = stripMarkdown(body);
+    const officialSpeechStatement = sourceReceipts.some(source => source.status === 'read' && /^https:\/\/claude\.com\/resources\/articles\//.test(source.url || '') && /(?:Anthropic|we)[^.\n]{0,20}(?:does not have|do not have|don't have|has no)[^.\n]{0,30}(?:speech.recognition|speech.to.text)/i.test(source.text || ''));
+    if (!officialSpeechStatement && text.split(/[。！？\n]/).some(sentence => /Anthropic[^。！？\n]{0,20}(?:没有|缺少|缺乏)[^。！？\n]{0,12}(?:语音识别|语音模型)/i.test(sentence) && !/不能|不代表|并非|未提供|无法确认|不应|不知道|有没有/.test(sentence))) {
+        severe.push('unsupported_platform_cause');
+    }
+    if (text.split(/[。！？\n]/).some(sentence => /(?:API|云端)[^。！？\n]{0,16}(?:意味着|就是)[^。！？\n]{0,12}数据出境|会议[^。！？\n]{0,25}(?:隐私|数据)[^。！？\n]{0,12}优先级[^。！？\n]{0,6}低/i.test(sentence) && !/可能|取决于|要看|并不|不意味着|不能/.test(sentence))) {
+        severe.push('unsupported_cloud_privacy_claim');
+    }
+    if (text.split(/[。！？\n]/).some(sentence => /(?:没有|从未有)[^。！？\n]{0,10}(?:第三方复测|独立(?:机构)?(?:验证|复测))/.test(sentence) && !/材料|摘要|输入|这份|未提供|未看到/.test(sentence))) {
+        severe.push('unsupported_absence_claim');
+    }
+    if (/(?:雷雳|Thunderbolt)\s*5\s*是\s*(?:苹果|Apple)(?:的|最新的)[^。！？\n]{0,10}接口/i.test(text)) {
+        severe.push('unsupported_hardware_fact');
+    }
+    const sourceSizes = new Set((String(dailyContent || '').match(/\b\d+(?:\.\d+)?\s*(?:GB|TB|MB)\b/gi) || []).map(value => value.replace(/\s/g, '').toUpperCase()));
+    const draftSizes = protectBlogMarkdownLiterals(body).text.split(/^##\s+参考资料/m)[0].replace(/!?\[[^\]]*]\([^\s)]+\)/g, '');
+    if (draftSizes.split(/\n\s*\n/).some(paragraph => !/假设|假想/.test(paragraph) && (paragraph.match(/\b\d+(?:\.\d+)?\s*(?:GB|TB|MB)\b/gi) || []).some(value => !sourceSizes.has(value.replace(/\s/g, '').toUpperCase())) && !severe.includes('unsupported_hardware_fact'))) {
+        severe.push('unsupported_hardware_fact');
+    }
+    if (blogType === 'bioai-daily' && /小鼠/.test(dailyContent || '') && /(?:年纪|老了|老年人|老人)[^。！？\n]{0,20}(?:原来|其实)[^。！？\n]{0,12}懒/.test(title || '') && !/小鼠|动物/.test(title || '')) {
+        severe.push('unsupported_animal_to_human_title');
+    }
 
     if (sourceReceipts.some(source => source.status === 'read' && source.accessRestricted) &&
         text.split(/[。！？\n]/).some(sentence =>
@@ -429,7 +451,7 @@ export function validateBlogDraft({ title, body, dailyContent, blogType, allowed
     }
 
     if (blogType === 'bioai-daily') {
-        if (/目前[^。！？\n]{0,12}没有[^。！？\n]{0,12}统一的?临床标准/.test(text) && !/统一的?临床标准/.test(dailyContent || '')) {
+        if (/(?:目前|现在|现阶段)[^。！？\n]{0,12}(?:没有|尚无|不存在)[^。！？\n]{0,12}临床标准/.test(text) && !/临床标准/.test(dailyContent || '')) {
             severe.push('unsupported_bio_generalization');
         }
         if (/生物利用度[^。！？\n]{0,90}(?<!不|不能|未必|不足以)(?:意味着|说明|证明|也就是说|代表)[^。！？\n]{0,50}(?:(?:吞服|口服|服用)剂量|吞服的药物)[^。！？\n]{0,30}(?:进入|吸收)/.test(text)) {
