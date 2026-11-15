@@ -60,7 +60,9 @@ export function assessDailySynthesis(body, reading) {
             .replace(/\[([^\]]*)]\([^\s)]+\)/g, '$1').replace(/https?:\/\/\S+/g, '');
         if ((text.match(/\p{Script=Han}/gu) || []).length < 40) continue;
         // Split nearby evidence between citations: a long paragraph plus a link bundle is not three discussions.
-        const anchors = extractMarkdownLinks(paragraph).map(link => ({ url: canonicalReadingSource(link.url), index: paragraph.indexOf(link.url) }));
+        const anchors = [...paragraph.matchAll(/\[([^\]]+)]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']+["'])?\)/gi)]
+            .filter(match => paragraph[match.index - 1] !== '!')
+            .map(match => ({ url: canonicalReadingSource(match[2]), index: match.index }));
         for (let i = 0; i < anchors.length; i++) {
             const start = i ? Math.floor((anchors[i - 1].index + anchors[i].index) / 2) : 0;
             const end = i + 1 < anchors.length ? Math.floor((anchors[i].index + anchors[i + 1].index) / 2) : paragraph.length;

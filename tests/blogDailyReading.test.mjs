@@ -61,6 +61,15 @@ test('tracking links never cause an entire real news paragraph to disappear', ()
     assert.doesNotMatch(cleaned, /生成问答|卡密秒发/);
 });
 
+test('repeated A B A citations retain the real offset of every link', () => {
+    const detail = '这里认真解释这条消息的具体功能和条件，让读者知道它适用于什么任务，使用时应该注意哪些不同的地方。';
+    const together = `${detail}[材料甲](${urls[0]}) ${detail}[材料乙](${urls[1]}) ${detail}[再次比较甲](${urls[0]}) ${detail}`;
+    const third = `[材料丙](${urls[2]}) ${detail}`;
+    const result = assessDailySynthesis(together + '\n\n' + third, buildDailyReadingBrief(daily));
+    assert.equal(result.usedItems.length, 3);
+    assert.deepEqual(result.severe, []);
+});
+
 test('same original-source budget is spread across different stories', async () => {
     const calls = [];
     const input = 'https://github.com/a/one https://github.com/a/two https://github.com/b/three';
