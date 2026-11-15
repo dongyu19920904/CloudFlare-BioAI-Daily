@@ -18,6 +18,7 @@ const FABRICATED_TODAY_EXPERIENCE_PATTERNS = [
 ];
 
 const UNSUPPORTED_AUTHOR_TOOL_ROUTINE_PATTERNS = [
+    /我(?:一直|原先)[^。！？\n]{0,8}(?:觉得|以为|认定|认为)/,
     /我有(?:一|个|一个)[^。！？\n]{0,12}习惯/,
     /(?:我|是因为)[^。！？\n]{0,12}(?:吃过亏|踩过坑)/,
     /我(?:最常|通常|习惯)[^。！？\n]{0,25}(?:加|提示词|让\s*AI|使用|会在|丢|输入|交给)/i,

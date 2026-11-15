@@ -5,11 +5,17 @@ import { selectBlogWritingMaterial } from '../src/blogTopic.js';
 import { buildUserPrompt, handleScheduledBlog } from '../src/handlers/scheduledBlog.js';
 import { getBlogPrompt } from '../src/prompt/blogPrompt.js';
 import { buildBlogSourceContext } from '../src/blogSources.js';
-import { stripDailyBlogExtras } from '../src/blogQuality.js';
+import { stripDailyBlogExtras, validateBlogDraft } from '../src/blogQuality.js';
 
 const story = (title, url) => `### ${title}\n\n${'AI 工具提供一项具体用途，使用时需要按条件选择。'.repeat(4)}\n[说明](${url})`;
 const urls = ['https://example.org/local', 'https://example.org/meeting', 'https://example.org/photo'];
 const daily = `## **焦点**\n\n${story('1. 本地模型', urls[0])}\n\n${story('2. 会议助手', urls[1])}\n\n## **趣闻**\n\n${story('最后的图片工具', urls[2])}`;
+
+test('actual preview wording cannot invent an earlier personal belief', () => {
+    const base = { title: '几项研究回答了不同的问题', dailyContent: daily, blogType: 'bioai-daily' };
+    assert.ok(validateBlogDraft({ ...base, body: '这件事我一直觉得可以单纯用意志力解释，直到看到这项研究。' }).severe.includes('unsupported_author_tool_routine'));
+    assert.ok(!validateBlogDraft({ ...base, body: '我更在意这些结果能回答什么问题。' }).severe.includes('unsupported_author_tool_routine'));
+});
 
 test('complete report and final column reach both actual writing prompts', () => {
     const material = selectBlogWritingMaterial(daily);
