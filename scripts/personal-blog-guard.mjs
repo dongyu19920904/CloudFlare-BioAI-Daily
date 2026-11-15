@@ -1,5 +1,34 @@
 import { writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { request as httpsRequest } from 'node:https';
+
+export function requestBlogTrigger(url, { timeoutMs = 600000, request = httpsRequest } = {}) {
+    // Native HTTPS respects this total deadline; fetch's header timeout can expire earlier.
+    return new Promise((resolve, reject) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const fail = () => { clearTimeout(timer); reject(new Error('Blog-only trigger failed or timed out; do not blindly retry an in-flight generation')); };
+        let req;
+        try { req = request(url, { signal: controller.signal }, response => {
+            const chunks = [];
+            let bytes = 0;
+            response.on('data', chunk => {
+                bytes += chunk.length;
+                if (bytes > 2 * 1024 * 1024) { req.destroy(); fail(); return; }
+                chunks.push(chunk);
+            });
+            response.on('error', fail);
+            response.on('end', () => {
+                clearTimeout(timer);
+                try { resolve({ status: response.statusCode, payload: JSON.parse(Buffer.concat(chunks).toString('utf8')) }); }
+                catch { fail(); }
+            });
+        });
+        req.on('error', fail);
+        req.end();
+        } catch { fail(); }
+    });
+}
 
 export function resolveGuardDate(now = new Date()) {
     const shanghai = new Date(now.getTime() + 8 * 3600000);
@@ -64,10 +93,8 @@ async function main() {
             if (!['both', 'ai-daily', 'bioai-daily'].includes(type)) throw new Error('Invalid preview blog type');
             if (type !== 'both') url.searchParams.set('previewType', type);
         }
-        let response;
-        try { response = await fetch(url, { signal: AbortSignal.timeout(600000) }); }
-        catch { throw new Error('Blog-only trigger failed or timed out; do not blindly retry an in-flight generation'); }
-        const payload = await response.json();
+        const response = await requestBlogTrigger(url);
+        const payload = response.payload;
         report = { ...report, success: payload.success === true, results: payload.result?.results || [], httpStatus: response.status };
         if (mode === 'publish') {
             report.missing = [];

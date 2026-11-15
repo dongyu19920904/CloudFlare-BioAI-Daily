@@ -40,7 +40,7 @@ test('both prompts teach beginners without inventing a life story or compulsory 
         const prompt = getBlogPrompt(type);
         assert.match(prompt, /高中未毕业，跑过外卖/);
         assert.match(prompt, /不是每篇必须复述/);
-        assert.match(prompt, /一篇只处理一个问题/);
+        assert.match(prompt, /先通读整份日报的所有栏目/);
         assert.match(prompt, /术语第一次出现就用一句日常话解释/);
         assert.match(prompt, /不能靠插入收入/);
     }

@@ -5,24 +5,24 @@ import { selectBlogWritingMaterial, getBlogReaderBrief } from '../src/blogTopic.
 test('the reader question separates age estimates from classification and code use from benchmarks', () => {
     assert.match(getBlogReaderBrief('Brain2Vec 在脑年龄与五项分类任务上评估。', 'bioai-daily'), /不同任务/);
     assert.doesNotMatch(getBlogReaderBrief('Codex 代码库中的相关关系。', 'ai-daily'), /本篇唯一问题：让 AI 改一个功能之前/);
-    assert.doesNotMatch(getBlogReaderBrief('健康研究的新结果。', 'bioai-daily'), /脑年龄|冻结嵌入/);
+    assert.match(getBlogReaderBrief('健康研究的新结果。', 'bioai-daily'), /通读本期各项研究/);
 });
 import { qualifyDailyForPersonalBlog } from '../src/blogQuality.js';
 
-test('AI writing prefers an actionable tool over opening MAU commentary', () => {
+test('AI writing keeps both market news and tools for whole-daily reading', () => {
     const metric = '### 办公 Agent 的 MAU\n\n' + '月活讨论和市场变化。'.repeat(25) + '\n[原帖](https://example.com/mau)';
     const tool = '### Graphify 为 AI 编程助手找相关代码\n\n' + '这个开源工具读取代码库中的关系，帮助查看一个文件关联到哪里。'.repeat(9) + '\n[仓库](https://github.com/example/tool)';
     const selected = selectBlogWritingMaterial(metric + '\n\n' + tool, 'ai-daily');
-    assert.equal(selected, tool);
+    assert.equal(selected, metric + '\n\n' + tool);
     assert.equal(qualifyDailyForPersonalBlog(selected, 'ai-daily').eligible, true);
 });
 
-test('BioAI chooses one relevant explanation instead of combining brain scans and a drug trial', () => {
+test('BioAI keeps both studies without preselecting a single explanation', () => {
     const drug = '### 某药物二期试验的结果\n\n' + '研究给出疾病试验结果。'.repeat(30) + '\n[报道](https://example.com/drug)';
     const tool = '### Brain2Vec 脑年龄预测工具\n\n' + 'AI 研究使用扫描数据来预测脑年龄，公开了研究工具。'.repeat(12) + '\n[论文](https://example.com/brain)';
     const selected = selectBlogWritingMaterial(drug + '\n\n' + tool, 'bioai-daily');
-    assert.equal(selected, tool);
-    assert.ok(!selected.includes('example.com/drug'));
+    assert.equal(selected, drug + '\n\n' + tool);
+    assert.ok(selected.includes('example.com/drug'));
 });
 
 test('thin or unstructured input remains subject to the existing source gate', () => {

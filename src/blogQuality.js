@@ -227,7 +227,8 @@ export function stripDailyBlogExtras(dailyContent) {
             if (supplementLevel !== null && level <= supplementLevel) supplementLevel = null;
             if (/相关问题|常见问题|\bFAQ\b/i.test(heading[2])) supplementLevel = level;
         }
-        return supplementLevel === null && !/utm_campaign|自助下单|卡密秒发/.test(line);
+        // Tracking parameters belong to source URLs, not advertising-line classification.
+        return supplementLevel === null && !/^\s*(?:>\s*)?(?:[-*]\s*)?(?:官网)?(?:自助下单|卡密秒发)(?:[：:，,\s]|$)/.test(line);
     }).join('\n');
 }
 
