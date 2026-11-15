@@ -34,9 +34,10 @@ test('one broken stream may recover once without appending its partial draft', a
     assert.equal(recoveries, 1);
 });
 
-test('personal writing can use the configured backup without mutating other tasks or leaking keys', () => {
+test('personal writing honors the configured primary; backup routing is explicit and never mutates other jobs', () => {
     const env = Object.freeze({ USE_MODEL_PLATFORM: 'ANTHROPIC', ANTHROPIC_API_BASE_URL: 'https://primary.invalid', ANTHROPIC_API_KEY: 'primary-key', DEFAULT_ANTHROPIC_MODEL: 'primary', ANTHROPIC_BACKUP_API_BASE_URL: 'https://backup.invalid', ANTHROPIC_BACKUP_API_KEY: 'backup-key', DEFAULT_ANTHROPIC_BACKUP_MODEL: 'backup' });
-    const selected = getBlogWritingEnvironment(env);
+    assert.equal(getBlogWritingEnvironment(env), env);
+    const selected = getBlogWritingEnvironment({ ...env, BLOG_MODEL_ROUTE: 'backup' });
     assert.equal(selected.DEFAULT_ANTHROPIC_MODEL, 'backup');
     assert.equal(selected.ANTHROPIC_API_KEY, 'backup-key');
     assert.equal(selected.ANTHROPIC_API_BASE_URL, 'https://backup.invalid/v1/messages');
@@ -46,7 +47,7 @@ test('personal writing can use the configured backup without mutating other task
 });
 
 test('an unauthorized blog backup may use a distinct configured primary once', async () => {
-    const env = Object.freeze({ USE_MODEL_PLATFORM:'ANTHROPIC',ANTHROPIC_API_BASE_URL:'https://primary.invalid',ANTHROPIC_API_KEY:'primary-key',DEFAULT_ANTHROPIC_MODEL:'primary',ANTHROPIC_BACKUP_API_BASE_URL:'https://backup.invalid',ANTHROPIC_BACKUP_API_KEY:'backup-key',DEFAULT_ANTHROPIC_BACKUP_MODEL:'backup' });
+    const env = Object.freeze({ BLOG_MODEL_ROUTE:'backup',USE_MODEL_PLATFORM:'ANTHROPIC',ANTHROPIC_API_BASE_URL:'https://primary.invalid',ANTHROPIC_API_KEY:'primary-key',DEFAULT_ANTHROPIC_MODEL:'primary',ANTHROPIC_BACKUP_API_BASE_URL:'https://backup.invalid',ANTHROPIC_BACKUP_API_KEY:'backup-key',DEFAULT_ANTHROPIC_BACKUP_MODEL:'backup' });
     let calls = 0;
     const clients = { async *stream(selected) { assert.equal(selected.ANTHROPIC_API_KEY,'backup-key'); throw new Error('Anthropic Chat API error (401)'); }, async nonStream(selected) { calls++; assert.equal(selected.ANTHROPIC_API_KEY,'primary-key'); assert.equal(selected.ANTHROPIC_BACKUP_API_KEY,''); assert.equal(selected.DEFAULT_ANTHROPIC_MODEL,'primary'); return 'complete primary draft'; } };
     assert.equal(await streamChat(env,'input','system',clients),'complete primary draft');
