@@ -186,7 +186,9 @@ ${instructions}
 修完在这次输出内部检查刚才列出的问题确实消失，尤其是假学习史不能保留。只输出第一行标题、空行、随后正文 Markdown，末尾保留参考资料；不输出修改说明或审稿过程。`;
 
     const repairEnv = context.severe.includes('model_failure_or_identity_leak') && env.DEFAULT_ANTHROPIC_BACKUP_MODEL
-        ? { ...env, DEFAULT_ANTHROPIC_MODEL: env.DEFAULT_ANTHROPIC_BACKUP_MODEL, ...(env.ANTHROPIC_BACKUP_API_KEY ? { BLOG_MODEL_ROUTE: 'backup' } : {}) }
+        ? env.ANTHROPIC_BACKUP_API_KEY
+            ? { ...env, BLOG_MODEL_ROUTE: 'backup' }
+            : { ...env, DEFAULT_ANTHROPIC_MODEL: env.DEFAULT_ANTHROPIC_BACKUP_MODEL }
         : env;
     const output = await streamChat(repairEnv, userPrompt, systemPrompt);
     return parseBlogOutput(output);

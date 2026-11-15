@@ -59,6 +59,20 @@ test('an unauthorized blog backup may use a distinct configured primary once', a
     await assert.rejects(streamChat(same,'input','system',{async *stream(){throw new Error('Anthropic Chat API error (403)');},async nonStream(){assert.fail('same unauthorized route retried');}}),/403/);
 });
 
+test('identity repair preserves the true primary model when the explicit backup rejects authentication', async t => {
+    const calls = [];
+    t.mock.method(globalThis, 'fetch', async (url, options) => {
+        const payload = JSON.parse(options.body);
+        calls.push({ url: String(url), model: payload.model });
+        if (String(url).includes('backup.invalid')) return Response.json({ error: { message: 'rejected' } }, { status: 401 });
+        return Response.json({ content: [{ type: 'text', text: '几项工具需要看清适用条件\n\n我更在意结果是否有依据。' }] });
+    });
+    const env = Object.freeze({ USE_MODEL_PLATFORM:'ANTHROPIC',ANTHROPIC_API_BASE_URL:'https://primary.invalid',ANTHROPIC_API_KEY:'primary-key',DEFAULT_ANTHROPIC_MODEL:'primary',ANTHROPIC_BACKUP_API_BASE_URL:'https://backup.invalid',ANTHROPIC_BACKUP_API_KEY:'backup-key',DEFAULT_ANTHROPIC_BACKUP_MODEL:'backup' });
+    await repairBlogDraft(env, { title: '原稿', body: '我是一个 AI 助手。' }, { blogType: 'ai-daily', dateStr: '2026-11-14', signals: [], dailyContent: 'AI 工具材料。', severe: ['model_failure_or_identity_leak'] });
+    assert.deepEqual(calls.map(call => call.model), ['backup', 'primary']);
+    assert.equal(env.DEFAULT_ANTHROPIC_MODEL, 'primary');
+});
+
 test('preview repairs one refusal on the configured backup and never writes files or KV', async t => {
     const paragraph = '我经营爱窝啦 AI 账号店，也在尝试 AI 一人公司。客服与教程的解释成本，让我更关心工具是否稳定交付。公开研究的阶段与实际项目效果需要分别看待。';
     const good = `让自动化先完成一次真实交付\n\n${Array(7).fill(paragraph).join('\n\n')}\n\n## 参考资料\n\n- [原始研究](https://example.com/research)`;
