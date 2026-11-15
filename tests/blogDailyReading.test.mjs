@@ -25,6 +25,8 @@ test('complete report and final column reach both actual writing prompts', () =>
         for (const url of urls) assert.ok(prompt.includes(url));
         assert.match(prompt, /3–5 件独立材料/);
         assert.doesNotMatch(getBlogPrompt(blogType), /选一项研究|选一个工具或办法|正文约 600–850/);
+        assert.match(getBlogPrompt(blogType), /两个现象一起出现不自动证明因果/);
+        assert.match(getBlogPrompt(blogType), /不从脑区名、分子全名或实验设计讲起/);
     }
     assert.throws(() => selectBlogWritingMaterial('a'.repeat(80001)), /no silent truncation/);
 });
