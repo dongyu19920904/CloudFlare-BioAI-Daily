@@ -16,6 +16,7 @@ test('actual preview wording cannot invent an earlier personal belief', () => {
     assert.ok(validateBlogDraft({ ...base, body: '这件事我一直觉得可以单纯用意志力解释，直到看到这项研究。' }).severe.includes('unsupported_author_tool_routine'));
     assert.ok(validateBlogDraft({ ...base, body: '以前我默认那是外部条件造成的，现在知道了原因。' }).severe.includes('unsupported_author_tool_routine'));
     assert.ok(!validateBlogDraft({ ...base, body: '我更在意这些结果能回答什么问题。' }).severe.includes('unsupported_author_tool_routine'));
+    assert.ok(!validateBlogDraft({ ...base, body: '花钱之前，我认为应该先核对研究对象。' }).severe.includes('unsupported_author_tool_routine'));
 });
 
 test('actual preview unsupported causes, hardware additions and human titles are severe, not style scoring', () => {
@@ -30,8 +31,11 @@ test('actual preview unsupported causes, hardware additions and human titles are
     assert.ok(!validateBlogDraft({ ...base, body: '调用 API 并不意味着数据出境，需要看实际的部署条件。' }).severe.includes('unsupported_cloud_privacy_claim'));
     assert.ok(validateBlogDraft({ ...base, body: '这个模型没有第三方复测。' }).severe.includes('unsupported_absence_claim'));
     assert.ok(!validateBlogDraft({ ...base, body: '这份摘要没有第三方复测的信息。' }).severe.includes('unsupported_absence_claim'));
+    assert.ok(!validateBlogDraft({ ...base, body: '厂商自测不意味着没有独立复测。' }).severe.includes('unsupported_absence_claim'));
+    assert.ok(!validateBlogDraft({ ...base, body: '不能说雷雳5是苹果的专属接口。' }).severe.includes('unsupported_hardware_fact'));
     assert.ok(validateBlogDraft({ ...base, blogType: 'bioai-daily', title: '年纪越大越不想动，原来不只是懒', body: '小鼠研究提供了一项线索。' }).severe.includes('unsupported_animal_to_human_title'));
     assert.ok(validateBlogDraft({ ...base, blogType: 'bioai-daily', body: '现在没有临床标准规定这个指标应该怎么处理。' }).severe.includes('unsupported_bio_generalization'));
+    assert.ok(!validateBlogDraft({ ...base, blogType: 'bioai-daily', body: '不能断言现在没有临床标准。' }).severe.includes('unsupported_bio_generalization'));
 });
 
 test('complete report and final column reach both actual writing prompts', () => {
